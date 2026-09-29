@@ -253,6 +253,36 @@ def test_chn01_is_only_taken_from_the_channel_never_derived():
     assert [m["rule_id"] for m in with_signal.matched] == ["CHN-01"]
 
 
+def test_chn04_and_chn05_reach_lane_a_when_the_channel_sends_them():
+    """Before this, device_risk_score/behavior_anomaly_score reached Lane B (the batch
+    detection engine) but decide.py never threaded them into the txn dict evaluate() reads
+    - so Lane A could never see them no matter what a caller sent. Same shape as CHN-01/
+    risk_signals: absent is unmeasured, present is scored, never derived or defaulted."""
+    from services.decision_service.app import evaluate as ev_mod
+    from services.decision_service.app.counters import MemoryCounterStore
+
+    store = MemoryCounterStore()
+    store.write("t1", "A1", {"baseline_mean_paise": 1000.0})
+    rules = [{"rule_id": "CHN-04", "family": "CHN", "threshold": 0.7, "comparator": "gte"},
+             {"rule_id": "CHN-05", "family": "CHN", "threshold": 0.7, "comparator": "gte"}]
+    base = {"debtor_account": "A1", "creditor_account": "B1",
+            "amount_paise": 5_000_000, "rail": "UPI"}
+
+    without = ev_mod.evaluate(rules=rules, request=dict(base), store=store,
+                              tenant_id="t1", budget_ms=100)
+    assert without.matched == [], "no channel signal means unmeasured, not scored clean"
+
+    with_signals = ev_mod.evaluate(
+        rules=rules, request={**base, "device_risk_score": 0.91, "behavior_anomaly_score": 0.83},
+        store=store, tenant_id="t1", budget_ms=100)
+    assert {m["rule_id"] for m in with_signals.matched} == {"CHN-04", "CHN-05"}
+
+    below_threshold = ev_mod.evaluate(
+        rules=rules, request={**base, "device_risk_score": 0.2, "behavior_anomaly_score": 0.1},
+        store=store, tenant_id="t1", budget_ms=100)
+    assert below_threshold.matched == [], "measured but below threshold must not fire"
+
+
 def test_the_catalogue_is_never_fetched_on_the_decision_path():
     """An HTTP call inside a payment window is the one thing this lane exists to avoid.
     A miss schedules a background reload and returns what is held."""

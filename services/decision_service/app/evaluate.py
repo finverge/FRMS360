@@ -146,6 +146,18 @@ def evaluate(*, rules, request: dict, store: CounterStore, tenant_id: str,
     if "risk_signals" in request:
         observed["CHN-01"] = float(request["risk_signals"])
 
+    # Same shape as CHN-01/risk_signals above: an integrated device-fingerprinting /
+    # behavioural-biometrics provider computes these off-platform (see
+    # cp_common.observations.observe()'s own CHN-04/CHN-05 handling) and sends the score
+    # alongside the authorization call. txn never carries them (built above from only
+    # debtor/creditor/amount/rail/device/ts), so without this they can never reach Lane A
+    # no matter what a caller sends - unlike Lane B, which already reads them off the
+    # settled transaction. Absent is left unmeasured, never scored as clean.
+    if "device_risk_score" in request:
+        observed["CHN-04"] = float(request["device_risk_score"])
+    if "behavior_anomaly_score" in request:
+        observed["CHN-05"] = float(request["behavior_anomaly_score"])
+
     eval_started = time.perf_counter()
     for i, r in enumerate(inline):
         # Budget check between rules. Whatever is left is reported, not silently dropped.

@@ -38,6 +38,12 @@ INLINE_SOURCE: dict[str, str] = {
     # the context carries no device or counterparty *sets*, so every payment would look
     # like a new device to a new payee and the indicator would fire on all of them.
     "CHN-01": "request",
+    # Same shape as CHN-01: an integrated device-fingerprinting / behavioural-biometrics
+    # provider scores the session before authorisation completes and sends the number
+    # with the payment - there is nothing to derive from a rebuilt context, only a
+    # threshold to apply. See evaluate.py's request-to-txn handling for the read side.
+    "CHN-04": "request",
+    "CHN-05": "request",
 }
 
 #: rule id -> why it cannot be answered inside the payment window.
