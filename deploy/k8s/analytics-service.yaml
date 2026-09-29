@@ -1,0 +1,104 @@
+# Analytics-service on Kubernetes. The other services follow the same shape; this one
+# carries the comments because it is the one that scales and the one whose correctness
+# depends on getting the probes and the cache backend right.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics-service
+  labels: { app: analytics-service }
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: analytics-service }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0     # never drop below the declared replica count during a deploy
+      maxSurge: 1
+  template:
+    metadata:
+      labels: { app: analytics-service }
+    spec:
+      containers:
+        - name: analytics-service
+          image: finverge/control-plane:latest
+          command: ["uvicorn", "services.analytics_service.app.main:app",
+                    "--host", "0.0.0.0", "--port", "8084"]
+          ports:
+            - containerPort: 8084
+          env:
+            # Its own database role: the pod cannot reach the tenant register even if the
+            # code asked it to. See scripts/provision_db_roles.py.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: analytics-db, key: url }
+            - name: DB_SEARCH_PATH
+              value: "analytics,cases,platform"
+            # With replicas > 1 a process-local cache would let two pods serve different
+            # generations of a tenant's configuration. The startup guard refuses to boot
+            # on 'memory' here, so a mistake in this value fails the rollout rather than
+            # quietly producing inconsistent figures.
+            - name: CACHE_BACKEND
+              value: "database"
+            - name: APP_REPLICAS
+              value: "3"
+          livenessProbe:
+            # No database dependency. If this checked the database, one brief outage
+            # would fail liveness on every pod at once and the cluster would restart the
+            # entire deployment - turning a dependency wobble into a full outage.
+            httpGet: { path: /health/live, port: 8084 }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            # This one does check the database: a pod that cannot reach its schema should
+            # leave the Service endpoints, not serve errors.
+            httpGet: { path: /health/ready, port: 8084 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 2
+          resources:
+            requests: { cpu: "200m", memory: "256Mi" }
+            limits:   { cpu: "1000m", memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: analytics-service
+spec:
+  selector: { app: analytics-service }
+  ports:
+    - port: 8084
+      targetPort: 8084
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: analytics-service
+spec:
+  # A node drain must not be able to take the last replica with it.
+  minAvailable: 2
+  selector:
+    matchLabels: { app: analytics-service }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: analytics-service
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: analytics-service
+  minReplicas: 3
+  maxReplicas: 12
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }
+  behavior:
+    scaleDown:
+      # Analytical load is bursty. Scaling down eagerly means the next burst hits a cold
+      # pool, so wait for the quiet period to be real.
+      stabilizationWindowSeconds: 300

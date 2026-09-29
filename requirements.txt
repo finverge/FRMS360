@@ -1,0 +1,32 @@
+# Shared runtime for all control-plane microservices (single image, one install).
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+sqlalchemy==2.0.31
+psycopg2-binary==2.9.9
+pydantic==2.7.4
+pydantic-settings==2.3.4
+PyJWT[crypto]==2.8.0     # crypto extra: RS256 verification of IdP-issued ID tokens
+bcrypt==4.1.3
+httpx==0.27.0
+python-multipart==0.0.9
+alembic==1.13.2
+pyotp==2.9.0            # RFC 6238 TOTP for multi-factor authentication
+qrcode==8.0             # enrolment QR as SVG - no client-side library, air-gap safe
+signxml==5.1.0          # SAML assertion signature verification (pulls lxml)
+lxml==6.1.1             # hardened XML parsing for SAML; never used with entity resolution
+# AI/ML roadmap Phase 2 (HLD AD-14): analytics-service's model-scoring step only.
+# CPU-only, no GPU stack - see model_scoring.py.
+numpy==2.1.3
+scikit-learn==1.5.2
+joblib==1.4.2
+# AI/ML roadmap Phase 3 (HLD AD-15): analytics-service's GNN scoring step only (scripts/
+# train_graph_ring_score_model.py, scripts/refresh_ring_scores.py). CPU-only build - the
+# extra index below is required, or a plain PyPI install can pull CUDA runtime wheels
+# many times larger than a CPU deployment needs. Recorded separately from AD-14's
+# scikit-learn/joblib/numpy: a materially heavier, more fragile dependency chain, not one
+# that should look bundled with Phase 2's. torch-scatter/torch-sparse are NOT required -
+# PyG 2.x's pure-PyTorch message-passing fallback covers SAGEConv, avoiding the
+# historically painful compiled-extension install those packages need.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.14.0+cpu
+torch_geometric==2.8.0.post1

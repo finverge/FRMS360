@@ -1,0 +1,2141 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fraud360 — High-Level Design</title>
+
+<style>
+:root {
+  --accent:#16565C; --accent-soft:#E3EFEF; --ink:#101820; --ink-2:#35474B;
+  --muted:#64777A; --paper:#F7F9F9; --card:#FFFFFF; --rule:#DCE5E5;
+  --rule-strong:#C2D2D2; --ok:#17683F; --ok-bg:#E4F1E9; --warn:#8A5D08;
+  --warn-bg:#F8EED8; --crit:#A32218; --crit-bg:#F8E3E1; --info-bg:#E5EEF4;
+  --shadow:0 1px 2px rgba(16,24,32,.05), 0 8px 24px rgba(16,24,32,.05);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent:#4FB0B6; --accent-soft:#16292B; --ink:#E7EFEF; --ink-2:#B7C6C7;
+    --muted:#85999B; --paper:#0C1214; --card:#121A1C; --rule:#22302F;
+    --rule-strong:#32433F; --ok:#6FCB98; --ok-bg:#10251A; --warn:#E0B457;
+    --warn-bg:#291F0C; --crit:#F08A80; --crit-bg:#2A1412; --info-bg:#10202A;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"] {
+  --accent:#4FB0B6; --accent-soft:#16292B; --ink:#E7EFEF; --ink-2:#B7C6C7;
+  --muted:#85999B; --paper:#0C1214; --card:#121A1C; --rule:#22302F;
+  --rule-strong:#32433F; --ok:#6FCB98; --ok-bg:#10251A; --warn:#E0B457;
+  --warn-bg:#291F0C; --crit:#F08A80; --crit-bg:#2A1412; --info-bg:#10202A;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
+}
+:root[data-theme="light"] {
+  --accent:#16565C; --accent-soft:#E3EFEF; --ink:#101820; --ink-2:#35474B;
+  --muted:#64777A; --paper:#F7F9F9; --card:#FFFFFF; --rule:#DCE5E5;
+  --rule-strong:#C2D2D2; --ok:#17683F; --ok-bg:#E4F1E9; --warn:#8A5D08;
+  --warn-bg:#F8EED8; --crit:#A32218; --crit-bg:#F8E3E1; --info-bg:#E5EEF4;
+  --shadow:0 1px 2px rgba(16,24,32,.05), 0 8px 24px rgba(16,24,32,.05);
+}
+* { box-sizing: border-box; }
+body { margin:0; background:var(--paper); color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+  font-size:15.5px; line-height:1.62; -webkit-font-smoothing:antialiased; }
+.wrap { display:grid; grid-template-columns:250px minmax(0,1fr); gap:48px;
+  max-width:1240px; margin:0 auto; padding:0 32px 96px; }
+nav.toc { position:sticky; top:0; align-self:start; max-height:100vh; overflow-y:auto;
+  padding:40px 0; }
+nav.toc h2 { font:600 10.5px/1 system-ui,sans-serif; text-transform:uppercase;
+  letter-spacing:.12em; color:var(--muted); margin:0 0 14px; }
+nav.toc ol { list-style:none; margin:0; padding:0; display:flex; flex-direction:column;
+  gap:1px; counter-reset:toc; }
+nav.toc a { display:grid; grid-template-columns:22px 1fr; gap:8px; padding:5px 8px 5px 0;
+  text-decoration:none; color:var(--ink-2); font-size:13px; border-radius:5px; line-height:1.4; }
+nav.toc a::before { counter-increment:toc; content:counter(toc);
+  font:500 11px/1.5 ui-monospace,Menlo,Consolas,monospace; color:var(--muted); text-align:right; }
+nav.toc a:hover { color:var(--accent); background:var(--accent-soft); }
+nav.toc a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+header.doc { padding:56px 0 28px; border-bottom:2px solid var(--ink); }
+.kicker { font:600 11px/1 system-ui,sans-serif; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--accent); margin-bottom:18px; }
+header.doc h1 { font-family:Georgia,"Iowan Old Style","Times New Roman",serif;
+  font-size:clamp(30px,4.4vw,46px); line-height:1.1; font-weight:600; letter-spacing:-.015em;
+  margin:0 0 12px; text-wrap:balance; }
+.standfirst { font-size:17px; color:var(--ink-2); max-width:62ch; margin:0; }
+.control { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:0;
+  border:1px solid var(--rule); border-radius:8px; margin:28px 0 8px; overflow:hidden;
+  background:var(--card); }
+.control div { padding:11px 14px; border-right:1px solid var(--rule); }
+.control div:last-child { border-right:0; }
+.control dt { font:600 9.5px/1 system-ui,sans-serif; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--muted); margin-bottom:5px; }
+.control dd { margin:0; font-size:13.5px; font-weight:500; }
+main { counter-reset:sec; padding-top:8px; }
+section { padding-top:44px; scroll-margin-top:16px; }
+section > h2 { counter-increment:sec; font-family:Georgia,"Iowan Old Style",serif;
+  font-size:25px; font-weight:600; line-height:1.22; letter-spacing:-.01em; margin:0 0 6px;
+  display:grid; grid-template-columns:44px 1fr; gap:4px; text-wrap:balance; }
+section > h2::before { content:counter(sec) "."; color:var(--accent);
+  font:500 17px/1.55 ui-monospace,Menlo,Consolas,monospace; }
+section > h2 + .lede { margin:0 0 20px 44px; color:var(--ink-2); max-width:68ch; }
+h3 { font-family:Georgia,serif; font-size:17.5px; font-weight:600; margin:30px 0 8px;
+  letter-spacing:-.005em; }
+h4 { font:600 11px/1 system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--muted); margin:24px 0 8px; }
+p { max-width:72ch; margin:0 0 14px; }
+ul, ol.body { max-width:72ch; padding-left:20px; margin:0 0 14px; }
+li { margin-bottom:5px; }
+strong { font-weight:640; }
+a { color:var(--accent); }
+.tw { overflow-x:auto; margin:16px 0 22px; border:1px solid var(--rule); border-radius:8px;
+  background:var(--card); box-shadow:var(--shadow); }
+table { border-collapse:collapse; width:100%; font-size:13.5px; font-variant-numeric:tabular-nums; }
+th { text-align:left; font:600 10px/1.3 system-ui,sans-serif; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--muted); padding:11px 14px;
+  border-bottom:1px solid var(--rule-strong); white-space:nowrap; background:var(--paper); }
+td { padding:10px 14px; border-bottom:1px solid var(--rule); vertical-align:top; line-height:1.5; }
+tbody tr:last-child td { border-bottom:0; }
+td.id, code, .mono { font-family:ui-monospace,"Cascadia Code",Menlo,Consolas,monospace;
+  font-size:12.3px; }
+td.id { white-space:nowrap; color:var(--accent); font-weight:500; }
+code { background:var(--accent-soft); padding:1px 5px; border-radius:4px; }
+pre.api { background:var(--paper); color:var(--ink); border:1px solid var(--rule);
+  border-left:3px solid var(--accent); border-radius:8px; padding:12px 14px;
+  overflow-x:auto; font:500 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+  margin:8px 0 14px; white-space:pre; }
+pre.api .c { color:var(--muted); font-style:italic; }
+.api-label { font:700 10px/1.6 system-ui,sans-serif; letter-spacing:.07em;
+  text-transform:uppercase; color:var(--muted); margin:14px 0 2px; }
+.sub-toc { color:var(--muted); font-weight:400; }
+/* Code blocks must not straddle a page break: half a JSON body across two pages is
+   unreadable, and these are short enough to keep whole. */
+@media print { pre.api { break-inside:avoid; font-size:9.5px; line-height:1.42; }
+  .api-label { break-after:avoid; } } }
+.chip { display:inline-block; font:600 10px/1.6 system-ui,sans-serif; letter-spacing:.04em;
+  padding:1px 8px; border-radius:20px; white-space:nowrap; text-transform:uppercase; }
+.built { background:var(--ok-bg); color:var(--ok); }
+.partial { background:var(--warn-bg); color:var(--warn); }
+.pending { background:var(--crit-bg); color:var(--crit); }
+.note { border-left:3px solid var(--accent); background:var(--card); padding:14px 18px;
+  margin:18px 0; border-radius:0 8px 8px 0; max-width:76ch; box-shadow:var(--shadow); }
+.note h5 { font:600 10.5px/1 system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--accent); margin:0 0 7px; }
+.note p:last-child { margin-bottom:0; }
+.note.risk { border-left-color:var(--crit); }
+.note.risk h5 { color:var(--crit); }
+.diagram { border:1px solid var(--rule); border-radius:8px; background:var(--card); padding:20px;
+  margin:18px 0 22px; overflow-x:auto; box-shadow:var(--shadow); }
+.diagram .cap { font-size:12px; color:var(--muted); margin-top:12px; padding-top:10px;
+  border-top:1px solid var(--rule); max-width:76ch; }
+pre.mermaid { margin:0; text-align:center; }
+
+/* Capability stack. Hand-laid rather than generated: a layered block diagram is a table
+   of capabilities, not a graph, and drawing it as CSS keeps the type at a fixed size
+   instead of being scaled to whatever width a layout engine happened to produce. */
+.stack { display:grid; grid-template-columns:86px minmax(0,1fr); gap:7px 12px;
+  align-items:stretch; margin:4px 0 0; }
+.stack .band { font:600 9.5px/1.3 system-ui,sans-serif; letter-spacing:.05em;
+  text-transform:uppercase; color:var(--muted); display:flex; align-items:center;
+  justify-content:flex-end; text-align:right; }
+.stack .row { display:grid; gap:7px; grid-auto-flow:column; grid-auto-columns:1fr; }
+.stack .cell { border:1px solid var(--rule-strong); border-radius:6px; background:var(--card);
+  padding:8px 10px; display:flex; flex-direction:column; justify-content:center;
+  min-height:38px; }
+.stack .cell b { font:600 11.5px/1.35 system-ui,sans-serif; color:var(--ink);
+  display:block; }
+.stack .cell span { font-size:9.8px; line-height:1.4; color:var(--muted); display:block;
+  margin-top:2px; }
+/* The three governance columns carry lists rather than a one-line label. */
+.stack .row.cards { grid-auto-columns:1fr; }
+.stack .cell.card { background:var(--accent-soft); border-color:var(--accent);
+  padding:10px 12px; }
+.stack .cell.card b { color:var(--accent); font-size:12px; text-align:center;
+  margin-bottom:5px; }
+.stack .cell.card ul { margin:0; padding-left:13px; max-width:none; }
+.stack .cell.card li { font-size:9.8px; line-height:1.45; color:var(--ink-2);
+  margin-bottom:1px; }
+.stack .cell.gap { background:var(--warn-bg); border-color:var(--warn); border-style:dashed; }
+.stack .cell.gap b { color:var(--warn); }
+.stack-key { display:flex; gap:18px; flex-wrap:wrap; align-items:center;
+  font-size:10.5px; color:var(--muted); margin-top:12px; padding-top:10px;
+  border-top:1px solid var(--rule); }
+.stack-key i { display:inline-block; width:19px; height:11px; border-radius:3px;
+  border:1px solid var(--rule-strong); background:var(--card); vertical-align:-1px;
+  margin-right:5px; }
+.stack-key i.k-gap { background:var(--warn-bg); border-color:var(--warn); border-style:dashed; }
+.stack-key i.k-card { background:var(--accent-soft); border-color:var(--accent); }
+
+/* Deployment architecture. Hand-drawn for the same reason as the stack: the viewBox fixes
+   the geometry, so the type size on the printed page is known rather than whatever a
+   layout engine's natural width happened to scale it to. Height is held under 0.77x the
+   width so the column, not the print height cap, stays the binding constraint. */
+svg.depl { display:block; width:100%; height:auto; }
+svg.depl text { font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+svg.depl .zones rect { fill:var(--paper); stroke:var(--rule); stroke-width:1; }
+svg.depl .zl text { font-size:10px; font-weight:600; letter-spacing:.05em; fill:var(--muted);
+  text-anchor:end; }
+svg.depl .b { fill:var(--card); stroke:var(--rule-strong); stroke-width:1; }
+svg.depl .b.acc { fill:var(--accent-soft); stroke:var(--accent); }
+svg.depl .bt { font-size:12px; font-weight:650; fill:var(--ink); text-anchor:middle; }
+svg.depl .bs { font-size:10.4px; fill:var(--muted); text-anchor:middle; }
+svg.depl .role { font-size:9.6px; font-weight:600; fill:var(--accent); text-anchor:middle;
+  font-family:ui-monospace,Consolas,monospace; }
+svg.depl .role.gap { fill:var(--warn); font-family:inherit; }
+svg.depl .flow { stroke:var(--muted); stroke-width:1.4; fill:none; }
+svg.depl .fl { font-size:10px; fill:var(--muted); }
+svg.depl .chip-g rect { fill:var(--card); stroke:var(--accent); stroke-width:1; opacity:.9; }
+svg.depl .ct { font-size:10.2px; font-weight:650; fill:var(--ink); text-anchor:middle; }
+svg.depl .cs { font-size:9.4px; fill:var(--muted); text-anchor:middle; }
+footer { margin-top:64px; padding-top:20px; border-top:1px solid var(--rule); font-size:12.5px;
+  color:var(--muted); max-width:72ch; }
+@media (max-width:900px) {
+  .wrap { grid-template-columns:1fr; gap:0; padding:0 20px 64px; }
+  nav.toc { position:static; max-height:none; padding:28px 0 0; border-bottom:1px solid var(--rule); }
+  nav.toc ol { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); }
+  section > h2 { grid-template-columns:34px 1fr; }
+  section > h2 + .lede { margin-left:34px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+</style>
+
+<div class="wrap">
+
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#h1">Design principles</a></li>
+    <li><a href="#h2">System context</a></li>
+    <li><a href="#h2b">Capability architecture</a></li>
+    <li><a href="#h3">Service decomposition</a></li>
+    <li><a href="#h4">Data architecture</a></li>
+    <li><a href="#h5">Ingestion &amp; rail adapters</a></li>
+    <li><a href="#h6">Detection runtime</a></li>
+    <li><a href="#h6c">Inline decisioning &mdash; Lane A</a> <span class="sub-toc">&mdash; incl. the UPI / IMPS API contract</span></li>
+    <li><a href="#h6b">Backfill, replay &amp; simulation</a></li>
+    <li><a href="#h7">Case lifecycle engine</a></li>
+    <li><a href="#h7b">Regulatory artefacts</a></li>
+    <li><a href="#h8">Reconciliation by construction</a></li>
+    <li><a href="#h9">Multi-tenancy &amp; isolation</a></li>
+    <li><a href="#h10">Identity &amp; access</a></li>
+    <li><a href="#h10b">Data protection &amp; retention</a></li>
+    <li><a href="#h11">Reliability &amp; scale</a></li>
+    <li><a href="#h12">Observability &amp; metering</a></li>
+    <li><a href="#h13">Deployment architecture</a></li>
+    <li><a href="#h14">Decision record</a></li>
+    <li><a href="#h15">Known gaps</a></li>
+    <li><a href="#h16">AI/ML roadmap — architecture</a></li>
+  </ol>
+</nav>
+
+<div>
+<header class="doc">
+  <div class="kicker">High-Level Design · v1.6</div>
+  <h1>Platform Architecture</h1>
+  <p class="standfirst">Seven services, eight data domains, one metric definition. How
+  Fraud360 ingests payments and core-banking events, scores them against each bank's own
+  configuration, and carries a signal through to a defensible regulatory filing.</p>
+
+  <dl class="control">
+    <div><dt>Document</dt><dd>HLD / FRMS-EWS</dd></div>
+    <div><dt>Version</dt><dd>1.6</dd></div>
+    <div><dt>Date</dt><dd>28 September 2026</dd></div>
+    <div><dt>Stack</dt><dd>Python · FastAPI · PostgreSQL</dd></div>
+    <div><dt>Companion</dt><dd>BRD v1.7</dd></div>
+  </dl>
+
+  <div class="note">
+    <h5>What changed since v1.0</h5>
+    <p>v1.0 described a platform with no authentication layer worth the name, no way to
+    file a return, and eight detection indicators inert for want of data feeds. All three
+    have been closed. This revision rewrites <b>identity and access</b> (§13) and
+    <b>data protection</b> (§14) from scratch, adds <b>regulatory artefacts</b> (§10),
+    <b>backfill, replay and simulation</b> (§8) and a seventh service, and restates the
+    gap register against the R1–R5 release gates in BRD v1.7. Sections whose design has
+    not changed are unchanged.</p>
+  </div>
+</header>
+
+<main>
+
+<section id="h1">
+  <h2>Design principles</h2>
+  <p class="lede">Five constraints that decide most arguments before they start. Where a
+  later section makes a surprising choice, it is usually one of these.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>#</th><th>Principle</th><th>Consequence</th></tr></thead>
+      <tbody>
+        <tr><td class="id">P1</td><td><strong>One definition per figure.</strong> Every metric is defined once and read by every surface</td><td>Dashboards cannot disagree. Rules out per-screen SQL and rules out eventually-consistent read models for reported metrics</td></tr>
+        <tr><td class="id">P2</td><td><strong>The control plane governs behaviour.</strong> Detection reads the tenant's configuration, never a constant</td><td>Retuning a band in the console changes what fires, with no deploy. A badly-tuned band genuinely misses fraud</td></tr>
+        <tr><td class="id">P3</td><td><strong>Fail loudly, never degrade quietly.</strong> A component that cannot do its job correctly refuses rather than approximating</td><td>Unsafe configurations refuse to boot; an unreachable catalogue halts scoring rather than inventing thresholds</td></tr>
+        <tr><td class="id">P4</td><td><strong>Procedural guarantees live in code, not policy.</strong> Natural justice, dual control and evidence requirements are enforced</td><td>The lifecycle is a state machine with guards, not a status column</td></tr>
+        <tr><td class="id">P5</td><td><strong>Absence is reported, not filled in.</strong> An indicator with no data feed stays silent and says why</td><td>The dormant register is meaningful. Nothing is approximated to make a screen look busy</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="h2">
+  <h2>System context</h2>
+  <p class="lede">What the platform talks to, and where the trust boundaries fall.</p>
+
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    subgraph SRC["the bank's estate"]
+      direction TB
+      RAILS["<b>Payment rails</b><br/>UPI · IMPS · NEFT · RTGS · Card"]
+      CBSF["<b>Core banking</b><br/>loan conduct · 7 event kinds"]
+      REF["<b>Reference feeds</b><br/>sanctions · PEP · negative list<br/>CERSAI charges · group register"]
+      IDP["<b>Identity provider</b><br/>OIDC · SAML 2.0"]
+      EXT["invoice · geolocation · trade finance"]
+    end
+
+    FR["<b>Fraud360</b><br/>FRMS + EWS<br/>&nbsp;<br/>ingest · score · investigate<br/>declare · file · report"]
+
+    subgraph OUT["recipients"]
+      direction TB
+      USERS["<b>Bank users</b><br/>11 roles · 4 modules<br/>console · email · webhook"]
+      REG["<b>RBI</b> — FMR<br/>NABARD / NHB by entity type<br/><b>FIU-IND</b> — STR"]
+      GOV["<b>Board · ACB</b> — scheduled pack<br/><b>Law enforcement</b> — referral"]
+    end
+
+    RAILS -->|"REST · CSV/SFTP · ISO 20022"| FR
+    CBSF -->|"account-level events"| FR
+    REF -->|"scheduled retrieval"| FR
+    IDP -->|"assertion"| FR
+    EXT -.->|"no feed contracted"| FR
+    FR --> USERS
+    FR --> REG
+    FR --> GOV
+</pre>
+    <p class="cap">The platform as one box, against the systems it touches. Its internal
+    decomposition is §4, the intake path §6, and the scoring path §7. The one dotted line
+    has no contracted feed; the five indicators depending on it report as unmeasurable,
+    never as clean.</p>
+  </div>
+
+  <h3>Interfaces in detail</h3>
+  <p>Every line above, with what actually crosses it. Rails normalise to one canonical
+  transaction at the edge, so no rule ever learns what a UPI collect request looks like.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Interface</th><th>Dir</th><th>Transport / format</th><th>Carries</th><th>Cadence</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Payment rails</strong><br/>UPI · IMPS · NEFT · RTGS · Card</td><td>in</td><td>REST batch (JSON), CSV over SFTP, or ISO 20022 <code>pacs.008</code> / <code>pain.001</code></td><td>Debtor and creditor account, amount in paise, timestamp with offset, rail, channel, device, counterparty. Five adapters, one canonical shape out</td><td>Near-real-time or batched file</td></tr>
+        <tr><td><strong>Core banking</strong><br/>loan conduct</td><td>in</td><td>REST, canonical event envelope</td><td>Seven kinds: loan disbursement, repayment, utilisation, sale proceeds, cash withdrawal, account status, RM observation — with funding source where known</td><td>Event-driven or daily</td></tr>
+        <tr><td><strong>Reference feeds</strong></td><td>in</td><td>HTTPS pull, CSV / JSON / line-delimited, credential sealed at rest</td><td>Five list kinds: sanctions, PEP, negative list, CERSAI charges, group register. Versioned; a materially shrunken feed is refused with the previous version left active</td><td>Scheduled per source</td></tr>
+        <tr><td><strong>Identity provider</strong></td><td>in</td><td>OIDC, or SAML 2.0 POST binding</td><td>Authenticated subject and attributes, read from the signed element. Assertion IDs recorded and replays refused</td><td>Per sign-in</td></tr>
+        <tr><td><strong>Invoice · geolocation · trade finance</strong></td><td>in</td><td>—</td><td><em>No feed contracted.</em> SME-03, CHN-02 and TBM-01/02/03 report unmeasurable with the reason</td><td>—</td></tr>
+        <tr><td><strong>Bank users</strong></td><td>out</td><td>Console (HTTPS), email, webhook</td><td>Dashboards, case work, alerts. 11 roles across 4 modules; compliance-critical notifications ignore per-user mutes</td><td>Interactive; alerts on event</td></tr>
+        <tr><td><strong>RBI</strong> — and NABARD or NHB by entity type</td><td>out</td><td>Generated artefact; format binding <code>not_bound</code> (§10)</td><td>FMR return, assembled from the case, its evidence and the reasoned order; validated, hashed and retained</td><td>Per declaration, against the policy clock</td></tr>
+        <tr><td><strong>FIU-IND</strong></td><td>out</td><td>Generated artefact; format binding <code>not_bound</code></td><td>STR</td><td>Per case</td></tr>
+        <tr><td><strong>Board · ACB</strong></td><td>out</td><td>Rendered pack, delivery recorded per recipient</td><td>Governance pack built from the same metric definitions the board sees on screen</td><td>Scheduled</td></tr>
+        <tr><td><strong>Law enforcement</strong></td><td>out</td><td>Referral record on the case</td><td>Referral and any recovery entries against it</td><td>Per case</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <h5>Why the rail adapters sit at the edge and not in the rules</h5>
+    <p>A UPI collect request, an IMPS P2A transfer and a card authorisation describe the
+    same event with different field names, different amount units and different notions of
+    who initiated it. If that variation reaches the rule engine, every indicator has to
+    know about every rail, and adding a sixth rail means editing twenty-five indicators.
+    Normalising once at intake means a rail is an adapter, and the detection code has
+    never heard of UPI.</p>
+  </div>
+</section>
+
+<section id="h2b">
+  <h2>Capability architecture</h2>
+  <p class="lede">The same platform as a capability stack rather than a flow — what each
+  layer provides, and which capabilities are not yet built.</p>
+
+  <div class="diagram">
+    <div class="stack">
+      <div class="band">Channels</div>
+      <div class="row">
+        <div class="cell"><b>Admin console</b><span>Single-page app, white-labelled per tenant</span></div>
+        <div class="cell"><b>REST API</b><span>Batch and single-record intake, idempotency keys</span></div>
+        <div class="cell"><b>File / SFTP drop</b><span>CSV and ISO 20022, processed once per file</span></div>
+        <div class="cell"><b>Email &amp; webhook</b><span>Outbound alerts and pack delivery</span></div>
+      </div>
+
+      <div class="band">Experience &amp; API</div>
+      <div class="row">
+        <div class="cell"><b>API gateway</b><span>Edge auth · routing · circuit breaking · rate limit</span></div>
+        <div class="cell"><b>Identity, MFA &amp; session</b><span>TOTP, backup codes, OIDC and SAML 2.0, lockout</span></div>
+        <div class="cell"><b>Branding &amp; theming</b><span>Per-tenant tokens, <code>theme.css</code> at runtime</span></div>
+      </div>
+
+      <div class="band">Multi-tenant core</div>
+      <div class="row">
+        <div class="cell"><b>Tenant &amp; onboarding</b><span>Lifecycle, entity type, exit export</span></div>
+        <div class="cell"><b>Config versioning</b><span>One active version, immutable history</span></div>
+        <div class="cell"><b>Case lifecycle</b><span>RFA state machine with guards</span></div>
+        <div class="cell"><b>Document vault</b><span>SHA-256, no delete path</span></div>
+        <div class="cell"><b>Dashboards</b><span>13 persona views, 24 filter dimensions</span></div>
+        <div class="cell"><b>Export &amp; subscriptions</b><span>Watermarked, capped, audited</span></div>
+      </div>
+
+      <div class="band">Intelligence,<br/>risk &amp;<br/>governance</div>
+      <div class="row cards">
+        <div class="cell card">
+          <b>Detection &amp; scoring</b>
+          <ul>
+            <li>25 EWS indicators across 8 families</li>
+            <li>Per-tenant thresholds and comparators</li>
+            <li>Debtor <em>and</em> creditor side scored</li>
+            <li>Graph traversal, circular flow, device clusters</li>
+            <li>Backfill, replay, pre-activation simulation</li>
+            <li>Evaluation trace pinned to config version</li>
+          </ul>
+        </div>
+        <div class="cell card">
+          <b>Analytics &amp; assurance</b>
+          <ul>
+            <li>Single metric registry — 56 definitions</li>
+            <li>16 reconciliation invariants at query time</li>
+            <li>Trend, comparison period, six-stage drill</li>
+            <li>Model drift — PSI, KS, mix shift</li>
+            <li>Model inventory derived from what ran</li>
+            <li>Per-tenant usage metering, finalised daily</li>
+          </ul>
+        </div>
+        <div class="cell card">
+          <b>Compliance &amp; governance</b>
+          <ul>
+            <li>RBI FRM Master Directions, 2026 (nine entity-specific instruments, RBI/DoS/2026-27/412&ndash;463)</li>
+            <li>Natural justice — notice, response, reasoned order</li>
+            <li>FMR / STR assembly, validation, hashing</li>
+            <li>Staff accountability before closure</li>
+            <li>Board / ACB pack · LEA referral · recovery</li>
+            <li>DPDP retention floors · PII masking · audit</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="band">Integration</div>
+      <div class="row">
+        <div class="cell"><b>Payment rails</b><span>UPI · IMPS · NEFT · RTGS · Card</span></div>
+        <div class="cell"><b>Core banking</b><span>Loan conduct, 7 event kinds</span></div>
+        <div class="cell"><b>ISO 20022</b><span><code>pacs.008</code> · <code>pain.001</code></span></div>
+        <div class="cell"><b>Reference feeds</b><span>Sanctions · PEP · CERSAI · group</span></div>
+        <div class="cell"><b>Identity providers</b><span>OIDC · SAML 2.0</span></div>
+        <div class="cell"><b>Regulatory &amp; LEA</b><span>RBI · NABARD · NHB · FIU-IND</span></div>
+      </div>
+
+      <div class="band">Foundation</div>
+      <div class="row">
+        <div class="cell"><b>PostgreSQL</b><span>9 schemas · 7 login roles</span></div>
+        <div class="cell"><b>Alembic</b><span>Migrations own the schema</span></div>
+        <div class="cell"><b>Prometheus metrics</b><span>Latency, queue depth, freshness</span></div>
+        <div class="cell"><b>Envelope encryption</b><span>AES-256-GCM, versioned keys</span></div>
+        <div class="cell"><b>Retention &amp; purge</b><span>8 classes with hard floors</span></div>
+        <div class="cell"><b>Container &amp; Compose</b><span>One image, per-service entrypoint</span></div>
+      </div>
+
+      <div class="band">Not yet built</div>
+      <div class="row">
+        <div class="cell gap"><b>Volume encryption</b><span>TDE, LUKS or cloud volume — gates R1</span></div>
+        <div class="cell gap"><b>Tracing &amp; log shipping</b><span>Correlation ids flow; nothing collects them</span></div>
+        <div class="cell gap"><b>Kubernetes manifests</b><span>analytics-service only</span></div>
+        <div class="cell gap"><b>Load-test evidence</b><span>Latency asserted, not measured</span></div>
+      </div>
+    </div>
+
+    <div class="stack-key">
+      <span><i></i>Built and covered by an automated test</span>
+      <span><i class="k-card"></i>Cross-cutting capability group</span>
+      <span><i class="k-gap"></i>Not yet built — see §19</span>
+    </div>
+  </div>
+
+  <p>Two things this view makes visible that the flow diagrams do not. The
+  <strong>intelligence band spans the whole width</strong> because detection, assurance and
+  compliance are not a layer traffic passes through — they read from and write to every
+  layer above and below them, which is also why they are hard to extract into a separate
+  service (§18, AD-09). And the <strong>bottom band is part of the architecture</strong>:
+  a capability diagram that shows only what exists is a sales diagram, not a design one.</p>
+</section>
+
+<section id="h3">
+  <h2>Service decomposition</h2>
+  <p class="lede">Seven independently deployable services. The split follows data ownership,
+  not code convenience.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Service</th><th>Port</th><th>Owns</th><th>Responsibility</th></tr></thead>
+      <tbody>
+        <tr><td><strong>gateway</strong></td><td class="id">8080</td><td>— (stateless)</td><td>Single edge. Verifies the token, routes to the owning service, applies rate limiting and circuit breaking, serves the console</td></tr>
+        <tr><td><strong>tenant-service</strong></td><td class="id">8081</td><td><code>tenant</code></td><td>Tenant register, users — invite/update/remove now open to a tenant's own <code>can_admin_tenant</code>-capable role (BR-108), not only platform staff — the role catalogue — materialised per tenant at onboarding (BR-113), with create/edit/delete and a maker-checker gate on any privilege-raising change — authentication, MFA enrolment and challenge, sessions, lockout, OIDC and SAML sign-on, machine credentials for bank systems, the platform audit trail (tenant-scoped for the six roles granted it, unscoped for platform staff) with CSV export</td></tr>
+        <tr><td><strong>branding-service</strong></td><td class="id">8082</td><td><code>branding</code></td><td>Per-tenant theme, logo, palette, custom domain</td></tr>
+        <tr><td><strong>config-service</strong></td><td class="id">8083</td><td><code>config</code></td><td>EWS catalogue, FRM policy, versioning and activation. Publishes cache invalidation</td></tr>
+        <tr><td><strong>ingestion-service</strong></td><td class="id">8085</td><td><code>ingestion</code></td><td>Rail adapters, file and ISO 20022 intake, CBS loan-conduct events, validation, deduplication, quarantine, the inbound queue and its claim/ack protocol</td></tr>
+        <tr><td><strong>analytics-service</strong></td><td class="id">8084</td><td><code>analytics</code>, <code>cases</code></td><td>Metric registry, reconciliation, dashboards, detection runtime, RFA lifecycle, staff accountability, LEA referral and recovery, regulatory filings, board packs, reference feeds, usage metering, documents, saved views, the exit fraud-record export</td></tr>
+        <tr><td><strong>decision-service</strong></td><td class="id">8086</td><td><code>decision</code></td><td>Lane&nbsp;A. Inline go/no-go inside the payment window: per-rail budget and policy, account counters, the inline-eligible rule subset, shadow-mode evaluation and the decision log. Its own service because it is the only one in the payment path, and its availability class differs from everything else here</td></tr>
+        <tr><td><strong>notification-service</strong></td><td class="id">8087</td><td><code>notify</code></td><td>Channel configuration, per-user preferences, notification records and delivery attempts</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>analytics-service has grown considerably since v1.0 and is now the obvious candidate
+  for a split. That is discussed in §18 (AD-09) rather than treated as an oversight: the
+  <code>cases</code> schema boundary was carved for exactly this, and the reason it has not
+  happened is a stated trade, not inattention.</p>
+
+  <div class="note">
+    <h5>Why detection lives inside analytics-service</h5>
+    <p>Detection writes the facts that analytics reads, and case management mutates them.
+    Splitting them today would mean one service writing another's tables — the shared-database
+    problem, made worse. The <code>cases</code> schema is already separated so the eventual
+    split is a deployment change rather than an excavation, but it is blocked on a real
+    trade: an event-synced read model would break the exact reconciliation P1 depends on.
+    That decision is open (BRD OD-02).</p>
+  </div>
+
+  <div class="note">
+    <h5>How a custom role reaches four services with no grant on tenant-service's schema</h5>
+    <p><code>cp_common.dynamic_roles</code> is a shared package module — written once,
+    imported by analytics-service, config-service, decision-service and
+    notification-service — rather than each service growing its own copy of the same
+    fetch-and-cache logic. Every one of the ten fixed roles resolves against the
+    in-process <code>rbac.ROLES</code> dict, unchanged, with zero network calls. Only a
+    role name outside that set triggers a fetch to tenant-service's
+    <code>GET /tenants/internal/{tenant_id}/roles</code>, cached against the "roles"
+    namespace on the same generation-token mechanism (<code>cp_common.cache</code>)
+    config-service already bumps for rule and policy changes — so a role edit is live
+    everywhere the moment tenant-service commits it, not after a TTL. This is a
+    deliberately different trade than decision-service's own <code>catalogue_for()</code>
+    (Lane A, below): that path may never block, so it serves a stale copy while refreshing in the
+    background; this one is not on the payment path and a miss is rare (a custom role
+    at all is rare), so it blocks briefly on a miss instead, trading a bounded, one-time
+    latency for never honouring a revoked grant even momentarily.
+    <code>ingestion-service</code> needed no change — BR-213 machine credentials carry
+    scopes, not human roles, so it has no role check to extend.</p>
+    <p>Three capability flags travel through this path, not two:
+    <code>can_admin_tenant</code>, <code>can_reveal_pii</code>, and — since
+    phase&nbsp;2d — <code>can_activate_config</code>, the risk_manager-equivalent
+    grant BR-715's maker-checker runs on. config-service's
+    <code>maker_checker.ensure_eligible()</code> used to check a hardcoded name tuple
+    (<code>tenant_admin</code>, <code>platform_admin</code>, <code>risk_manager</code>)
+    because there was no flag narrower than <code>can_admin_tenant</code> to check
+    dynamically; now it checks one capability, and the three fixed roles that pass it
+    do so through exactly the same <code>rbac.ROLES</code> data every other check in
+    this section reads, not a second, separately-maintained list.</p>
+  </div>
+
+  <div class="note">
+    <h5>config-service: the rule catalogue is no longer identical for every tenant (BR-111)</h5>
+    <p>Onboarding used to seed the same EWS catalogue regardless of entity type — only
+    the FRM policy body was entity-type aware. <code>ENTITY_TYPES</code> now carries a
+    <code>can_extend_credit</code> flag per entity type, checked against each of the nine RBI
+    2026 Directions' own Chapter III text rather than assumed, and <code>rule_configs()</code>
+    accepts it to drop the 12 rules whose premise is a lending relationship (loan-account
+    misuse, borrowal-account conduct, collateral, qualitative credit signals, loan
+    origination — BR-214) for an entity type that cannot extend credit — today, only
+    Payments Bank. This is capability-gated
+    seeding, not a per-tenant override: it happens once, at onboarding, in
+    <code>default_configs_for()</code>, and what gets seeded is what
+    <code>internal_active_rules</code> serves to decision-service and analytics-service — an
+    excluded rule is absent from the tenant's configuration, not merely deactivated. Trade-
+    finance rules (TBM) are deliberately not gated the same way: none of the nine Directions
+    tie Authorised Dealer / forex authorisation to entity type, so that would need a new
+    per-tenant signal the platform does not capture yet, not an entity-type default. See FSD
+    §"Detection scope" for the functional detail and BRD BR-111 for the traceable requirement.</p>
+  </div>
+
+  <div class="note">
+    <h5>Not yet built: Central Fraud Registry reporting (BR-509)</h5>
+    <p>Each of the nine 2026 Directions carries its own Chapter VI sub-section on reporting
+    to RBI's Central Fraud Registry (CFR), distinct from the FMR return BR-504/505 already
+    covers. Nothing in this codebase names CFR today. The expected shape is an extension of
+    the same filing-artefact-to-prescribed-format binding BR-504/505 already tracks as
+    <code>not_bound</code> pending <b>OD-04</b> — not a new cross-tenant data-sharing
+    mechanism. That distinction matters: the tenant-isolation boundary this section treats
+    as inviolable elsewhere (an unscoped key is a cross-tenant leak waiting to happen) is not
+    to be weakened to build this — each tenant reports its own incidents to RBI's registry,
+    the same way it already reports FMR/STR, not into a database shared across tenants.
+    Not built; timing not yet committed (BRD BR-509).</p>
+  </div>
+</section>
+
+<section id="h4">
+  <h2>Data architecture</h2>
+  <p class="lede">Nine schemas in one PostgreSQL instance, each owned by one service and
+  reachable only by that service's database role.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Schema</th><th>Owner</th><th>Principal tables</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>tenant</code></td><td>tenant-service</td><td>tenants, tenant_users, platform_users, user_sessions, mfa_backup_codes, identity_providers, sso_login_states, saml_assertions_seen, service_credentials</td><td>The only schema holding institution and user records. Sealed columns: MFA seeds, IdP client secrets, machine-credential certificate thumbprints</td></tr>
+        <tr><td><code>branding</code></td><td>branding-service</td><td>branding</td><td>—</td></tr>
+        <tr><td><code>config</code></td><td>config-service</td><td>tenant_configs</td><td>Versioned rule and policy bodies; one active per name</td></tr>
+        <tr><td><code>ingestion</code></td><td>ingestion-service</td><td>raw_transaction, ingest_files, quarantined_rows, cbs_events</td><td>Append-only inbound record with the original payload; rejected rows quarantined rather than discarded</td></tr>
+        <tr><td><code>analytics</code></td><td>analytics-service</td><td>fact_transaction, fact_alert, fact_case, regulatory_filings, board_packs, board_pack_distributions, reference_lists, reference_entries, reference_sources, usage_daily, saved_views, report_subscriptions</td><td>Derived facts, the analytical surface, and the artefacts that leave the building</td></tr>
+        <tr><td><code>cases</code></td><td>analytics-service</td><td>case_transitions, case_documents, staff_accountability, accountability_findings, lea_referrals, recovery_entries</td><td>Carved out to mark the bounded context ahead of any split</td></tr>
+        <tr><td><code>decision</code></td><td>decision-service</td><td>account_counters, decision_log</td><td>Lane&nbsp;A. Deliberately tiny and deliberately separate: everything on the payment path is a single-key lookup or arithmetic, and a schema of its own is what keeps a reporting query off that path. Its availability class differs from the rest &mdash; see &sect;13</td></tr>
+        <tr><td><code>notify</code></td><td>notification-service</td><td>channel_config, preferences, notifications, deliveries</td><td>The attempt is recorded separately from the notification, so a failed delivery is visible rather than inferred</td></tr>
+        <tr><td><code>platform</code></td><td>shared infrastructure</td><td>audit_logs, config_generation, idempotency_keys</td><td>Deliberately small. The role a message bus or Redis would play</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Ownership is enforced by PostgreSQL, not convention. Each service connects as its own
+  login role holding <code>USAGE</code> on its own schemas plus <code>platform</code>, with a
+  matching <code>search_path</code>, so an unqualified reach for a neighbour's table fails as
+  <em>relation does not exist</em>. Migrations run as the owning role; no service can perform
+  DDL at runtime.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Role</th><th>Reachable schemas</th></tr></thead>
+      <tbody>
+        <tr><td><code>svc_tenant</code></td><td>tenant, platform</td></tr>
+        <tr><td><code>svc_branding</code></td><td>branding, platform</td></tr>
+        <tr><td><code>svc_config</code></td><td>config, platform</td></tr>
+        <tr><td><code>svc_ingestion</code></td><td>ingestion, platform</td></tr>
+        <tr><td><code>svc_notify</code></td><td>notify, platform</td></tr>
+        <tr><td><code>svc_analytics</code></td><td>analytics, cases, ingestion, platform</td></tr>
+        <tr><td><code>svc_decision</code></td><td>decision, platform</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p><code>svc_analytics</code> holding read access to <code>ingestion</code> is the one
+  deliberate cross-service grant: it is the projection seam, and precisely what a message
+  bus would replace. It is documented rather than incidental, and analytics still cannot
+  reach the tenant register.</p>
+
+  <p><code>svc_decision</code> has <em>no</em> cross-grant at all. Lane&nbsp;A answers from
+  its own counters and nothing else; it cannot read a transaction, a case or a tenant. That
+  is what lets the inline path hold a 50&ndash;150&nbsp;ms budget without a defensive
+  timeout on a query that should never have been reachable.</p>
+</section>
+
+<section id="h5">
+  <h2>Ingestion and rail adapters</h2>
+  <p class="lede">One canonical transaction shape, produced at the edge, so no rule ever
+  learns what a UPI collect request looks like.</p>
+
+  <div class="diagram">
+<pre class="mermaid">
+flowchart TB
+    A["Bank feed<br/>API · file · ISO 20022 · CBS"] --> B{"Adapter<br/>per rail"}
+    B -->|"invalid"| R["<b>quarantined_rows</b><br/>index + reason, batch continues"]
+    B -->|"canonical"| C["<b>raw_transaction</b> — append-only"]
+    C --> D{"Dedupe on<br/>tenant + rail + txn id"}
+    D -->|"seen before"| E["Counted as duplicate"]
+    D -->|"new"| F["state = pending"]
+    F --> G["claim / ack — SKIP LOCKED"]
+    G --> H["Detection runtime"]
+</pre>
+    <p class="cap">A malformed row is reported with its index and reason while the rest of
+    the batch proceeds. Rejecting five thousand good rows over one bad timestamp is how a
+    bank ends up building its own retry queue and sending everything twice.</p>
+  </div>
+
+  <h4>Design decisions that carry weight</h4>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Decision</th><th>Rationale</th></tr></thead>
+      <tbody>
+        <tr><td>Amounts parsed via <code>Decimal</code> to integer paise; sub-paisa refused</td><td><code>float("1234.55") * 100</code> is 123454.99999999999. Across a day's volume that is a reconciliation failing for no findable reason</td></tr>
+        <tr><td>Timestamps without an offset are rejected</td><td>IST is +05:30. Guessing wrong places a transaction five and a half hours from where it happened and silently breaks every time-window rule</td></tr>
+        <tr><td>The original payload is retained beside the canonical form</td><td>"What did you receive, and when" is a different question from "what did you conclude", and cannot be answered from a table detection also rewrites</td></tr>
+        <tr><td>Workers claim work over an internal API, not by reading the table</td><td>Ownership stays with ingestion-service; substituting a real queue later changes two endpoints and nothing else</td></tr>
+        <tr><td><code>FOR UPDATE SKIP LOCKED</code> on claim</td><td>Several detection workers take different slices instead of queueing; a crashed worker's claim ages back into the queue</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Intake channels</h3>
+  <p>Four ways in, one canonical output. A bank that cannot open a firewall for an API is
+  a normal customer, not an exception.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Channel</th><th>Shape</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>REST batch</td><td>JSON, canonical or per-rail</td><td>The synchronous path. Per-row rejection with index and reason</td></tr>
+        <tr><td>File / SFTP drop</td><td>CSV</td><td>Each file is registered, checksummed and processed once. Re-dropping the same file is a no-op, not a double count</td></tr>
+        <tr><td>ISO 20022</td><td><code>pacs.008</code>, <code>pain.001</code></td><td>Parsed by local element name, so a bank's own namespace prefix does not break it. <code>GrpHdr/NbOfTxs</code> and <code>CtrlSum</code> are verified against what was actually parsed, and a mismatch fails the <em>whole</em> file</td></tr>
+        <tr><td>CBS loan-conduct events</td><td>7 event kinds</td><td>Account-level rather than payment-level: sanction, disbursal, repayment, classification change, security and end-use events. Feeds the BEH and CBS indicator families</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <h5>A control total that only fails part of a file is not a control total</h5>
+    <p>ISO 20022 carries its own count and sum in the group header. The obvious
+    implementation rejects the rows that disagree and keeps the rest — which is precisely
+    wrong. If the declared sum does not match the parsed sum, the disagreement is about
+    what the file <em>contains</em>; there is no basis for deciding which rows are the
+    good ones. The file is refused whole and the bank is told the declared and computed
+    figures. Partial acceptance under a failed control total is how two systems end up
+    holding different versions of the same day.</p>
+  </div>
+
+  <p>Rows that fail validation are written to <code>quarantined_rows</code> with their
+  reason rather than dropped. "We sent you 40,000 rows and you booked 39,997" is a
+  question the platform has to be able to answer with the three rows, not with a count.</p>
+
+  <div class="note">
+    <h5>A fifth channel not yet built: loan-origination (LOS) signals (BR-214)</h5>
+    <p>All four channels above are post-disbursement — even CBS loan-conduct events start
+    at sanction, not at application. ~92% of FY25 reported bank fraud value is loan/advances
+    fraud (RBI Annual Report FY25), and a falsified application or a straw borrower is
+    invisible to this platform until money has already moved. A fifth channel reading the
+    underwriting/LOS stage would extend the same canonical-shape-at-the-edge pattern this
+    section already uses, not require a new architecture - but LOS systems vary far more
+    across NBFCs and co-operative banks than core banking does, so the adapter surface is
+    larger than the four above. Not built; timing not yet committed (BRD BR-214).</p>
+  </div>
+</section>
+
+<section id="h6">
+  <h2>Detection runtime</h2>
+  <p class="lede">The catalogue owns the threshold; the engine owns the measurement.
+  Keeping those apart is what makes P2 true.</p>
+
+  <div class="diagram">
+<pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant W as Detection worker
+    participant I as ingestion-service
+    participant C as config-service
+    participant D as analytics DB
+    W->>C: active rule catalogue + FRM policy
+    C-->>W: thresholds, comparators, config versions
+    Note over W,C: no catalogue ⇒ stop.<br/>Never score against invented defaults
+    W->>I: claim(limit)
+    I-->>W: batch + claim token
+    W->>D: project batch into fact_transaction
+    Note over W,D: project first, then measure —<br/>a burst must be able to see itself
+    W->>D: compute account context (windows incl. batch,<br/>30-day baseline excluding it)
+    W->>W: evaluate each txn, both debtor and creditor side
+    W->>D: write alerts with full trace + open/attach case
+    W->>I: ack(projected, failed)
+</pre>
+    <p class="cap">Ordering is load-bearing. Measuring before projecting made every
+    same-file burst invisible: seven structuring transfers each looked lonely because
+    their accomplices had not been written yet.</p>
+  </div>
+
+  <h3>Feature computation</h3>
+  <p>Observations are computed per account, once per batch, rather than per transaction —
+  a handful of aggregate queries instead of one query per row. Both sides of every payment
+  are scored: a mule collection account may never pay anybody, so a debtor-only view never
+  assesses the hub of a fan-in, which is the single account an investigation is about.</p>
+
+  <p>Twenty-five indicators are declared. Which of them can actually be measured depends
+  on which feeds a given tenant has connected, so the split below is by <em>dependency</em>,
+  not by whether code exists.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Family</th><th>From transactions alone</th><th>Needs a connected feed</th><th>No feed contracted</th></tr></thead>
+      <tbody>
+        <tr><td>Velocity</td><td>VEL-01, VEL-02, VEL-03</td><td>—</td><td>—</td></tr>
+        <tr><td>Structuring</td><td>SME-01, SME-02</td><td>—</td><td>SME-03 (invoice)</td></tr>
+        <tr><td>Behavioural</td><td>BEH-01</td><td>BEH-02, BEH-03 (CBS)</td><td>—</td></tr>
+        <tr><td>Loan conduct</td><td>—</td><td>CBS-01, CBS-02, CBS-03 (CBS)</td><td>—</td></tr>
+        <tr><td>Layering / mule</td><td>LAY-01, LAY-02, LAY-03, LAY-04</td><td>—</td><td>—</td></tr>
+        <tr><td>Counterparty</td><td>CPT-01</td><td>CPT-02 (sanctions), CPT-03 (CERSAI)</td><td>—</td></tr>
+        <tr><td>Channel / device</td><td>CHN-01, CHN-03</td><td>—</td><td>CHN-02 (geolocation)</td></tr>
+        <tr><td>Trade-based</td><td>—</td><td>—</td><td>TBM-01, TBM-02, TBM-03</td></tr>
+        <tr><td colspan="1"><strong>Total</strong></td><td><strong>13</strong></td><td><strong>7</strong></td><td><strong>5</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>LAY-03 (multi-hop layering) moved from the third column to the first: the graph
+  traversal is now computed in the database rather than requiring an external graph store.
+  The seven middle-column indicators became measurable when CBS event intake and scheduled
+  reference retrieval landed — but only for a tenant that has actually connected those
+  feeds, which is the distinction the next note is about.</p>
+
+  <div class="note">
+    <h5>An unloaded list is not a clean screen</h5>
+    <p>CPT-02 screens counterparties against a sanctions list. If no list has been loaded,
+    the tempting implementation returns "no match" — and a bank reads that as
+    <em>screened, clean</em>. It reports the indicator as <b>unmeasurable, with the
+    reason</b>, and the case surfaces say so. The same rule governs every dependent
+    indicator: a proportion whose denominator is absent is omitted, never returned as
+    zero. Loading an empty list is refused outright, and a feed that arrives materially
+    smaller than the version it would replace is refused with the previous version left
+    active — a truncated sanctions file is indistinguishable from a clean one at the
+    moment it is applied, and only distinguishable afterwards by the frauds that were not
+    flagged.</p>
+  </div>
+
+  <div class="note">
+    <h5>Comparator direction is part of the configuration</h5>
+    <p>Most indicators fire at or above their threshold. "Beneficiary added within 24
+    hours" cannot be expressed that way — a two-hour-old payee is more suspicious than a
+    twenty-hour-old one. Each rule therefore carries an explicit comparator. Without it
+    the two age-based indicators compared the wrong way round and never fired at all: a
+    silently dormant fraud indicator, which is exactly the finding an inspection looks
+    for.</p>
+  </div>
+</section>
+
+<section id="h6c">
+  <h2>Inline decisioning &mdash; Lane A</h2>
+  <p class="lede">A go/no-go answer inside the payment window, without pretending the
+  near-real-time lane can be made to fit in one.</p>
+
+  <p>The detection runtime above drains a queue. It sees a transaction after it has been
+  ingested, scores it against the full catalogue with complete account context, and raises
+  an alert. That is the right design for an early-warning system and the wrong design for a
+  UPI authorisation, which must be answered in a few hundred milliseconds end to end.
+  Stretching one lane to cover both would have meant either a detection engine that skips
+  work it should do, or a payment that waits for work it should not.</p>
+
+  <p>So there are two lanes, and the split is explicit:</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th></th><th>Lane A &mdash; inline</th><th>Lane B &mdash; near-real-time</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Question</strong></td><td>May this payment proceed?</td><td>Is this account behaving like fraud?</td></tr>
+        <tr><td><strong>Answers</strong></td><td>Binary on UPI and IMPS &mdash; approve or decline. Card adds a 3-D Secure challenge; NEFT and RTGS can hold</td><td>Scored alerts, grouped into cases</td></tr>
+        <tr><td><strong>Budget</strong></td><td>50&ndash;150&nbsp;ms by rail, set per tenant</td><td>Seconds; measured at p99 2.65&nbsp;s per worker at 200&nbsp;tps</td></tr>
+        <tr><td><strong>Context</strong></td><td>Pre-computed counters and what the channel supplies</td><td>Full account, graph and reference context</td></tr>
+        <tr><td><strong>Rules</strong></td><td>9 of the 31 catalogue rules are inline-eligible</td><td>All 31</td></tr>
+        <tr><td><strong>Reads</strong></td><td>Single-key lookups only; no aggregate, no cross-service call</td><td>Whatever the typology needs, including multi-hop traversal</td></tr>
+        <tr><td><strong>On failure</strong></td><td>Reports which rules were skipped; the outcome is <code>budget_exceeded</code>, never a clean pass</td><td>Retries; the backlog is visible</td></tr>
+        <tr><td><strong>Availability class</strong></td><td>In the payment path &mdash; its own service, own schema, own role, own scaling</td><td>Can absorb a restart behind the queue</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <h5>Which rules can go inline is a property of the rule, not a preference</h5>
+    <p>A rule is inline-eligible only if it can be answered from precomputed per-account
+    counters or from what the channel already sends. The other 19 are listed with the
+    reason each is excluded &mdash; a graph traversal whose cycle has not closed, a
+    reference-list join, a CBS event posted after settlement. That register is code
+    (<code>inline_rules.py</code>), keyed by rule id, so a new rule has to declare which
+    lane it belongs to before it can be catalogued.</p>
+    <p>Two exclusions are about correctness rather than latency. <b>CPT-01</b> and
+    <b>VEL-02</b> measure beneficiary age with an <code>lte</code> comparator, and the
+    first-seen-pair set they need is not an account counter. Scored from a context without
+    it, an unknown payee reads as age zero &mdash; and the rule fires on <em>every</em>
+    high-value payment. A control that declines everything is as broken as one that
+    declines nothing, so they are suppressed explicitly and reported unmeasured.</p>
+  </div>
+
+  <div class="note">
+    <h5>One definition per figure, across both lanes</h5>
+    <p>Lane A and Lane B share <code>cp_common.observations.observe()</code>. They do not
+    each have their own idea of what "velocity" means. If the two lanes could drift apart
+    on a definition, a tenant would eventually see an inline decline and a Lane&nbsp;B
+    dashboard that disagreed about the same account, and there would be no way to say
+    which was right.</p>
+  </div>
+
+  <div class="note risk">
+    <h5>An action the rail cannot execute is worse than no action</h5>
+    <p>The action set is a property of the payment scheme, not a tenant preference, and it
+    is checked when the policy is configured rather than when the payment arrives. On UPI
+    the PIN is captured at the remitter PSP before the request reaches the bank, so the
+    customer has already authenticated and the NPCI response set is approve or decline
+    &mdash; there is no step-up code to return. IMPS is the same. Card is the exception:
+    3-D Secure makes a challenge a first-class protocol outcome. <code>hold</code> belongs
+    only to NEFT and RTGS, which settle in a window wide enough for outward-remittance
+    screening to be a real operation.</p>
+    <p>This was a live defect, not a hypothetical. The shipped starter policy offered
+    <code>challenge</code> on UPI and made IMPS challenge-only &mdash; so that lane could
+    never decline anything at all. Had a tenant enforced it, the decision log would have
+    recorded a control firing, the switch would have ignored an answer it did not
+    recognise, and the payment would have settled. Every report would have shown the
+    control working. A rail with no declared capabilities is refused rather than assumed
+    permissive, so a new scheme cannot inherit the most powerful set by default.</p>
+  </div>
+
+  <h3>A second front door onto the same core: ISO 8583 (BR-317, Partial)</h3>
+  <p><code>/decide</code> above is JSON, reached directly at the decision-service host.
+  Some card/EFT switches &mdash; frequently on-prem, vendor-licensed, no REST layer
+  available without a change request per bank &mdash; have no practical way to originate
+  that call. Asking each such vendor to build a translation layer of their own does not
+  scale: it is N bespoke integration projects on infrastructure Fraud360 does not
+  control, instead of one adapter built and tested once.</p>
+  <p><code>iso8583_gateway</code> is that one adapter: a TCP listener, its own deployable
+  for the same reason decision-service already is &mdash; a raw-socket connection has a
+  different failure mode than an HTTP service behind the gateway, and a hung 8583
+  connection must not affect the JSON path or vice versa. It decodes an authorisation
+  message (MTI 0100/0120), maps the standard data elements to a <code>DecideIn</code>
+  body, and calls <code>POST /decide</code> exactly as any JSON integrator would &mdash;
+  same rule catalogue, same per-rail policy, same decision log. <b>Two front doors, one
+  brain</b>, deliberately: there is exactly one function in the platform that ever
+  produces a decision, and this gateway is a client of it, not a second implementation of
+  it.</p>
+  <div class="tw">
+    <table>
+      <thead><tr><th>ISO 8583 DE</th><th>Canonical field</th></tr></thead>
+      <tbody>
+        <tr><td>DE2 (PAN)</td><td><code>debtor_account</code> &mdash; masked at the parse boundary (SHA-256 + last 4), never the raw PAN</td></tr>
+        <tr><td>DE4 (amount)</td><td><code>amount_paise</code></td></tr>
+        <tr><td>DE7 (transmission date/time)</td><td><code>ts</code> &mdash; MMDDhhmmss carries no year and no offset; the year is inferred against a configured local offset (no default &mdash; see below), rolling back across a Dec&rarr;Jan boundary</td></tr>
+        <tr><td>DE11 / DE37 (STAN / RRN)</td><td><code>txn_ref</code></td></tr>
+        <tr><td>DE41 (terminal id)</td><td><code>device_id</code></td></tr>
+        <tr><td>DE42 (card acceptor id)</td><td><code>creditor_account</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note risk">
+    <h5>What is built, and what is deliberately still open</h5>
+    <p>The codec, field mapper and connection handler are complete and unit-tested (45
+    tests): message round-trip including LLVAR fields and leading-zero-preserving fixed
+    fields, the DE7 year inference including the year-boundary case, PAN masking, and
+    every failure path &mdash; a malformed message, an unreachable <code>/decide</code>,
+    a <code>/decide</code> response this gateway cannot represent &mdash; producing an
+    explicit refusal (DE39 96/91) rather than a guessed approval. <code>iso8583_fail_open</code>
+    has no default, by the same discipline <code>RailPolicy.fail</code> already applies to
+    every inline rail: the process refuses to start rather than pick open or closed on the
+    bank's behalf.</p>
+    <p>Not built, and not guessable: DE48/62/120&ndash;127 are private-use in the 1987
+    standard and every switch vendor fills them differently, so this gateway maps only the
+    public data elements until a named pilot vendor's own spec confirms the rest &mdash;
+    see <code>docs/ISO8583_LANE_A_SCOPING.md</code>. Whether terminating a raw PAN here
+    brings Fraud360 into PCI-DSS cardholder-data scope is a compliance decision, not an
+    engineering one, and is likewise still open. Not deployed for any tenant.</p>
+  </div>
+
+  <h3>The contract — UPI and IMPS worked end to end</h3>
+  <p>Every payload below is a verbatim capture from the running services, not an
+  illustration. Only the bearer token is abbreviated, and the <code>skipped</code> array is
+  truncated where noted &mdash; nothing else is edited.</p>
+
+  <h4>1 &middot; The switch authenticates</h4>
+  <p>Once per token lifetime, not once per payment. There is no MFA on this path and none
+  is being bypassed: a machine credential has no interactive login and never can &mdash;
+  see &sect;13. The token is a bearer token scoped to <code>decide</code>; possession is
+  additionally bound to a client certificate where the bank can offer mTLS.</p>
+
+<div class="api-label">Request</div>
+<pre class="api">POST /machine/token
+Content-Type: application/json
+
+{
+  "grant_type": "client_credentials",
+  "client_id": "svc_3063a96d7d0b17e1",
+  "client_secret": "&lt;shown once at creation, never retrievable&gt;"
+}</pre>
+
+<div class="api-label">Response &mdash; 200</div>
+<pre class="api">{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6…",
+  "token_type": "Bearer",
+  "expires_in": 1800,
+  "scope": "ingest+decide",
+  "tenant_id": "b3b90261-9663-46c3-b31f-e8afc4a65442"
+}</pre>
+
+  <h4>2 &middot; A UPI payment that passes</h4>
+  <p><code>signals</code> carries what the channel already knows at authorisation time.
+  <code>risk_signals</code> is the one observation the lane will not derive for itself: read
+  from a rebuilt context it would count every payment as a new device paying a new payee,
+  because that context holds counters, not sets. The channel is the better-informed party
+  here, so its figure is used or the rule is reported unmeasured.</p>
+
+<div class="api-label">Request</div>
+<pre class="api">POST /decide?tenant_id=b3b90261-9663-46c3-b31f-e8afc4a65442
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6…
+Content-Type: application/json
+
+{
+  "txn_ref": "UPI-2026-0805-000191",
+  "rail": "UPI",
+  "debtor_account": "AC-HLD-CALM",
+  "creditor_account": "AC-BEN-77120",
+  "amount_paise": 250000,          <span class="c">// integer paise, never a float</span>
+  "channel": "mobile",
+  "device_id": "d41d8cd98f00b204",
+  "signals": { "risk_signals": 0 }
+}</pre>
+
+<div class="api-label">Response &mdash; 200 in 4.2 ms</div>
+<pre class="api">{
+  "reference": "72492b3d91e24a4b",
+  "action": "allow",              <span class="c">// what the switch must act on</span>
+  "would_be": "allow",            <span class="c">// what enforcement would have returned</span>
+  "outcome": "clean",             <span class="c">// rules ran; none matched</span>
+  "score": 0.0,
+  "severity": "low",
+  "enforced": false,              <span class="c">// this rail is still in shadow</span>
+  "shadow": true,
+  "matched": [],
+  "skipped": [
+    { "rule_id": "CPT-01",
+      "reason": "beneficiary age needs the first-seen-pair set, which is not an
+                 account counter. It is an 'lte' rule, so an unknown pair would
+                 read as age zero and fire on every high-value payment",
+      "lane": "near-real-time" },
+    { "rule_id": "VEL-01",
+      "reason": "not measurable for this payment from account counters",
+      "lane": "inline" }
+    <span class="c">// … 20 more, each with its reason. Truncated for this document only.</span>
+  ],
+  "took_ms": 4.16,
+  "budget_ms": 80,
+  "policy_version": "1.0.0"
+}</pre>
+
+  <div class="note">
+    <h5><code>outcome: "clean"</code> is a claim, and it has to be earned</h5>
+    <p>It means every inline-eligible rule ran and none matched. It is <em>not</em> what
+    comes back when the catalogue is empty (<code>not_screened</code>), when the counter
+    store is unreachable (<code>store_unavailable</code>), or when the budget expired
+    part-way (<code>budget_exceeded</code>). Those are separate outcomes precisely because
+    all four would otherwise arrive at the switch as <code>allow</code> and be
+    indistinguishable in the record afterwards.</p>
+    <p>The <code>skipped</code> array is the other half of that claim. A rule that could not
+    be measured is named with its reason rather than counted as a pass, so "we screened this
+    payment" can always be qualified by "against these rules, and not these".</p>
+  </div>
+
+  <h4>3 &middot; A UPI payment that would be declined</h4>
+  <p>The same endpoint, an account whose counters describe a mule: value far above its own
+  baseline, fifty-five distinct counterparties, near-total outflow, structuring below the
+  CTR threshold, and a new device on a new payee.</p>
+
+<div class="api-label">Request</div>
+<pre class="api">{
+  "txn_ref": "UPI-2026-0805-000192",
+  "rail": "UPI",
+  "debtor_account": "AC-HLD-HOT",
+  "creditor_account": "AC-BEN-99001",
+  "amount_paise": 500000,
+  "channel": "mobile",
+  "device_id": "9e107d9d372bb682",
+  "signals": { "risk_signals": 5 }
+}</pre>
+
+<div class="api-label">Response &mdash; 200 in 1.7 ms</div>
+<pre class="api">{
+  "reference": "77de6e3a0eba4fb6",
+  "action": "allow",              <span class="c">// SHADOW: the payment proceeds</span>
+  "would_be": "decline",          <span class="c">// enforcing, it would not have</span>
+  "outcome": "matched",
+  "score": 600.0,                 <span class="c">// CHN 90 + LAY 140 + LAY 140 + SME 130 + VEL 100</span>
+  "severity": "critical",         <span class="c">// ≥ 380 on the tenant's own bands</span>
+  "enforced": false,
+  "shadow": true,
+  "matched": [
+    { "rule_id": "CHN-01", "family": "CHN", "sub_rule_ref": ".03",
+      "observed": 5.0,  "threshold": 3.0,  "observed_unit": "risk_signals",
+      "reason": "New device + new beneficiary + high value in one session" },
+    { "rule_id": "LAY-02", "family": "LAY", "sub_rule_ref": ".03",
+      "observed": 55.0, "threshold": 40.0, "observed_unit": "distinct_counterparties",
+      "reason": "40+ distinct counterparties in window (fan-in/fan-out hub)" },
+    { "rule_id": "LAY-01", "family": "LAY", "sub_rule_ref": ".03",
+      "observed": 0.98, "threshold": 0.9,  "observed_unit": "outflow_ratio",
+      "reason": "Outflow &gt;= 90% of recent inflow drained within window" },
+    { "rule_id": "SME-01", "family": "SME", "sub_rule_ref": ".03",
+      "observed": 7.0,  "threshold": 5.0,  "observed_unit": "sub_threshold_count",
+      "reason": "5+ transfers just below the CTR threshold in 24h" },
+    { "rule_id": "VEL-01", "family": "VEL", "sub_rule_ref": ".02",
+      "observed": 50.0, "threshold": 5.0,  "observed_unit": "value_vs_baseline",
+      "reason": "Transaction value 5x the 30-day baseline" }
+  ],
+  "skipped": [ <span class="c">/* 20 entries, each with its reason */</span> ],
+  "took_ms": 1.663,
+  "budget_ms": 80,
+  "policy_version": "1.0.0"
+}</pre>
+
+  <p>Every match carries <b>what was observed, what it was compared against, in what unit,
+  and the band's own wording</b>. That is the same trace the near-real-time lane records on
+  an alert, so a declined payment is explainable months later on the terms an investigator
+  already knows &mdash; and <code>policy_version</code> says which configuration was in force,
+  because the thresholds will have moved on.</p>
+
+  <h4>4 &middot; The same call on IMPS</h4>
+  <p>Identical contract; only the budget differs, and it comes from the tenant's own
+  per-rail policy. UPI is given 80&nbsp;ms and IMPS 150&nbsp;ms because their settlement
+  windows differ, not because the code does.</p>
+
+<div class="api-label">Request</div>
+<pre class="api">{
+  "txn_ref": "IMPS-2026-0805-004417",
+  "rail": "IMPS",
+  "debtor_account": "AC-HLD-HOT",
+  "creditor_account": "AC-BEN-99002",
+  "amount_paise": 4500000,
+  "channel": "netbanking",
+  "device_id": "9e107d9d372bb682",
+  "signals": { "risk_signals": 4 }
+}</pre>
+
+<div class="api-label">Response &mdash; 200 in 1.5 ms</div>
+<pre class="api">{
+  "reference": "73c5b65625cb4a7d",
+  "action": "allow",
+  "would_be": "decline",
+  "outcome": "matched",
+  "score": 600.0,
+  "severity": "critical",
+  "enforced": false,
+  "shadow": true,
+  "matched": [ <span class="c">/* VEL-01 observed 450.0 against a threshold of 5.0 — the amount is
+                  450x this account's own 30-day baseline */</span> ],
+  "took_ms": 1.476,
+  "budget_ms": 150,            <span class="c">// IMPS, not UPI's 80</span>
+  "policy_version": "1.0.0"
+}</pre>
+
+  <h4>5 &middot; A rail this lane does not handle</h4>
+  <p>NEFT and RTGS settle in a window wide enough to score them with full account and
+  network context after ingestion, which finds more than any 80&nbsp;ms check can. Asking
+  the inline lane about one is a configuration error, and it is <b>refused</b>.</p>
+
+<div class="api-label">Response &mdash; 409</div>
+<pre class="api">{
+  "error": {
+    "code": "rail_not_inline",
+    "message": "Rail 'NEFT' is configured for the near-real-time lane. It is scored
+                with full context after ingestion, not in the payment window."
+  }
+}</pre>
+
+  <div class="note risk">
+    <h5>Why this is a refusal and not an allow</h5>
+    <p>Answering <code>allow</code> would be the natural-looking thing to do &mdash; the
+    lane has no opinion, so let the payment through. It is the wrong answer, because the
+    switch cannot tell that response apart from a payment that was screened and passed. The
+    rail would appear on every report as covered by inline decisioning while nothing had
+    looked at it. The same reasoning gives <code>409 no_rail_policy</code> for a rail nobody
+    has configured at all: an unconfigured rail must never read as a screened one.</p>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Status</th><th>Code</th><th>When</th><th>What the switch should do</th></tr></thead>
+      <tbody>
+        <tr><td><code>200</code></td><td>&mdash;</td><td>A decision was reached</td><td>Act on <code>action</code>. Ignore <code>would_be</code> — it is for reporting</td></tr>
+        <tr><td><code>401</code></td><td><code>invalid_client</code></td><td>Unknown client id or wrong secret</td><td>Do not retry with the same credential; alert</td></tr>
+        <tr><td><code>403</code></td><td><code>credential_unusable</code></td><td>Expired or revoked, with the reason</td><td>Rotate. Expiry is deliberate, not a fault</td></tr>
+        <tr><td><code>403</code></td><td><code>ip_not_allowed</code> · <code>certificate_mismatch</code></td><td>Address off the allow-list, or the certificate does not match the binding</td><td>Treat as a security event, not a config bug</td></tr>
+        <tr><td><code>403</code></td><td><code>tenant_suspended</code> · <code>tenant_offboarded</code></td><td>The tenant's service is stopped (&sect;13)</td><td>Stop calling. The fraud record remains exportable</td></tr>
+        <tr><td><code>403</code></td><td>scope refusal</td><td>An <code>ingest</code>-only credential asked for a decision</td><td>Mint a credential scoped <code>decide</code></td></tr>
+        <tr><td><code>409</code></td><td><code>rail_not_inline</code></td><td>The rail is routed to the near-real-time lane</td><td>Do not call for this rail. It <em>is</em> screened, in Lane&nbsp;B</td></tr>
+        <tr><td><code>409</code></td><td><code>no_rail_policy</code></td><td>No inline policy exists for this rail</td><td>A configuration gap. Escalate rather than assume it is safe</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <h5>What the switch must do when we are the ones who fail</h5>
+    <p>If the decision service is unreachable or slow, the caller applies its own timeout
+    and the rail's <b>fail policy</b> decides &mdash; <code>open</code> or
+    <code>closed</code>, chosen per rail by the bank and never defaulted by us. The one
+    outcome the platform will not produce is silence dressed as approval: whenever the lane
+    cannot answer properly it says so in <code>outcome</code>, and that value is on the
+    record whichever way the payment went.</p>
+  </div>
+
+  <h3>Shadow mode</h3>
+  <p>Every rail ships with <code>shadow = true</code>. The service computes the decision,
+  records what it <em>would</em> have returned, and returns <code>allow</code>. A tenant can
+  therefore run Lane&nbsp;A against real traffic for as long as it likes and measure the
+  false-positive cost of enforcement before anyone's payment is declined. Turning
+  enforcement on is a per-rail configuration change with a board-approval trail, not a
+  deployment.</p>
+
+  <p>A rail with no inline policy is <b>refused</b>, not allowed. Answering "allow" for an
+  unconfigured rail would make it look screened; a 409 makes the omission visible. The same
+  applies to a rail explicitly configured for Lane&nbsp;B &mdash; asking Lane&nbsp;A about
+  it is a configuration error, and it is reported as one.</p>
+
+  <p>The decision log is written <em>after</em> the answer is formed, and a failed write is
+  swallowed deliberately. Losing a log line is bad; making a payment wait on our disk is
+  worse. That is the one place in the platform where absence is not reported to the caller,
+  and it is a considered trade rather than an oversight.</p>
+</section>
+
+<section id="h6b">
+  <h2>Backfill, replay and simulation</h2>
+  <p class="lede">Retuning a threshold is worthless if nobody can see what it would have
+  done. One code path answers all three questions.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Mode</th><th>Reads</th><th>Writes</th><th>Used for</th></tr></thead>
+      <tbody>
+        <tr><td>Backfill</td><td>History already in <code>fact_transaction</code></td><td>Alerts and cases</td><td>Scoring a period that predates a newly activated rule</td></tr>
+        <tr><td>Replay</td><td>Same</td><td>Alerts and cases</td><td>Rescoring after the catalogue changes</td></tr>
+        <tr><td>Simulate</td><td>Same</td><td><strong>Nothing</strong></td><td>"What would this threshold have fired?" before activation</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Simulation is the same engine with the write suppressed and the candidate threshold
+  substituted for the active one, so the answer it gives is the answer activation would
+  produce. A separate estimator would be a second implementation of the rule semantics,
+  and the first time the two disagreed nobody would know which was right.</p>
+
+  <div class="note risk">
+    <h5>A window's worth of context cannot measure a window</h5>
+    <p>Backfill originally built one account context at the <em>end</em> of the requested
+    range and scored every transaction against it. For a single-day run that is correct
+    and it passed. Over a multi-day range it is not: a 24-hour aggregate computed at the
+    range end describes the last day, so LAY-01, LAY-02 and VEL-03 — every rule with a
+    24-hour window — could not fire on any earlier day. Worse, because the counts were
+    computed from the wrong baseline, <b>threshold overrides had no observable effect at
+    all</b>: the simulation returned nearly the same answer whatever number was supplied,
+    which is the most misleading possible behaviour for a feature whose entire purpose is
+    to show the difference a threshold makes.</p>
+    <p>The run is now sliced per day and a fresh context is built for each. Verified by
+    sweeping the threshold: LAY-02 returns 236 hits at the previous behaviour, 2,185 at a
+    threshold of 2, and 0 at 10<sup>6</sup> — and a simulate run still writes zero alerts.
+    A monotonic response to the parameter is the property that was missing, and it is now
+    asserted by test.</p>
+  </div>
+</section>
+
+<section id="h7">
+  <h2>Case lifecycle engine</h2>
+  <p class="lede">The RFA lifecycle as an enforced state machine. Guards, not guidance.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Guard</th><th>Behaviour</th><th>Basis</th></tr></thead>
+      <tbody>
+        <tr><td>Role</td><td>Each transition names the roles that may initiate it</td><td>Segregation of duties</td></tr>
+        <tr><td>Reason</td><td>Consequential transitions require written justification, stored on the case</td><td>Auditability</td></tr>
+        <tr><td>Evidence</td><td>Fraud cannot be declared without a reasoned order attached</td><td><em>SBI v. Rajesh Agarwal</em></td></tr>
+        <tr><td>Elapsed time</td><td>The borrower's response window cannot be cut short by anyone</td><td><em>SBI v. Rajesh Agarwal</em></td></tr>
+        <tr><td>Dual control</td><td>Fraud declaration records a proposal; a different user in an approver role confirms it</td><td>Maker-checker</td></tr>
+        <tr><td>Lateness</td><td>An action outside its policy window proceeds but is permanently marked as a breach</td><td>Blocking pushes the process off-system; hiding it deceives an inspection</td></tr>
+        <tr><td>Accountability</td><td>A declared fraud cannot be <em>closed</em> until the staff accountability examination is concluded</td><td>RBI expects the examination; closing without it loses the only moment anyone will do it</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <h5>Where the accountability guard is deliberately absent</h5>
+    <p>The guard sits on <code>close_case</code> and <b>not</b> on <code>file_fmr</code>.
+    RBI is explicit that reporting must not wait for the staff accountability exercise —
+    putting the guard one transition earlier would use a compliance control to delay a
+    regulatory filing, which is the opposite of its purpose. The eleven transitions are
+    declared in one table with their guards as data; this one carries a comment saying why
+    the flag is off, because a future reader will otherwise assume it was forgotten.</p>
+  </div>
+
+  <p>Every attempt is written to an append-only transition log — <em>including refusals</em>.
+  A pattern of someone repeatedly trying to shorten a natural-justice window is exactly
+  what must not be invisible. Case rows are locked with <code>SELECT … FOR UPDATE</code> for
+  the duration of a transition, so two replicas cannot both pass the same guard; without
+  it, two concurrent requests demonstrably both applied.</p>
+
+  <p>Blocked actions are returned to the console <strong>with the reason they are
+  blocked</strong> and rendered disabled rather than hidden. A missing button reads as a
+  broken page; a disabled one saying <em>the response window is open until 20 Aug</em>
+  teaches the process.</p>
+</section>
+
+<section id="h7b">
+  <h2>Regulatory artefacts</h2>
+  <p class="lede">Three things leave the building: the FMR return, the STR, and the board
+  or ACB pack. All three are assembled from the metric registry, so none can disagree with
+  the console.</p>
+
+  <h3>Assembly, validation and refusal</h3>
+  <p>A return is built from the case, its evidence, the reasoned order and the
+  accountability findings. It is validated against a declared field schema, hashed, and
+  retained with the hash so that "what did we file, and when" is answerable years later
+  without trusting the current state of the case.</p>
+
+  <p><strong>A return with gaps is refused rather than generated with blanks.</strong> A
+  half-filled statutory form that looks complete is worse than no form: someone signs it.
+  The refusal names the missing fields, which is also the fastest route to a complete one.</p>
+
+  <div class="note risk">
+    <h5>The format binding is declared, and it is declared <code>not_bound</code></h5>
+    <p>The platform assembles, validates, hashes and retains the return, and a named
+    officer can submit from the pack. What it does <em>not</em> claim is that the file is
+    in RBI's or FIU-IND's prescribed format — because the prescribed schemas have not been
+    supplied. Rather than quietly emitting a plausible-looking CSV, the format binding is
+    an explicit field whose value is <code>not_bound</code>, and it is visible on the
+    artefact. This is the single blocker on release gate R2 (BRD BR-504/505, open decision
+    OD-04). It needs the published schemas, not engineering.</p>
+    <p>The STR path itself is now verified end-to-end, not merely designed: a defect
+    left the Principal Officer field — mandatory on every STR under PMLA Rule 7 — with no
+    source anywhere in the platform, so generation was refused for every case regardless
+    of format binding. The field now reads from the tenant's board-attested FRM policy
+    (rides the same <code>board_approved</code> / attestation mechanism as every other
+    governance fact in that policy, rather than a separate approval path invented for
+    it) and has been confirmed against a live case through the real API. A tenant admin
+    can now set that field themselves: <code>ConfigCreate.kind</code> was refusing
+    <code>policy</code> at the request schema, blocking the console and the API both;
+    that is fixed, and creating a new policy version still requires the same board
+    attestation to activate as every other policy fact.</p>
+  </div>
+
+  <h3>Board and ACB pack</h3>
+  <p>Scheduled, versioned, and rendered from the same metric definitions the board sees on
+  screen — the pack cannot become a separately maintained set of numbers. Distribution is
+  recorded per recipient, so "who received the September pack" is a query rather than an
+  email search.</p>
+
+  <h3>Referral and recovery</h3>
+  <p>Law-enforcement referrals and recovery entries hang off the case. Recovery
+  re-derives the case's recovered total under a row lock rather than incrementing a
+  counter, and a recovery that would exceed the loss is refused. <code>write_off</code> is
+  deliberately absent from the recovery vocabulary: writing off a fraud loss is an
+  accounting decision, and recording it as <em>recovery</em> would flatter the one figure
+  a board is most likely to quote.</p>
+</section>
+
+<section id="h8">
+  <h2>Reconciliation by construction</h2>
+  <p class="lede">How P1 is actually achieved, and how it is proven at query time.</p>
+
+  <p>A central registry defines each metric once — its SQL expression, its base entity, its
+  unit and its filter semantics. Dashboards do not write SQL; they name metrics. Two
+  surfaces showing "fraud value" are therefore reading the same definition, and cannot
+  drift apart.</p>
+
+  <p>Sixteen invariants run at query time and are displayed beside the figures. Integrity
+  checks run tenant-wide; consistency checks run under whatever filters the user has
+  applied, so the assurance matches the view being looked at.</p>
+
+  <div class="note risk">
+    <h5>An invariant that was wrong for months</h5>
+    <p>R-03 asserts a case's value equals the value of its underlying transactions. It
+    joined case → alert → transaction, counting a transaction once <em>per alert</em>. That
+    passed only because the synthetic generator emitted exactly one alert per transaction.
+    Live detection fires every matching rule, so a ₹9.87 lakh payment tripping five rules
+    appeared as ₹49.3 lakh of evidence and seven cases failed immediately. The engine was
+    right; the check was wrong. It now sums distinct transactions. The same flaw existed in
+    the per-case evidence panel.</p>
+    <p>Worth recording as a design lesson: an invariant validated only against generated
+    data is validated against that generator's assumptions, not against reality.</p>
+  </div>
+</section>
+
+<section id="h9">
+  <h2>Multi-tenancy and isolation</h2>
+  <p class="lede">Four independent layers, so no single mistake exposes one bank's data to
+  another.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Layer</th><th>Mechanism</th></tr></thead>
+      <tbody>
+        <tr><td>Token</td><td>The tenant is a claim in the bearer token, not a request parameter</td></tr>
+        <tr><td>Route</td><td>Every endpoint resolves tenant scope before doing work; a mismatch is 403 regardless of role</td></tr>
+        <tr><td>Query</td><td>Every query predicates on tenant id; shared artefacts such as saved views additionally filter by owner and audience</td></tr>
+        <tr><td>Database</td><td>Per-service roles with schema grants; no service can reach data outside its domain</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Configuration is tenant-scoped end to end. Entity type and, for UCBs, supervisory tier
+  select the governing Direction, the reporting lines (RBI, NABARD, NHB, FIU-IND) and the
+  default policy windows — which the tenant then reviews and owns. A Tier-1 co-operative
+  bank and a large commercial bank run the same code against genuinely different rules.</p>
+</section>
+
+<section id="h10">
+  <h2>Identity and access</h2>
+  <p class="lede">v1.0 recorded authentication as the platform's largest open risk. This
+  section replaces that one; what remains open is now infrastructure, not application
+  design.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Control</th><th>Design</th></tr></thead>
+      <tbody>
+        <tr><td>Second factor</td><td>TOTP, enrolled with a QR code and confirmed by a live code before it is enabled — an enrolment that is never verified locks the user out. Required by role, per tenant policy</td></tr>
+        <tr><td>Recovery</td><td>Single-use backup codes, shown exactly once and stored hashed. The screen requires an explicit acknowledgement before it can be left</td></tr>
+        <tr><td>Federated sign-on</td><td>OIDC and SAML 2.0. Discovery by organisation short name, so a user never has to know which protocol their bank uses</td></tr>
+        <tr><td>Sessions</td><td>Access tokens live 30 minutes and are deliberately unrevocable; revocation acts on the session. Absolute lifetime 7 days, idle timeout 4 hours — a session unused over a long weekend ends even though its absolute window has not run out</td></tr>
+        <tr><td>Lockout</td><td>5 consecutive failures, 15 minutes. Long enough to defeat credential stuffing, short enough that locking out a named colleague for a day is not a cheap attack</td></tr>
+        <tr><td>Authorisation</td><td>11 roles across 4 modules; every transition names the roles that may initiate it</td></tr>
+        <tr><td>Machine callers</td><td>A separate credential class, not a user with MFA switched off. OAuth2 client-credentials; no interactive login path and none obtainable. Scoped <code>ingest</code>, <code>decide</code> or both &mdash; never full access &mdash; with optional certificate binding, an IP allow-list and enforced expiry</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note risk">
+    <h5>Signature wrapping is the SAML failure that matters</h5>
+    <p>The classic SAML break is not a forged signature — it is a valid signature over a
+    document element that is not the one the code goes on to read. An attacker keeps the
+    genuine signed assertion, wraps it, and adds their own unsigned assertion elsewhere in
+    the tree; naïve verification passes, and the application then reads the attacker's
+    element.</p>
+    <p>The implementation therefore reads the subject and attributes <em>from the element
+    the signature actually covers</em>, rather than verifying and then re-querying the
+    document. Exclusive canonicalisation is delegated to a maintained library rather than
+    hand-rolled — canonicalisation bugs are silent and produce a validator that accepts
+    documents it should not. Assertion IDs already seen are recorded and refused, so a
+    captured assertion cannot be replayed.</p>
+  </div>
+
+  <div class="note">
+    <h5>Why a payment switch is not a user with MFA disabled</h5>
+    <p>A switch, a CBS extract job and an ETL pipeline all have to call intake, and none of
+    them can complete a TOTP challenge. The tempting fix is to exempt one user account. That
+    is wrong twice: it creates a human-shaped account whose second factor is off &mdash; a
+    switch someone eventually flips on a real person &mdash; and it attributes every ingested
+    batch to whichever employee's password went into the switch's config.</p>
+    <p>MFA exists because secrets leak, so removing it has to be paid for rather than simply
+    dropped. What replaces it here is <b>scope</b> (a stolen intake key cannot read a case,
+    a customer or a dashboard), <b>certificate binding</b> (possession, where the bank can
+    offer mTLS), an <b>address allow-list</b>, and <b>expiry with overlapping rotation</b>.
+    Where the bank terminates TLS at its own edge and forwards the thumbprint in a header,
+    the credential records that it proves trust in the edge rather than possession &mdash;
+    the two must never read as equivalent in an IS review.</p>
+    <p>The standard principal dependency <b>refuses machine tokens by default</b>. Endpoints
+    opt in. Defaulting the other way would silently expose every new endpoint until someone
+    remembered to close it.</p>
+  </div>
+
+  <h3>Tenant lifecycle as an access control</h3>
+  <p>Suspension used to gate the console login and nothing else: a suspended bank's staff
+  were locked out while its payment switch kept posting and its channel kept asking for
+  inline decisions. That is the wrong half &mdash; the machine path carries the volume and
+  the billing. The lifecycle check now sits on the single dependency every machine caller
+  passes through, so intake and decisioning are both covered, and a new machine endpoint
+  inherits it.</p>
+  <p>Intake and decision services have no grant on the tenant register, so standing is
+  fetched over the internal API and cached for 15 seconds &mdash; a switch at thousands of
+  transactions a second cannot take a cross-service hop per call. The cost is stated rather
+  than hidden: a suspension bites within that window, not instantly. If tenant-service is
+  unreachable the last known answer is used and <em>marked stale</em>; if nothing was ever
+  known the tenant is served, because a tenant-service outage must not become a payments
+  outage. That is the one deliberate fail-open in the platform, and it is recorded on the
+  result so it can be audited rather than assumed.</p>
+  <p>A suspended tenant can still export. The refusal message says so, because the bank's
+  first question on being suspended is whether its data is gone.</p>
+
+  <h3>Privacy of customer data</h3>
+  <p>Customer identifiers are masked server-side by default — masking happens before the
+  data leaves the service, not in the browser. Unmasking requires both a role capability
+  and a recorded justification, and the act of viewing customer-level evidence is itself
+  audited, not merely changes to it.</p>
+
+  <p>Capability is withheld from aggregate-only roles (board, CRO), from model work, and
+  from <strong>platform staff</strong>. Operating the service does not require seeing a
+  bank's customers, and an outsourcing review asks that question first.</p>
+
+  <h3>Console output encoding</h3>
+  <p>Every value interpolated into markup in the console is escaped at the point of
+  interpolation. This was not originally true: an analyst's typed disposition reason
+  reached the DOM unescaped, which is stored cross-site scripting in a screen shown to
+  supervisors and, in the board module, to directors. A checker walks every
+  markup-bearing template literal and fails the build on an unescaped interpolation, with
+  each of the handful of exemptions carrying a written reason. Style guidance would not
+  have held; roughly 190 call sites needed fixing.</p>
+</section>
+
+<section id="h10b">
+  <h2>Data protection and retention</h2>
+  <p class="lede">Two obligations that pull in opposite directions — DPDP says delete,
+  RBI says keep — resolved by making the floors non-negotiable.</p>
+
+  <h3>Secrets at rest</h3>
+  <p>MFA seeds, identity-provider client secrets and reference-feed credentials are sealed
+  with AES-256-GCM under a versioned key. The record's identity is bound in as additional
+  authenticated data, so a ciphertext lifted from one row and pasted into another fails to
+  open rather than silently decrypting into the wrong context. Sealing is a column type
+  rather than call sites, so a new secret column cannot be added <em>un</em>sealed by
+  omission, and re-sealing an already-sealed value is a no-op so a re-run cannot
+  double-wrap. With no key configured, writing a secret <b>raises</b> rather than storing
+  plaintext.</p>
+
+  <p>What this does not cover is the volume itself. Full-disk or tablespace encryption
+  protects a stolen disk or a discarded backup and is a deployment control — Postgres TDE,
+  LUKS, or the cloud provider's volume encryption. An IS review asks for both layers; this
+  is the outstanding half of BRD BR-712.</p>
+
+  <h3>Retention</h3>
+  <p>Eight retention classes, each with a configurable period and a <strong>floor that
+  configuration cannot go below</strong>. A tenant can choose to keep records longer; it
+  cannot choose to keep a declared fraud for six months.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Class</th><th>Floor</th><th>Default</th><th>Never purged while…</th></tr></thead>
+      <tbody>
+        <tr><td>Sessions and login state</td><td class="id">7 d</td><td class="id">90 d</td><td>—</td></tr>
+        <tr><td>Delivered notifications</td><td class="id">30 d</td><td class="id">180 d</td><td>—</td></tr>
+        <tr><td>Raw inbound transactions</td><td class="id">90 d</td><td class="id">400 d</td><td>the row is not yet projected</td></tr>
+        <tr><td>Alerts never linked to a case</td><td class="id">365 d</td><td class="id">730 d</td><td>the alert is linked to a case</td></tr>
+        <tr><td>Transaction facts</td><td class="id">1,095 d</td><td class="id">1,825 d</td><td>the transaction is evidence on a case</td></tr>
+        <tr><td>Closed cases that were not fraud</td><td class="id">1,095 d</td><td class="id">1,825 d</td><td>the case was declared fraud, or is open</td></tr>
+        <tr><td>Platform audit trail</td><td class="id">1,825 d</td><td class="id">2,920 d</td><td>—</td></tr>
+        <tr><td>Declared frauds and their returns</td><td class="id">2,920 d</td><td class="id">3,650 d</td><td>any return is unfiled, or the case is open</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>The purge runs dry by default, reports what each class would remove, and executes
+  under the owning database role rather than a service role. Each class is evaluated in
+  its own savepoint: without that, one failing predicate aborted the surrounding
+  transaction and every later class reported zero — indistinguishable, on the screen, from
+  having nothing to purge.</p>
+
+  <div class="note">
+    <h5>Reporting zero is a failure mode, not a result</h5>
+    <p>Two classes once reported "0 eligible" for a week because the predicate named a
+    timestamp column that does not exist on those tables — sessions carry
+    <code>issued_at</code> and audit rows carry <code>ts</code>. Nothing errored; the
+    queries were simply never valid. A schema test now plans every predicate against the
+    live database, so a column that has been renamed fails the build instead of producing
+    a purge that quietly does nothing.</p>
+  </div>
+
+  <h3>Exit &mdash; what the bank takes with it</h3>
+  <p>The outsourcing directions require data return in a usable format when the
+  relationship ends. The bundle used to contain the tenant record, users, branding,
+  thresholds and the audit trail &mdash; all real, but none of it the part a bank cannot
+  rebuild. The <b>fraud record</b> is: cases, the alerts underneath them, the transactions
+  those alerts were raised on, the transition log including refusals, the accountability
+  examinations and findings, LEA referrals, recoveries, and the filed FMR/STR returns with
+  their payloads and content hashes. Those carry statutory retention obligations that
+  outlive the contract and exist nowhere else.</p>
+
+  <p>Two deliberate omissions, both counted rather than dropped. The <b>full transaction
+  history</b> is not in the bundle &mdash; a tenant with thirty million rows does not want
+  them in a JSON document, and pretending otherwise produces something nobody can open; the
+  count is stated and the bulk CSV path is named. <b>Document bytes</b> are not in the
+  bundle either; each appears in a manifest with its SHA-256, so what is downloaded
+  separately can be verified against what we held.</p>
+
+  <div class="note">
+    <h5>A partial bundle must never look complete</h5>
+    <p>The previous implementation swallowed a failed branding or configuration fetch and
+    returned the bundle as though nothing were missing. On an exit export that is the worst
+    place in the system for a silent gap, because the bank discovers it after the tenant is
+    gone. Every section that fails is now recorded as <code>null</code> with the reason, and
+    the bundle carries an explicit <code>complete</code> flag so a caller can tell a whole
+    bundle from a partial one without inspecting every section. The flag earned itself
+    immediately: it caught an unbound query parameter in the platform's own export on the
+    first end-to-end run.</p>
+  </div>
+
+</section>
+
+<section id="h11">
+  <h2>Reliability and scale</h2>
+  <p class="lede">The platform is designed to run as several replicas of each service
+  behind a load balancer. Three mechanisms make that safe.</p>
+
+  <h3>Configuration coherence across replicas</h3>
+  <p>Tenant configuration was cached per process with a time-to-live. With four replicas
+  that meant the same dashboard, refreshed twice, could return two different sets of
+  numbers depending on which replica served it — for a platform whose central claim is
+  reconciliation, not staleness but wrongness.</p>
+  <p>Caching is now keyed to a <strong>shared generation token</strong>. Every replica reads
+  the same counter; config-service bumps it on change; a replica whose cached copy predates
+  the current generation discards it. The generation read is authoritative on every call —
+  any non-zero backstop TTL simply reopens the same bug with a shorter window. A deployment
+  configured with a process-local cache and more than one replica <em>refuses to start</em>.</p>
+
+  <h3>Failure isolation at the edge</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Mechanism</th><th>Behaviour</th></tr></thead>
+      <tbody>
+        <tr><td>Circuit breaker, per upstream</td><td>After repeated failures, calls to that upstream fail immediately instead of occupying a connection for the full timeout. One probe is admitted after the cool-down — a thundering herd re-breaks a service at the moment it recovers</td></tr>
+        <tr><td>Split timeouts</td><td>Connect 2s, read 25s. A dead upstream does not deserve thirty seconds; a slow analytical query does</td></tr>
+        <tr><td>Bounded pool</td><td>One slow upstream cannot consume every connection the gateway has — the specific way a degraded service used to take the whole console down</td></tr>
+        <tr><td>Retry</td><td>Reads always; writes only when the caller supplied an idempotency key</td></tr>
+        <tr><td>Rate limit</td><td>Token bucket per caller. In-process, so with N replicas the effective ceiling is N× — a safety valve against runaway clients, not a billing control</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Measured with analytics-service stopped: the first call failed after retries, the
+  breaker opened, subsequent calls returned in about ten milliseconds, and the tenant and
+  audit endpoints continued serving normally throughout.</p>
+
+  <h3>Idempotency</h3>
+  <p>A write labelled with an <code>Idempotency-Key</code> is executed once; a retry replays
+  the stored response. Three cases are distinguished rather than collapsed: same request
+  already finished (replay), same request still running (409 — the first attempt may yet
+  commit), and a <em>different</em> request under the same key (422 — a client bug that must
+  not silently discard either request). Keys are scoped to the authenticated principal;
+  an unscoped key is a cross-tenant leak waiting to happen.</p>
+
+  <h3>Liveness versus readiness</h3>
+  <p>Liveness deliberately does not touch the database. If it did, one brief database
+  outage would fail liveness on every replica simultaneously and the orchestrator would
+  restart the entire fleet — turning a dependency wobble into an outage. Readiness does
+  check dependencies, returning 503 so the load balancer removes that replica from
+  rotation.</p>
+</section>
+
+<section id="h12">
+  <h2>Observability and metering</h2>
+  <p class="lede">Instrumentation is in place; centralised collection is not.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Capability</th><th>State</th></tr></thead>
+      <tbody>
+        <tr><td>Correlation id propagated across every service and returned on every response, including 401 and 404</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td>Liveness, readiness, cache topology and circuit state exposed per service</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td>Immutable platform audit trail of every action, actor and outcome</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td>Prometheus text exposition per service: request counts and latencies, circuit state, queue depth and pipeline freshness</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td>Per-tenant usage metering, finalised daily</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td>Distributed tracing</td><td><span class="chip pending">Pending</span></td></tr>
+        <tr><td>Central log shipping and alerting on SLOs</td><td><span class="chip pending">Pending</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>The exposition format is written directly rather than pulling in a client library.
+  It is a small, stable text format, and the dependency would have been carried into every
+  service for the sake of a few dozen lines.</p>
+
+  <p><strong>Pipeline freshness is the gauge that matters.</strong> Request latency tells
+  you the console is responsive; it says nothing about whether detection has fallen an hour
+  behind. A platform whose entire purpose is early warning fails most damagingly by being
+  <em>silently late</em>, and no request-level metric detects that.</p>
+
+  <h3>Metering</h3>
+  <p>Five meters, aggregated per tenant per day and then marked final. A finalised day is
+  never recomputed: an invoice that changes after it is issued is not an invoice. Seats are
+  a high-water mark within the day rather than a sum — summing daily seat counts across a
+  month bills a bank thirty times for the same analyst.</p>
+
+  <p>Tracing remains the notable absence. Correlation ids flow correctly across every
+  service, but nothing collects them, so the cost has been paid and the benefit is not yet
+  available.</p>
+</section>
+
+<section id="h13">
+  <h2>Deployment architecture</h2>
+  <p class="lede">How a production installation is laid out, what each hop is allowed to do,
+  and the infrastructure it needs underneath.</p>
+
+  <div class="diagram">
+    <svg class="depl" viewBox="0 0 860 662" role="img"
+         aria-label="Production deployment architecture, from users through the edge and
+                     service tiers to PostgreSQL">
+      <defs>
+        <marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7"
+                markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L8 4 L0 8 z" fill="#5C7376"/>
+        </marker>
+      </defs>
+
+      <g class="zones">
+        <rect x="86" y="12"  width="766" height="58" rx="7"/>
+        <rect x="86" y="100" width="766" height="56" rx="7"/>
+        <rect x="86" y="186" width="766" height="56" rx="7"/>
+        <rect x="86" y="272" width="766" height="158" rx="7"/>
+        <rect x="86" y="460" width="766" height="64" rx="7"/>
+        <rect x="86" y="554" width="766" height="94" rx="7"/>
+      </g>
+
+      <g class="zl">
+        <text x="76" y="37">CLIENTS</text><text x="76" y="52">untrusted</text>
+        <text x="76" y="124">EDGE / DMZ</text><text x="76" y="139">public subnet</text>
+        <text x="76" y="210">API TIER</text><text x="76" y="225">private subnet</text>
+        <text x="76" y="330">APPLICATION</text><text x="76" y="345">TIER</text>
+        <text x="76" y="360">private subnet</text>
+        <text x="76" y="486">WORKERS</text><text x="76" y="501">scheduled</text>
+        <text x="76" y="586">DATA TIER</text><text x="76" y="601">isolated subnet</text>
+        <text x="76" y="616">no ingress</text>
+      </g>
+
+      <!-- clients -->
+      <g>
+        <rect class="b" x="94" y="20" width="246" height="42" rx="6"/>
+        <text class="bt" x="217" y="38">Admin &amp; tenant users</text>
+        <text class="bs" x="217" y="53">browser · 11 roles · MFA / SSO</text>
+
+        <rect class="b" x="352" y="20" width="246" height="42" rx="6"/>
+        <text class="bt" x="475" y="38">Bank source systems</text>
+        <text class="bs" x="475" y="53">REST · SFTP drop · ISO 20022</text>
+
+        <rect class="b" x="610" y="20" width="242" height="42" rx="6"/>
+        <text class="bt" x="731" y="38">Bank IdP</text>
+        <text class="bs" x="731" y="53">OIDC · SAML 2.0</text>
+      </g>
+
+      <path class="flow" d="M475 62 L475 98" marker-end="url(#ar)"/>
+      <text class="fl" x="484" y="84">HTTPS · TLS terminated at the edge</text>
+
+      <!-- edge -->
+      <rect class="b acc" x="94" y="108" width="758" height="40" rx="6"/>
+      <text class="bt" x="473" y="125">Load balancer — nginx / cloud ALB</text>
+      <text class="bs" x="473" y="140">least_conn · 50 r/s per IP, burst 100 · connect 3s · retries only error/timeout/502/503/504, max 2</text>
+
+      <path class="flow" d="M475 148 L475 184" marker-end="url(#ar)"/>
+      <text class="fl" x="484" y="170">X-Request-ID injected if absent</text>
+
+      <!-- gateway -->
+      <rect class="b acc" x="94" y="194" width="758" height="40" rx="6"/>
+      <text class="bt" x="473" y="211">API gateway × 2 — stateless, no session affinity</text>
+      <text class="bs" x="473" y="226">token verify · tenant scope · one circuit breaker per upstream · connect 2s / read 25s · pool 100 · token-bucket limit</text>
+
+      <path class="flow" d="M475 234 L475 270" marker-end="url(#ar)"/>
+      <text class="fl" x="484" y="256">HTTP · /api/{prefix} → owning service</text>
+
+      <!-- application tier -->
+      <g>
+        <rect class="b" x="94" y="280" width="145" height="58" rx="6"/>
+        <text class="bt" x="166" y="298">tenant :8081</text>
+        <text class="bs" x="166" y="312">auth · MFA · SSO</text>
+        <text class="bs" x="166" y="325">sessions · audit</text>
+        <text class="role" x="166" y="335">svc_tenant</text>
+
+        <rect class="b" x="248" y="280" width="145" height="58" rx="6"/>
+        <text class="bt" x="320" y="298">config :8083</text>
+        <text class="bs" x="320" y="312">EWS catalogue</text>
+        <text class="bs" x="320" y="325">FRM policy · versions</text>
+        <text class="role" x="320" y="335">svc_config</text>
+
+        <rect class="b" x="402" y="280" width="145" height="58" rx="6"/>
+        <text class="bt" x="474" y="298">ingestion :8085</text>
+        <text class="bs" x="474" y="312">adapters · dedupe</text>
+        <text class="bs" x="474" y="325">quarantine · queue</text>
+        <text class="role" x="474" y="335">svc_ingestion</text>
+
+        <rect class="b" x="556" y="280" width="145" height="58" rx="6"/>
+        <text class="bt" x="628" y="298">notification :8087</text>
+        <text class="bs" x="628" y="312">email · webhook</text>
+        <text class="bs" x="628" y="325">delivery attempts</text>
+        <text class="role" x="628" y="335">svc_notify</text>
+
+        <rect class="b" x="710" y="280" width="142" height="58" rx="6"/>
+        <text class="bt" x="781" y="298">branding :8082</text>
+        <text class="bs" x="781" y="312">theme.css / json</text>
+        <text class="bs" x="781" y="325">white-label</text>
+        <text class="role" x="781" y="335">svc_branding</text>
+      </g>
+
+      <!-- analytics, drawn wider because it carries six capabilities -->
+      <rect class="b acc" x="94" y="346" width="758" height="76" rx="6"/>
+      <text class="bt" x="473" y="363">analytics :8084 × 3 — the read-heavy tier</text>
+      <text class="role" x="473" y="376">svc_analytics → analytics, cases, ingestion, platform</text>
+      <g class="chip-g">
+        <rect x="104" y="384" width="120" height="30" rx="4"/>
+        <text class="ct" x="164" y="397">Rule engine</text>
+        <text class="cs" x="164" y="408">25 indicators</text>
+
+        <rect x="230" y="384" width="120" height="30" rx="4"/>
+        <text class="ct" x="290" y="397">Cases / RFA</text>
+        <text class="cs" x="290" y="408">state machine</text>
+
+        <rect x="356" y="384" width="120" height="30" rx="4"/>
+        <text class="ct" x="416" y="397">Dashboards</text>
+        <text class="cs" x="416" y="408">13 · metric registry</text>
+
+        <rect x="482" y="384" width="120" height="30" rx="4"/>
+        <text class="ct" x="542" y="397">Filings</text>
+        <text class="cs" x="542" y="408">FMR · STR</text>
+
+        <rect x="608" y="384" width="120" height="30" rx="4"/>
+        <text class="ct" x="668" y="397">MIS / board pack</text>
+        <text class="cs" x="668" y="408">scheduled</text>
+
+        <rect x="734" y="384" width="118" height="30" rx="4"/>
+        <text class="ct" x="793" y="397">Billing meters</text>
+        <text class="cs" x="793" y="408">5 · finalised daily</text>
+      </g>
+
+      <!-- workers -->
+      <path class="flow" d="M300 458 L300 424" marker-end="url(#ar)"/>
+      <text class="fl" x="308" y="446">claim / ack — internal API, not the table</text>
+
+      <rect class="b" x="94" y="468" width="374" height="48" rx="6"/>
+      <text class="bt" x="281" y="486">Detection workers — cron or continuous</text>
+      <text class="bs" x="281" y="501">project → measure → score → write alerts · FOR UPDATE SKIP LOCKED</text>
+
+      <rect class="b" x="478" y="468" width="374" height="48" rx="6"/>
+      <text class="bt" x="665" y="486">Scheduled jobs</text>
+      <text class="bs" x="665" y="501">reference feeds · board packs · retention purge · usage rollup</text>
+
+      <path class="flow" d="M475 422 L475 552" marker-end="url(#ar)"/>
+      <path class="flow" d="M700 516 L700 552" marker-end="url(#ar)"/>
+      <text class="fl" x="484" y="542">per-service role · search_path scoped</text>
+
+      <!-- data tier -->
+      <rect class="b acc" x="94" y="562" width="500" height="78" rx="6"/>
+      <text class="bt" x="344" y="580">PostgreSQL — primary</text>
+      <text class="bs" x="344" y="595">9 schemas, one owner each · 7 login roles · a reach for a neighbour's table fails here</text>
+      <text class="bs" x="344" y="609">documents stored as bytes in-row · secrets sealed AES-256-GCM before insert</text>
+      <text class="bs" x="344" y="623">Alembic migrations run as the owning role, never as a service role</text>
+      <text class="role" x="344" y="635">encrypted volume required — see the infrastructure table</text>
+
+      <rect class="b" x="606" y="562" width="246" height="78" rx="6"/>
+      <text class="bt" x="729" y="580">Observability</text>
+      <text class="bs" x="729" y="595">/metrics scraped per service</text>
+      <text class="bs" x="729" y="609">liveness ≠ readiness probes</text>
+      <text class="bs" x="729" y="623">correlation id on every hop</text>
+      <text class="role gap" x="729" y="635">tracing + log shipping not built</text>
+    </svg>
+
+    <p class="cap">Trust decreases upward: the data tier accepts no ingress from outside
+    the private network, the application tier is unreachable except through the gateway,
+    and only the edge is exposed. Detection workers enter <em>beside</em> the gateway
+    rather than behind it because they claim work over ingestion-service's internal API
+    rather than reading its table (§18, AD-08). Every arrow into PostgreSQL carries a
+    different login role, so the blast radius of a compromised service is its own schema.</p>
+  </div>
+
+  <h3>Service-to-service communication</h3>
+  <p>There is no message bus. Every inter-service call is synchronous HTTP through the
+  gateway, or a direct internal call guarded by a shared key; the <code>platform</code>
+  schema plays the part a bus or Redis would (§17, AD-04).</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Caller</th><th>Callee</th><th>Path / mechanism</th><th>Guard</th></tr></thead>
+      <tbody>
+        <tr><td>Browser, bank systems</td><td>Load balancer</td><td>HTTPS</td><td>50 r/s per IP, burst 100; TLS terminates here</td></tr>
+        <tr><td>Load balancer</td><td>gateway</td><td><code>least_conn</code>, keepalive 32</td><td>Retries only on error/timeout/502/503/504, at most twice — a non-idempotent write is never replayed</td></tr>
+        <tr><td>gateway</td><td>tenant · config · branding · analytics · ingestion · notification</td><td><code>/api/{prefix}</code> → the owning service's own prefix</td><td>Token verified and tenant scope resolved <em>before</em> routing; one circuit breaker per upstream; connect 2 s, read 25 s; bounded pool</td></tr>
+        <tr><td>Detection workers</td><td>ingestion</td><td>Internal claim / ack API</td><td><code>X-Internal-Key</code>; <code>FOR UPDATE SKIP LOCKED</code> so replicas take different slices</td></tr>
+        <tr><td>analytics</td><td>tenant</td><td>Internal identity lookup for pack recipients</td><td><code>X-Internal-Key</code>; never exposed through the gateway</td></tr>
+        <tr><td>analytics</td><td>Reference sources</td><td>Outbound HTTPS pull</td><td>Credential sealed at rest; shrinkage check before a version is promoted</td></tr>
+        <tr><td>Every service</td><td>PostgreSQL</td><td>Its own login role and <code>search_path</code></td><td>Cross-schema reach fails as <em>relation does not exist</em>, in the database</td></tr>
+        <tr><td>Every service</td><td>Config generation counter</td><td><code>platform.config_generation</code>, read per call</td><td>A replica holding a stale generation discards its cache — this is why replicas cannot disagree</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Cloud infrastructure required</h3>
+  <p>Cloud-neutral, with the constraint that RBI data-localisation puts every component in
+  an Indian region and every backup with it. Sizing is for a mid-sized installation and
+  should be revisited against the load test that BR-909 still owes.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Component</th><th>What is needed</th><th>Why / sizing note</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Container orchestration</strong></td><td>Managed Kubernetes (EKS / AKS / GKE) or ECS. 3 nodes minimum for a real availability zone spread</td><td>Seven services plus workers. One image, per-service entrypoint. Manifests exist for analytics-service only — the rest is outstanding</td></tr>
+        <tr><td><strong>Managed PostgreSQL</strong></td><td>16 vCPU / 64 GB class primary, gp3-equivalent storage, <strong>encryption at rest enabled</strong>, PITR, a standby in a second AZ</td><td>Operational <em>and</em> analytical store (§17, AD-02). Volume encryption is the deployment control the application cannot supply (BR-712). Documents live in-row, so storage grows with evidence, not just transactions</td></tr>
+        <tr><td><strong>Load balancer</strong></td><td>Cloud ALB or nginx ingress, TLS 1.2+, WAF in front</td><td>Terminates TLS, applies the per-IP limit. The in-process gateway limiter is per replica and is a safety valve, not a billing control</td></tr>
+        <tr><td><strong>Secrets manager</strong></td><td>KMS / Key Vault / Secret Manager holding <code>JWT_SECRET</code>, <code>INTERNAL_API_KEY</code>, <code>CP_ENCRYPTION_KEYS</code>, per-service DB passwords</td><td>Keys are versioned in the ciphertext, so rotation is additive. Custody must sit outside the database or a stolen backup is self-decrypting (§17, AD-10)</td></tr>
+        <tr><td><strong>Object storage</strong></td><td>S3 / Blob for database backups, exported bundles and spooled packs</td><td>Not on the request path today — case documents are in-row. This becomes a request-path dependency if that changes</td></tr>
+        <tr><td><strong>SFTP endpoint</strong></td><td>Managed SFTP (AWS Transfer or equivalent) writing to the intake bucket or volume</td><td>Banks that cannot open an API firewall drop files. Per-file checksum makes a re-drop a no-op</td></tr>
+        <tr><td><strong>SMTP relay / webhook egress</strong></td><td>SES / Graph / on-prem relay, plus outbound allow-listing</td><td>Notification delivery. Absent a relay the driver records the failure rather than claiming a send</td></tr>
+        <tr><td><strong>Monitoring</strong></td><td>Prometheus-compatible scrape, alerting on pipeline freshness, and a log sink</td><td><code>/metrics</code> is exposed per service. Tracing and log shipping are <em>not built</em> — an incident today is investigated per host</td></tr>
+        <tr><td><strong>Scheduler</strong></td><td>Kubernetes CronJob or equivalent for detection, reference feeds, board packs, retention, usage rollup</td><td>Retention runs under the owning role; the others under their service role</td></tr>
+        <tr><td><strong>Network</strong></td><td>Three subnets — public edge, private application, isolated data with no route out. Private endpoints for managed services</td><td>Matches the trust bands in the figure. The data tier taking no ingress is what makes the per-service roles a second layer rather than the only one</td></tr>
+        <tr><td><strong>CI/CD</strong></td><td>Pipeline running the suite against a throwaway database, <code>alembic check</code>, then migrate-before-deploy</td><td>Migrations are a deploy step with different privileges from serving traffic</td></tr>
+        <tr><td><strong>Backup / DR</strong></td><td>PITR plus cross-region copy, and a <em>tested</em> restore runbook with stated RPO and RTO</td><td><strong>Not yet done.</strong> An untested restore is an assumption, and the outsourcing directions expect the numbers evidenced (BR-908)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note risk">
+    <h5>Multi-tenancy is logical, and that is a commercial decision as much as a technical one</h5>
+    <p>All tenants share one database, isolated by tenant scope in every query and by
+    schema ownership per service. A bank that refuses shared infrastructure needs a
+    dedicated installation — which the architecture supports, since nothing assumes more
+    than one tenant, but which changes the cost model and the DR design. That choice is
+    open as BRD OD-01 and should be settled before the first contract, not after.</p>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Deployment artefact</th><th>State</th></tr></thead>
+      <tbody>
+        <tr><td>Single container image, per-service entrypoint</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td>Compose overlay with replicas, nginx and per-service DB roles</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td>Per-service database roles and schema grants</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td>Kubernetes manifests with rolling update and both probes</td><td><span class="chip partial">analytics-service only</span></td></tr>
+        <tr><td>Helm chart, ingress, HPA, PodDisruptionBudget</td><td><span class="chip pending">Pending</span></td></tr>
+        <tr><td>Secrets manager integration (keys read from env today)</td><td><span class="chip pending">Pending</span></td></tr>
+        <tr><td>Tested backup, restore and DR runbook</td><td><span class="chip pending">Pending</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="h14">
+  <h2>Decision record</h2>
+  <p class="lede">Choices worth revisiting deliberately rather than by accident.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Ref</th><th>Decision</th><th>Rationale</th><th>Revisit when</th></tr></thead>
+      <tbody>
+        <tr><td class="id">AD-01</td><td>Python + FastAPI</td><td>Analytical and data-engineering ecosystem; fast to evolve rule logic</td><td>Sustained latency requirements make a JVM or Go runtime worth the rewrite</td></tr>
+        <tr><td class="id">AD-02</td><td>PostgreSQL as both operational and analytical store</td><td>One correct store beats two inconsistent ones; exact integer arithmetic; window functions sufficient at current scale</td><td>Query latency degrades on multi-year data — a ClickHouse engine slots in behind the existing interface</td></tr>
+        <tr><td class="id">AD-03</td><td>Schema-per-service in one instance, not database-per-service</td><td>Enforces ownership without five clusters to operate; migrations stay coordinated</td><td>A tenant demands physical separation, or a service needs independent scaling of its store</td></tr>
+        <tr><td class="id">AD-04</td><td>Database-backed generation cache rather than Redis</td><td>Multi-replica correctness with no new infrastructure to run and monitor</td><td>Generation reads become hot enough to measure</td></tr>
+        <tr><td class="id">AD-05</td><td>Rules engine rather than ML for detection</td><td>Explainable by construction; a bank can defend every alert to a regulator</td><td>False-positive load justifies the full FREE-AI model-governance obligation set</td></tr>
+        <tr><td class="id">AD-06</td><td>Batch worker rather than stream processing</td><td>Correct and simple; adequate for near-real-time alerting</td><td>Interdiction is in scope, or latency budgets tighten below seconds</td></tr>
+        <tr><td class="id">AD-07</td><td>Charting library vendored locally, no CDN</td><td>Several target banks deploy air-gapped</td><td>Never, unless all deployments gain outbound internet</td></tr>
+        <tr><td class="id">AD-08</td><td>Detection reads the ingestion queue over an internal API</td><td>Keeps ownership with ingestion-service; substituting a queue changes two endpoints</td><td>Volume justifies Kafka or similar</td></tr>
+        <tr><td class="id">AD-09</td><td>analytics-service keeps growing rather than splitting</td><td>Every candidate for extraction — filings, board packs, accountability — reads the metric registry and the case. Splitting now means either duplicating the registry or serving it over the network on the reconciliation path</td><td>OD-02 is decided, or one sub-domain's write load starts affecting dashboard latency</td></tr>
+        <tr><td class="id">AD-10</td><td>Application-layer sealing of secrets, not column encryption in the database</td><td>Keeps key custody outside the database, so a database backup is not self-decrypting; key version travels with the ciphertext</td><td>The deployment gains an HSM or a managed KMS worth binding to</td></tr>
+        <tr><td class="id">AD-11</td><td>Simulation reuses the scoring engine with writes suppressed</td><td>A separate estimator is a second implementation of the rule semantics; when the two disagree nobody can say which is right</td><td>Never — this one is load-bearing for trust in retuning</td></tr>
+        <tr><td class="id">AD-12</td><td>Prometheus text exposition written directly, no client library</td><td>Small stable format; the dependency would be carried into all seven services for a few dozen lines</td><td>Exemplars, native histograms or push-gateway semantics are needed</td></tr>
+        <tr><td class="id">AD-13</td><td>Charting and diagram bundles vendored and digest-pinned</td><td>Air-gapped deployment, and 3.3 MB of third-party JavaScript is inlined into documents that go to a regulator. A substituted bundle stops the build</td><td>Never, unless all deployments gain outbound internet</td></tr>
+        <tr><td class="id">AD-14</td><td>AI/ML roadmap Phase 2 model scoring runs in-process inside the existing detection worker, not a new service; CPU-only gradient-boosted trees or an isolation forest, not deep learning</td><td>Reuses AD-01's Python/FastAPI stack and AD-09's "one implementation, not two" reasoning: scoring needs the same account context and feature computation the rules engine already builds per batch (§6). A network hop to a separate scoring service, or a second feature pipeline, buys nothing yet. Tabular velocity/anomaly detection is squarely gradient-boosted-trees' and isolation-forest's use case; no GPU, no separate model-serving stack (TorchServe, Triton) needed at this scale</td><td>The batch worker's latency budget stops holding at contracted volume (revisit alongside BR-909's load-test evidence), or Phase 3's GNN work needs heavier compute (embeddings, matrix ops) that does not fit the same process &mdash; that decision is Phase 3's to make, not retroactively Phase 2's</td></tr>
+        <tr><td class="id">AD-15</td><td>AI/ML roadmap Phase 3's GNN runs as a periodic scheduled script (<code>scripts/refresh_ring_scores.py</code>, the same shape as <code>run_subscriptions.py</code>/<code>run_retention.py</code>), writing <code>analytics.account_ring_score</code>, which the detection worker only reads &mdash; never a live forward pass in the payment path. PyTorch + PyTorch Geometric (CPU-only), recorded separately from AD-14</td><td>A GraphSAGE pass over a whole tenant graph does not fit AD-14's per-transaction placement without making every batch as slow as a retrain (AD-06's batch-not-stream reasoning, applied one level up). PyTorch Geometric is still a materially heavier dependency than AD-14's scikit-learn (torch's CPU wheel alone is ~125MB), recorded on its own so a future audit of "why does this deployment carry PyTorch" doesn't have to reverse-engineer it from AD-14's unrelated reasoning. <b>The compiled-extension risk this decision flagged did not materialise</b>: PyG 2.8's pure-PyTorch message-passing fallback covers <code>SAGEConv</code> without <code>torch-scatter</code>/<code>torch-sparse</code> at all - both install and a working forward pass were verified on this deployment's own target platform (Windows, CPU) before this phase was built, not assumed</td><td>Refresh cadence or embedding cost make the scheduled-script placement itself wrong (a managed feature-store or streaming graph library becomes justified), or a lighter graph-feature approach (handcrafted centrality/clustering measures scored by AD-14's existing pipeline, no PyTorch at all) turns out to catch the same rings without the dependency weight - this was considered and not chosen, on the reasoning that "GNN-based fraud-ring detection" is what the BRD names, and handcrafted centrality features scored by a tree model is a different, smaller claim than that</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="h15">
+  <h2>Known gaps</h2>
+  <p class="lede">Architectural debt stated plainly, with the consequence of leaving it.
+  Gates refer to the release plan in BRD v1.7 §17.</p>
+
+  <h4>Closed since v1.0</h4>
+  <div class="tw">
+    <table>
+      <thead><tr><th>v1.0 gap</th><th>Now</th></tr></thead>
+      <tbody>
+        <tr><td>No MFA, SSO, session management or lockout</td><td><span class="chip built">Closed</span> §13</td></tr>
+        <tr><td>No notification channel</td><td><span class="chip built">Closed</span> notification-service</td></tr>
+        <tr><td>No encryption-at-rest configuration or retention/purge</td><td><span class="chip partial">Application layer closed</span> §14; volume encryption outstanding</td></tr>
+        <tr><td>No FMR or STR artefact generation</td><td><span class="chip partial">Assembly closed</span> §10; prescribed format outstanding</td></tr>
+        <tr><td>Eight indicators inert for want of reference feeds</td><td><span class="chip partial">Five remain</span> §7 — and they are reported unmeasurable, not scored clean</td></tr>
+        <tr><td>No file/SFTP intake, backfill or replay</td><td><span class="chip built">Closed</span> §6, §8 — plus ISO 20022 and CBS events</td></tr>
+        <tr><td>No metrics</td><td><span class="chip built">Closed</span> §16</td></tr>
+        <tr><td>No inline / real-time decisioning path</td><td><span class="chip built">Closed</span> §8 &mdash; Lane&nbsp;A, in shadow mode</td></tr>
+        <tr><td>No machine credential; intake needed a human account</td><td><span class="chip built">Closed</span> §13</td></tr>
+        <tr><td>Suspension gated the console login only</td><td><span class="chip built">Closed</span> §13 &mdash; the machine path is gated too</td></tr>
+        <tr><td>Exit export returned configuration but not the fraud record</td><td><span class="chip built">Closed</span> §14 &mdash; and it now declares its own completeness</td></tr>
+        <tr><td>No console UI for identity-provider configuration</td><td><span class="chip built">Closed</span> §14 &mdash; tenant administrators create, edit and delete their own OIDC/SAML providers; role mapping is validated against the tenant's own assignable roles, and a client secret is write-only, never echoed back</td></tr>
+        <tr><td>No console or API path to configure a tenant's FRM policy</td><td><span class="chip built">Closed</span> §11 &mdash; <code>policy</code> is now an accepted config kind; a tenant admin can create and activate a policy version, including the PMLA Principal Officer designation, gated by the same board-attestation requirement as before</td></tr>
+        <tr><td>Inline decision policy is not yet in config-service versioning</td><td><span class="chip built">Closed</span> &mdash; <code>decision_policy</code> is now an accepted config kind. A rail cannot be marked enforced without a per-rail graduation record (observation window, false-positive rate, board/ACB approving body) attached to the same version, checked before the version can even be proposed; a second, different eligible person must still confirm activation (BR-715) before decision-service's cached rail policy actually changes</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h4>Open</h4>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Gap</th><th>Consequence if unaddressed</th><th>Gate</th></tr></thead>
+      <tbody>
+        <tr><td>No full-disk or tablespace encryption</td><td>Application-layer sealing protects a database reader; it does not protect a stolen disk or a discarded backup. An IS review asks for both</td><td><span class="chip pending">R1</span></td></tr>
+        <tr><td>FMR and STR format bindings declared <code>not_bound</code></td><td>The return is assembled, validated, hashed and retained, but the platform cannot claim it is in the prescribed format. Blocked on OD-04, not on engineering. The STR path's own defect — the Principal Officer field had no source at all — is fixed and verified end-to-end against a live case</td><td><span class="chip pending">R2</span></td></tr>
+        <tr><td>Capacity evidence is single-worker only</td><td>Detection latency is now <b>measured</b> &mdash; 200&nbsp;tps per worker at p99 2.65&nbsp;s, with the harness refusing to call a run sustained if the backlog grows across it. What is still unevidenced is multi-worker scaling and the managed-database deployment, so a contracted peak above one worker's throughput cannot yet be underwritten</td><td><span class="chip pending">R4</span></td></tr>
+        <tr><td>Five indicators still unmeasurable — SME-03, CHN-02, TBM-01/02/03</td><td>Correctly reported as unmeasurable, but it is EWS coverage a bank is paying for and not receiving. No invoice, geolocation or trade-finance feed is contracted</td><td><span class="chip pending">R3</span></td></tr>
+        <tr><td>No distributed tracing or log shipping</td><td>Metrics, structured logs and a request id that crosses every service exist; nothing ships them anywhere. An incident is investigated by reading files on each host</td><td><span class="chip pending">R4</span></td></tr>
+        <tr><td>No tested backup, restore or DR runbook</td><td>RPO and RTO are aspirations. An untested restore is an assumption</td><td><span class="chip pending">R4</span></td></tr>
+        <tr><td>No right-to-audit evidence pack or sub-processor register</td><td>The outsourcing directions give the bank and RBI a right to audit the service provider. It has to be answerable on request</td><td><span class="chip pending">R4</span></td></tr>
+        <tr><td>Kubernetes manifests for one service only</td><td>Not deployable to a managed cluster as-is</td><td><span class="chip pending">R4</span></td></tr>
+        <tr><td>Lane&nbsp;A ships in shadow mode; no tenant enforces yet</td><td>Every inline decision is computed and recorded, but the enforced answer is always <code>allow</code>. The <em>how</em> of graduating a rail to enforcement is now built &mdash; a per-rail graduation record, board sign-off and maker-checker confirmation. What's still open is narrower: no tenant has actually exercised it, so the false-positive cost of declining a real payment remains modelled rather than observed &mdash; and that number, not the latency, is what a bank will negotiate over</td><td><span class="chip pending">R3</span></td></tr>
+        <tr><td>Lane&nbsp;A has no per-pair set store</td><td>Beneficiary-age and counterparty-novelty indicators (CPT-01, VEL-02) need a per-account-pair set, not a counter. They are correctly reported as skipped inline rather than approximated, but two of the more useful inline signals are therefore unavailable in the payment window</td><td><span class="chip pending">R3</span></td></tr>
+        <tr><td>Case management not a separate deployable</td><td>Write-heavy and read-heavy workloads scale together; acceptable today. See AD-09</td><td><span class="chip partial">OD-02</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="h16">
+  <h2>AI/ML roadmap — architecture</h2>
+  <p class="lede">How the four phases this document's own <a href="#h14">AD-05</a>
+  ("rules engine rather than ML — revisit when...") anticipates would actually be
+  built, against the architecture as it stands today — not a restatement of the
+  business case, which lives at BRD <a href="#s19">§19</a>. None of this is built; each
+  phase's design below only firms up once the phase before it lands.</p>
+
+  <h4>Phase 1 — Device &amp; behavioural biometrics</h4>
+  <p>No new service. Ingestion-service's transaction payload already carries a device
+  id (§5); this phase widens that same payload with a device-posture and
+  behavioural-biometric feature vector, sourced from VideoPD / the Human Fraud
+  Detection Framework rather than captured here, and adds new sub-rules to the
+  channel/device (CHN) family the detection runtime already evaluates (§6) — CHN-01
+  and CHN-03 are measured from transactions alone today; the new sub-rules join them at
+  the same evaluation step, not a separate one. No architectural decision is revisited:
+  AD-05 (rules engine, not ML) still holds, because this phase adds signal inputs to
+  the existing rules engine rather than a scored model.</p>
+
+  <h4>Phase 2 — Transaction velocity &amp; anomaly-detection models <span
+      class="chip built">Built</span></h4>
+  <p>The first phase that touches AD-05 directly, and the first one actually built. The
+  <code>model</code> config kind and its champion/challenger gate (BR-807/808) were
+  already built in config-service; this phase added the scoring side — a model-scoring
+  step in the detection worker's sequence (§6) that runs alongside rule evaluation
+  rather than replacing it (in the same loop that already merges rule observations and
+  <code>cbs_features.observe_loan()</code>'s loan-conduct scores), reading the active
+  <code>model</code> version the same way the worker already reads the active rule
+  catalogue (<code>rules.active_model()</code>, mirroring <code>active_rules()</code>
+  and <code>policy()</code>'s own cached-fetch shape).</p>
+  <p><b>Runtime — <a href="#h14">AD-14</a>, as decided.</b> In-process inside
+  analytics-service, not a separate scoring service behind AD-08's internal-API
+  pattern: scoring needs the same account context <code>features.load_context</code>
+  already builds per batch, and a second process would mean either duplicating that
+  computation or paying a network hop per transaction for every scored row — the same
+  reasoning AD-09 already applies to keeping analytics-service one service.
+  CPU-only, an <code>sklearn.ensemble.IsolationForest</code> over five tabular features
+  (velocity, counterparty, outflow-ratio, small-credit and structuring signals already
+  computed for VEL-01/LAY-01/LAY-02/VEL-03/SME-01); Python + FastAPI (AD-01) already
+  carries the dependencies this needs, no GPU or separate model-serving stack.
+  <code>services/analytics_service/app/detection/model_scoring.py</code>.</p>
+  <p><b>Calibration, not a guessed constant.</b> <code>score_samples</code> is
+  lower-is-more-abnormal with no fixed range; scoring the mid-point of a real tenant's
+  own traffic against a hand-picked transform put the bulk of ordinary traffic above any
+  sane threshold during development. The trained artifact instead carries its own
+  training set's 1st/99th-percentile score bounds, and <code>model_scoring.score()</code>
+  rescales linearly against them, clamped to [0,1] — a live transaction outside the
+  training range becomes a boundary value, not a value outside the catalogue's own
+  scale.</p>
+  <p><b>Built</b>: the <code>model</code> config body's <code>model_artifact</code> slot
+  (format, object-storage <code>uri</code>, <code>sha256</code>) sits alongside
+  <code>challenger_evaluation</code> and the committee attestation, validated by the
+  same route (<code>config_service/app/model_artifact.py</code>) at proposal time —
+  refused before <code>pending_activation</code>, the same discipline the other two
+  gates already had. Only <code>sklearn-joblib</code> is a supported format;
+  <code>onnx</code> is named as a future option and explicitly refused, not silently
+  accepted and left to fail unexplained at scoring time. Only <code>file://</code> URIs
+  are implemented today — object storage (s3://, azure blob) is where a real
+  deployment's artifacts belong, not built because nothing in this environment has that
+  infrastructure to point at. A batch loads the artifact once (cached by URI+sha256, so
+  a replacement file is loaded fresh rather than silently reusing a stale one) and
+  verifies its digest before every deserialisation, refusing a mutated or truncated file
+  rather than scoring with something nobody approved. See
+  <code>scripts/train_velocity_anomaly_model.py</code> for how a version is actually
+  produced — an unsupervised <code>IsolationForest</code> fit against whatever history a
+  tenant already has, since no tenant has labelled fraud outcomes to train against yet.
+  <b>This is a first working fit, not a validated model</b> — detection quality against
+  real fraud outcomes is unmeasured until BR-806's backtesting harness runs against live
+  traffic, which this phase does not claim to have done.</p>
+
+  <h4>Phase 3 — GNN-based fraud-ring detection <span class="chip built">Built</span></h4>
+  <p>The account graph <code>GET /analytics/{tid}/graph</code> already computes (built
+  for the Investigator/Account 360/AML network-graph view) was the natural training
+  input — no new data model, a new consumer of data that already existed, within
+  one tenant's own graph. Training needs the tenant's <i>whole</i> transaction graph,
+  not the case- or account-scoped neighbourhood the live endpoint returns for display
+  (or its unscoped "busiest structure" fallback, itself limited to already-LAY-flagged
+  traffic) — built as its own query variant,
+  <code>graph_model.build_tenant_graph()</code>, not a new data source. <b>Resolved by
+  <a href="brd.html#s18">OD-07</a></b>: this phase did not wait on a cross-tenant
+  data-sharing decision, because it did not need one — the isolation decisions this
+  platform had already made (AD-03: schema-per-service in one instance; the
+  multi-tenancy model in §9: no cross-tenant queries, enforced at the database role)
+  are simply unaffected by training a model on data one tenant already owns.</p>
+
+  <p><b>Task and model.</b> No ring labels exist to train against, same situation
+  Phase 2 was in — so this is self-supervised, not classification: a 2-layer
+  <b>GraphSAGE</b> (<code>graph_model.RingScoreEncoder</code>; inductive, deliberately
+  not a transductive GCN — an account graph gains new nodes constantly, and an
+  inductive model scores one it has never seen without retraining) produces a node
+  embedding per account, seeded with Phase 2's own five features plus three the GNN
+  specifically needed and Phase 2 never did — log-degree and log in/out-flow, since a
+  model with no signal about neighbourhood size or flow cannot use its own aggregation
+  for anything. Trained on link prediction (a real edge's endpoints should
+  dot-product higher than a random pair's, via negative sampling) — a standard,
+  label-free way to make an embedding space reflect graph structure. Those embeddings
+  are then scored for anomalousness by the <i>same</i> calibrated-percentile pipeline
+  Phase 2 built (<code>model_scoring.load()</code>/<code>score()</code>), extended
+  (not replaced) to reconstruct the encoder from the bundle first — an embedding is
+  just a richer feature vector to the scoring half, so that code needed no new logic,
+  only a new upstream feature computation. Surfaced as <b>LAY-05</b> (fraud-ring
+  membership) — the layering/mule family, not VEL, since this is topology, not
+  velocity.</p>
+
+  <p><b>Runtime — does not reuse AD-14's placement, by design.</b> A GraphSAGE forward
+  pass over a whole tenant graph is not a per-transaction operation the way Phase 2's
+  five-feature IsolationForest call is; recomputing embeddings for the whole graph on
+  every batch the detection worker claims would make every batch as slow as a full
+  retrain. This phase runs as a periodic scheduled script instead
+  (<code>scripts/refresh_ring_scores.py</code>, the same shape
+  <code>scripts/run_subscriptions.py --once</code> and
+  <code>scripts/run_retention.py</code> already are, driven by cron/Task Scheduler, not
+  a new microservice — AD-06's reasoning: batch, not stream) that refreshes
+  <code>analytics.account_ring_score</code> (tenant, account, score, model version,
+  computed at; upserted, one row per account) on whatever cadence an operator
+  schedules it at. The detection worker's per-transaction loop does a cheap
+  primary-key lookup against that table for LAY-05, the same shape
+  <code>device_clusters()</code>'s per-batch dict-return already has for LAY-04 —
+  never a live GNN forward pass in the payment path. An account absent from the table
+  (new since the last refresh, or the refresh has never run) contributes nothing to
+  that transaction's observations — correctly not the same as a confirmed-typical
+  score of zero, and not the same failure as no model existing at all: the coverage
+  report distinguishes "no active graph-ring-score model for this tenant" (LAY-05
+  genuinely unmeasurable) from "this specific account has no score yet" (silently
+  absent from one transaction's observations, exactly like an unprofiled account's
+  CHN-03).</p>
+
+  <p><b>Dependency, recorded separately — <a href="#h14">AD-15</a>.</b> PyTorch +
+  PyTorch Geometric (CPU-only) is a materially heavier dependency than AD-14's
+  scikit-learn/joblib/numpy (torch's own CPU wheel is ~125MB) — deliberately not
+  folded into AD-14's "no GPU, no separate model-serving stack" framing, since
+  Phase 2's choice does not carry over just because both phases are ML, exactly what
+  AD-14 itself said Phase 3 should not assume. The compiled-extension risk flagged
+  when this was scoped (<code>torch-scatter</code>/<code>torch-sparse</code>,
+  historically the fragile half of a PyG install) did not materialise: PyG 2.8's
+  pure-PyTorch message-passing fallback covers <code>SAGEConv</code> without either,
+  verified with a real install and a real forward pass on this deployment's own
+  target platform before the rest of this phase was built.</p>
+
+  <p><b>The prerequisite this phase exposed is fixed, not merely documented.</b>
+  Phase 2's <code>/internal/model/{tid}</code> and <code>rules.active_model()</code>
+  used to return the tenant's first active <code>model</code>-kind row, full stop —
+  correct only while exactly one model existed. Both are now
+  <code>/internal/model/{tid}/{name}</code> and
+  <code>rules.active_model(tenant_id, name)</code>, keyed by the config's own
+  <code>name</code> (read from <code>features.NEEDS_MODEL</code>, never retyped as a
+  literal at a call site) — the config data model already supported two same-kind,
+  differently-named active versions (<code>ConfigRepository.activate()</code> archives
+  a sibling by tenant+kind+name, not tenant+kind alone); only the query layer had
+  never been asked to distinguish them. <code>velocity-anomaly</code> (VEL-04) and
+  <code>graph-ring-score</code> (LAY-05) are now active independently per tenant, each
+  reachable only by its own name — verified by a test that activates one and confirms
+  the other's name still reports unavailable.</p>
+
+  <h4>Phase 3b — Federated learning (deferred)</h4>
+  <p>Decoupled from Phase 3 by <a href="brd.html#s18">OD-07</a>. Federated learning's entire
+  premise is training across a data boundary wider than one tenant — training within
+  one tenant's own data is not federation, it is centralised training with an extra
+  network hop, since there is only one data holder. That wider boundary is a
+  materially different posture than anything AD-03 or §9's isolation model
+  contemplates, and this document does not carry a design for it: no architecture is
+  specified here because none is owed until a specific multi-bank engagement creates
+  both the demand and the consent basis for it. <a href="#h13">§13</a> (identity and
+  access) and §9's isolation model are unaffected in the meantime — there is nothing
+  to build against them.</p>
+
+  <h4>Phase 4 — Explainable-AI dashboards &amp; regulator-ready reporting</h4>
+  <p>No new service. Extends analytics-service's existing model-inventory and
+  override-log endpoints (§12) with a per-alert rule-vs-model attribution field, and
+  reuses the scheduled-distribution machinery already built for board packs (§7b,
+  BR-507) to add an explainability appendix. Reporting only; there is no new data to
+  protect or reconcile that §8's sixteen invariants don't already cover, since this
+  phase reports on Phase 2/3's outputs rather than producing its own facts.</p>
+</section>
+
+<footer>
+  <p><strong>Verification basis.</strong> Statements about implemented behaviour in this
+  document correspond to a build with 1078 passing automated tests, clean schema-migration
+  drift, and sixteen reconciliation invariants passing across three tenants with live and
+  demonstration data held side by side. Where this document says a control is enforced,
+  the enforcement has been checked by reintroducing the fault and confirming the test
+  fails — a guard that has never been seen to refuse anything is an assumption.</p>
+  <p>Read with BRD v1.7, which carries the numbered requirements, the release gates and
+  the regulatory traceability this design serves.</p>
+</footer>
+
+</main>
+</div>
+</div>
+
+<!-- mermaid-boot: replaced by an inlined bundle when make_pdf.py builds the print copy -->
+<script src="mermaid.min.js"></script>
+<script>
+  mermaid.initialize({
+    startOnLoad: true, theme: 'base', securityLevel: 'loose',
+    fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+    themeVariables: {
+      primaryColor: '#E3EFEF', primaryTextColor: '#101820',
+      primaryBorderColor: '#16565C', lineColor: '#5C7376',
+      secondaryColor: '#F7F9F9', tertiaryColor: '#FFFFFF',
+      fontSize: '14px'
+    },
+    flowchart: { curve: 'basis', useMaxWidth: true, nodeSpacing: 34, rankSpacing: 40 },
+    sequence: { useMaxWidth: true, wrap: true },
+    state: { useMaxWidth: true }
+  });
+</script>
+<!-- /mermaid-boot -->

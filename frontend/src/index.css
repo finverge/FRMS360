@@ -1,0 +1,143 @@
+@import "tailwindcss";
+
+/* Design tokens. Three things drive these choices, not just taste:
+   - WCAG 2.1 AA contrast (4.5:1 body text, 3:1 large text/UI components) - every
+     foreground/background pairing below was picked to clear that bar, not just to look
+     like a plausible "neutral" theme.
+   - A visible focus ring on every interactive element (--ring), because keyboard-only
+     navigation is part of "streamlined per latest guidelines," not an afterthought.
+   - Three-tier elevation (canvas < rail/sidebar < card) in both themes, so boxes and
+     menus read as distinct surfaces instead of one flat page. A fraud/risk control
+     plane is read for hours at a stretch - that hierarchy is what gives it "visibility",
+     not just darker text. */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --background: oklch(0.965 0.010 258);       /* cool-blue canvas, not gray */
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);                       /* white cards pop above the canvas */
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  /* Sidebar is a fixed brand rail, not a themed surface - same navy in light and
+     dark mode, matching Mandate360's persistent dark-navy sidebar (it doesn't have
+     a light variant either). Values are precise sRGB->OKLab->OKLCH conversions of
+     Mandate360's own #10173a / #c7cbe6, not an approximation. Defined once here in
+     :root and intentionally NOT overridden in .dark below, so it stays constant
+     while the rest of the app switches. */
+  --sidebar: oklch(0.221 0.068 271);
+  --sidebar-foreground: oklch(0.847 0.038 279);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-accent: oklch(0.55 0.19 258);
+  --sidebar-accent-foreground: oklch(0.98 0.012 258);
+  --primary: oklch(0.32 0.14 254);            /* deep blue - brand primary, AA on white */
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.91 0.014 258);
+  --secondary-foreground: oklch(0.2 0 0);
+  --muted: oklch(0.91 0.014 258);
+  --muted-foreground: oklch(0.4 0 0);         /* darkened from a typical 0.55 for AA on white */
+  --accent: oklch(0.9 0.035 254);             /* tinted blue, not flat gray - reads as selected */
+  --accent-foreground: oklch(0.22 0.08 254);
+  --destructive: oklch(0.45 0.19 25);         /* darkened red so white text on it clears AA */
+  --destructive-foreground: oklch(0.98 0 0);
+  --success: oklch(0.4 0.13 152);
+  --success-foreground: oklch(0.98 0 0);
+  --warning: oklch(0.52 0.15 55);             /* amber - darkened so white text clears AA */
+  --warning-foreground: oklch(0.98 0 0);
+  --severity-critical: oklch(0.45 0.19 25);
+  --severity-high: oklch(0.52 0.15 55);
+  --severity-medium: oklch(0.55 0.13 95);
+  --severity-low: oklch(0.42 0.1 254);
+  --border: oklch(0.8 0.012 258);             /* darkened from 0.88 - visible against white cards */
+  --input: oklch(0.8 0.012 258);
+  --ring: oklch(0.32 0.14 254 / 0.6);
+  --radius: 0.625rem;
+}
+
+.dark {
+  --background: oklch(0.15 0.022 258);        /* deep navy-black canvas, more color depth */
+  --foreground: oklch(0.97 0.002 258);
+  --card: oklch(0.22 0.024 258);              /* elevated above canvas; sidebar sits apart by hue+chroma, not just lightness */
+  --card-foreground: oklch(0.97 0.002 258);
+  --popover: oklch(0.24 0.024 258);
+  --popover-foreground: oklch(0.97 0.002 258);
+  --primary: oklch(0.75 0.13 254);
+  --primary-foreground: oklch(0.14 0 0);
+  --secondary: oklch(0.28 0.022 258);
+  --secondary-foreground: oklch(0.97 0.002 258);
+  --muted: oklch(0.26 0.022 258);
+  --muted-foreground: oklch(0.75 0.006 258);
+  --accent: oklch(0.32 0.05 254);
+  --accent-foreground: oklch(0.93 0.02 254);
+  --destructive: oklch(0.72 0.17 25);
+  --destructive-foreground: oklch(0.14 0 0);
+  --success: oklch(0.76 0.15 152);
+  --success-foreground: oklch(0.14 0 0);
+  --warning: oklch(0.78 0.15 70);
+  --warning-foreground: oklch(0.14 0 0);
+  --severity-critical: oklch(0.72 0.17 25);
+  --severity-high: oklch(0.78 0.15 70);
+  --severity-medium: oklch(0.82 0.13 95);
+  --severity-low: oklch(0.75 0.1 254);
+  --border: oklch(1 0 0 / 14%);
+  --input: oklch(1 0 0 / 20%);
+  --ring: oklch(0.75 0.13 254 / 0.6);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-severity-critical: var(--severity-critical);
+  --color-severity-high: var(--severity-high);
+  --color-severity-medium: var(--severity-medium);
+  --color-severity-low: var(--severity-low);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+    outline-color: var(--color-ring);
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+  }
+  /* Keyboard-only focus visibility, everywhere, not just on the elements each
+     component author remembered to style - see WCAG 2.4.7. */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+}

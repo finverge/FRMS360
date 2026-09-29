@@ -1,0 +1,20 @@
+[project]
+name = "cp_common"
+version = "0.1.0"
+description = "Shared library for Finverge control-plane microservices: settings, DB, auth, tenancy."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "sqlalchemy>=2",
+    "pydantic>=2",
+    "pydantic-settings>=2",
+    "PyJWT>=2",
+    "bcrypt>=4",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["cp_common*"]

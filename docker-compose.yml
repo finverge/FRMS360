@@ -1,0 +1,72 @@
+name: finverge-control-plane
+
+x-common: &common
+  build: .
+  env_file: .env
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: cp
+      POSTGRES_PASSWORD: cp_password
+      POSTGRES_DB: controlplane
+    ports:
+      # Host 5433 -> container 5432, to avoid clashing with a native PostgreSQL on 5432.
+      # Services inside the compose network still reach it as postgres:5432.
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cp -d controlplane"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  tenant-service:
+    <<: *common
+    command: uvicorn services.tenant_service.app.main:app --host 0.0.0.0 --port 8081
+    ports:
+      - "8081:8081"
+
+  branding-service:
+    <<: *common
+    command: uvicorn services.branding_service.app.main:app --host 0.0.0.0 --port 8082
+    ports:
+      - "8082:8082"
+
+  config-service:
+    <<: *common
+    command: uvicorn services.config_service.app.main:app --host 0.0.0.0 --port 8083
+    ports:
+      - "8083:8083"
+
+  analytics-service:
+    <<: *common
+    command: uvicorn services.analytics_service.app.main:app --host 0.0.0.0 --port 8084
+    ports:
+      - "8084:8084"
+
+  gateway:
+    <<: *common
+    command: uvicorn services.gateway.app.main:app --host 0.0.0.0 --port 8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+      tenant-service:
+        condition: service_started
+      branding-service:
+        condition: service_started
+      config-service:
+        condition: service_started
+      analytics-service:
+        condition: service_started
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:

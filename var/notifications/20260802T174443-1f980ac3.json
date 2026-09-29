@@ -1,0 +1,15 @@
+{
+  "id": "1f980ac3-8cb4-4da3-8cd6-5a61f4294e28",
+  "tenant_id": "b3b90261-9663-46c3-b31f-e8afc4a65442",
+  "recipient": "bank.admin@meridian.example.com",
+  "kind": "fmr_overdue",
+  "severity": "urgent",
+  "subject": "FMR filing overdue",
+  "body": "The Fraud Monitoring Return for case RETRYDEMO is 3 day(s) overdue.",
+  "link": "/?case=RETRYDEMO",
+  "context": {
+    "case_id": "RETRYDEMO",
+    "days": 3
+  },
+  "created_at": "2026-08-02T23:14:17.682891+05:30"
+}

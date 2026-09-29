@@ -1,0 +1,2963 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fraud360 — Functional Specification</title>
+
+<style>
+:root {
+  --accent:#16565C; --accent-soft:#E3EFEF; --ink:#101820; --ink-2:#35474B;
+  --muted:#64777A; --paper:#F7F9F9; --card:#FFFFFF; --rule:#DCE5E5;
+  --rule-strong:#C2D2D2; --ok:#17683F; --ok-bg:#E4F1E9; --warn:#8A5D08;
+  --warn-bg:#F8EED8; --crit:#A32218; --crit-bg:#F8E3E1; --info-bg:#E5EEF4;
+  --shadow:0 1px 2px rgba(16,24,32,.05), 0 8px 24px rgba(16,24,32,.05);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent:#4FB0B6; --accent-soft:#16292B; --ink:#E7EFEF; --ink-2:#B7C6C7;
+    --muted:#85999B; --paper:#0C1214; --card:#121A1C; --rule:#22302F;
+    --rule-strong:#32433F; --ok:#6FCB98; --ok-bg:#10251A; --warn:#E0B457;
+    --warn-bg:#291F0C; --crit:#F08A80; --crit-bg:#2A1412; --info-bg:#10202A;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"] {
+  --accent:#4FB0B6; --accent-soft:#16292B; --ink:#E7EFEF; --ink-2:#B7C6C7;
+  --muted:#85999B; --paper:#0C1214; --card:#121A1C; --rule:#22302F;
+  --rule-strong:#32433F; --ok:#6FCB98; --ok-bg:#10251A; --warn:#E0B457;
+  --warn-bg:#291F0C; --crit:#F08A80; --crit-bg:#2A1412; --info-bg:#10202A;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
+}
+:root[data-theme="light"] {
+  --accent:#16565C; --accent-soft:#E3EFEF; --ink:#101820; --ink-2:#35474B;
+  --muted:#64777A; --paper:#F7F9F9; --card:#FFFFFF; --rule:#DCE5E5;
+  --rule-strong:#C2D2D2; --ok:#17683F; --ok-bg:#E4F1E9; --warn:#8A5D08;
+  --warn-bg:#F8EED8; --crit:#A32218; --crit-bg:#F8E3E1; --info-bg:#E5EEF4;
+  --shadow:0 1px 2px rgba(16,24,32,.05), 0 8px 24px rgba(16,24,32,.05);
+}
+* { box-sizing: border-box; }
+body { margin:0; background:var(--paper); color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+  font-size:15.5px; line-height:1.62; -webkit-font-smoothing:antialiased; }
+.wrap { display:grid; grid-template-columns:250px minmax(0,1fr); gap:48px;
+  max-width:1240px; margin:0 auto; padding:0 32px 96px; }
+nav.toc { position:sticky; top:0; align-self:start; max-height:100vh; overflow-y:auto;
+  padding:40px 0; }
+nav.toc h2 { font:600 10.5px/1 system-ui,sans-serif; text-transform:uppercase;
+  letter-spacing:.12em; color:var(--muted); margin:0 0 14px; }
+nav.toc ol { list-style:none; margin:0; padding:0; display:flex; flex-direction:column;
+  gap:1px; counter-reset:toc; }
+nav.toc a { display:grid; grid-template-columns:22px 1fr; gap:8px; padding:5px 8px 5px 0;
+  text-decoration:none; color:var(--ink-2); font-size:13px; border-radius:5px; line-height:1.4; }
+nav.toc a::before { counter-increment:toc; content:counter(toc);
+  font:500 11px/1.5 ui-monospace,Menlo,Consolas,monospace; color:var(--muted); text-align:right; }
+nav.toc a:hover { color:var(--accent); background:var(--accent-soft); }
+nav.toc a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+header.doc { padding:56px 0 28px; border-bottom:2px solid var(--ink); }
+.kicker { font:600 11px/1 system-ui,sans-serif; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--accent); margin-bottom:18px; }
+header.doc h1 { font-family:Georgia,"Iowan Old Style","Times New Roman",serif;
+  font-size:clamp(30px,4.4vw,46px); line-height:1.1; font-weight:600; letter-spacing:-.015em;
+  margin:0 0 12px; text-wrap:balance; }
+.standfirst { font-size:17px; color:var(--ink-2); max-width:62ch; margin:0; }
+.control { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:0;
+  border:1px solid var(--rule); border-radius:8px; margin:28px 0 8px; overflow:hidden;
+  background:var(--card); }
+.control div { padding:11px 14px; border-right:1px solid var(--rule); }
+.control div:last-child { border-right:0; }
+.control dt { font:600 9.5px/1 system-ui,sans-serif; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--muted); margin-bottom:5px; }
+.control dd { margin:0; font-size:13.5px; font-weight:500; }
+main { counter-reset:sec; padding-top:8px; }
+section { padding-top:44px; scroll-margin-top:16px; }
+section > h2 { counter-increment:sec; font-family:Georgia,"Iowan Old Style",serif;
+  font-size:25px; font-weight:600; line-height:1.22; letter-spacing:-.01em; margin:0 0 6px;
+  display:grid; grid-template-columns:44px 1fr; gap:4px; text-wrap:balance; }
+section > h2::before { content:counter(sec) "."; color:var(--accent);
+  font:500 17px/1.55 ui-monospace,Menlo,Consolas,monospace; }
+section > h2 + .lede { margin:0 0 20px 44px; color:var(--ink-2); max-width:68ch; }
+h3 { font-family:Georgia,serif; font-size:17.5px; font-weight:600; margin:30px 0 8px;
+  letter-spacing:-.005em; }
+h4 { font:600 11px/1 system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--muted); margin:24px 0 8px; }
+p { max-width:72ch; margin:0 0 14px; }
+ul, ol.body { max-width:72ch; padding-left:20px; margin:0 0 14px; }
+li { margin-bottom:5px; }
+strong { font-weight:640; }
+a { color:var(--accent); }
+.tw { overflow-x:auto; margin:16px 0 22px; border:1px solid var(--rule); border-radius:8px;
+  background:var(--card); box-shadow:var(--shadow); }
+table { border-collapse:collapse; width:100%; font-size:13.5px; font-variant-numeric:tabular-nums; }
+th { text-align:left; font:600 10px/1.3 system-ui,sans-serif; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--muted); padding:11px 14px;
+  border-bottom:1px solid var(--rule-strong); white-space:nowrap; background:var(--paper); }
+td { padding:10px 14px; border-bottom:1px solid var(--rule); vertical-align:top; line-height:1.5; }
+tbody tr:last-child td { border-bottom:0; }
+td.id, code, .mono { font-family:ui-monospace,"Cascadia Code",Menlo,Consolas,monospace;
+  font-size:12.3px; }
+td.id { white-space:nowrap; color:var(--accent); font-weight:500; }
+code { background:var(--accent-soft); padding:1px 5px; border-radius:4px; }
+.chip { display:inline-block; font:600 10px/1.6 system-ui,sans-serif; letter-spacing:.04em;
+  padding:1px 8px; border-radius:20px; white-space:nowrap; text-transform:uppercase; }
+.built { background:var(--ok-bg); color:var(--ok); }
+.partial { background:var(--warn-bg); color:var(--warn); }
+.pending { background:var(--crit-bg); color:var(--crit); }
+.note { border-left:3px solid var(--accent); background:var(--card); padding:14px 18px;
+  margin:18px 0; border-radius:0 8px 8px 0; max-width:76ch; box-shadow:var(--shadow); }
+.note h5 { font:600 10.5px/1 system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--accent); margin:0 0 7px; }
+.note p:last-child { margin-bottom:0; }
+.note.risk { border-left-color:var(--crit); }
+.note.risk h5 { color:var(--crit); }
+.diagram { border:1px solid var(--rule); border-radius:8px; background:var(--card); padding:20px;
+  margin:18px 0 22px; overflow-x:auto; box-shadow:var(--shadow); }
+.diagram .cap { font-size:12px; color:var(--muted); margin-top:12px; padding-top:10px;
+  border-top:1px solid var(--rule); max-width:76ch; }
+pre.mermaid { margin:0; text-align:center; }
+
+/* Persona card — the summary strip that opens every persona section. */
+.persona { display:grid; grid-template-columns:1fr 1fr 1fr; gap:0; border:1px solid var(--rule);
+  border-radius:8px; overflow:hidden; background:var(--card); box-shadow:var(--shadow);
+  margin:14px 0 20px; }
+.persona > div { padding:13px 16px; border-right:1px solid var(--rule); border-top:1px solid var(--rule); }
+.persona > div:nth-child(-n+3) { border-top:0; }
+.persona > div:nth-child(3n) { border-right:0; }
+.persona dt { font:600 9.5px/1 system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--muted); margin-bottom:5px; }
+.persona dd { margin:0; font-size:13px; line-height:1.45; }
+
+/* Use-case detail box: the classic FSD frame — trigger, pre/post, flow, business rules. */
+.uc { border:1px solid var(--rule-strong); border-radius:10px; overflow:hidden;
+  margin:16px 0 24px; background:var(--card); box-shadow:var(--shadow); }
+.uc-head { display:flex; align-items:baseline; gap:10px; padding:12px 18px;
+  background:var(--accent-soft); border-bottom:1px solid var(--rule-strong); }
+.uc-head .ucid { font:700 12px/1 ui-monospace,Menlo,Consolas,monospace; color:var(--accent); }
+.uc-head h4 { margin:0; font:700 14.5px/1.3 Georgia,serif; letter-spacing:0; text-transform:none;
+  color:var(--ink); }
+.uc-grid { display:grid; grid-template-columns:150px 1fr; }
+.uc-grid > div { padding:9px 18px; border-top:1px solid var(--rule); font-size:13.3px; }
+.uc-grid > div:nth-child(4n-3), .uc-grid > div:nth-child(4n-2) { background:var(--paper); }
+.uc-grid dt, .uc-lbl { font:600 10px/1.6 system-ui,sans-serif; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--muted); }
+.uc-grid ol, .uc-grid ul { margin:2px 0 0; padding-left:18px; max-width:none; }
+.uc-grid li { margin-bottom:3px; }
+.uc-grid p { margin:2px 0 0; max-width:none; }
+
+footer { margin-top:64px; padding-top:20px; border-top:1px solid var(--rule); font-size:12.5px;
+  color:var(--muted); max-width:72ch; }
+@media (max-width:900px) {
+  .wrap { grid-template-columns:1fr; gap:0; padding:0 20px 64px; }
+  nav.toc { position:static; max-height:none; padding:28px 0 0; border-bottom:1px solid var(--rule); }
+  nav.toc ol { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); }
+  section > h2 { grid-template-columns:34px 1fr; }
+  section > h2 + .lede { margin-left:34px; }
+  .persona { grid-template-columns:1fr; }
+  .persona > div { border-right:0; border-top:1px solid var(--rule); }
+  .persona > div:first-child { border-top:0; }
+  .uc-grid { grid-template-columns:1fr; }
+  .uc-grid > div:nth-child(4n-3), .uc-grid > div:nth-child(4n-2) { background:transparent; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+@media print {
+  .uc { break-inside:avoid; }
+  .persona { break-inside:avoid; }
+}
+</style>
+
+<div class="wrap">
+
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#f1">Purpose, scope &amp; how to read this</a></li>
+    <li><a href="#f2">System overview</a></li>
+    <li><a href="#f3">Actors and personas</a></li>
+    <li><a href="#f4">Master use-case model</a></li>
+    <li><a href="#f5">Cross-cutting specifications</a></li>
+    <li><a href="#f5b">Detection scope — Lane A / Lane B</a></li>
+    <li><a href="#f6">Fraud Analyst (L1)</a></li>
+    <li><a href="#f7">Senior Investigator (L2)</a></li>
+    <li><a href="#f8">Fraud Risk Manager</a></li>
+    <li><a href="#f9">Principal Officer (PMLA)</a></li>
+    <li><a href="#f10">Compliance Supervisor</a></li>
+    <li><a href="#f11">Board / Executive</a></li>
+    <li><a href="#f12">CRO / ACB / Special Committee</a></li>
+    <li><a href="#f13">Model Risk / Data Science</a></li>
+    <li><a href="#f14">Internal Audit / RBI Inspection</a></li>
+    <li><a href="#f15">Tenant Administrator</a></li>
+    <li><a href="#f16">Platform Administrator</a></li>
+    <li><a href="#f17">External and system actors</a></li>
+    <li><a href="#f18">Screen &amp; dashboard inventory</a></li>
+    <li><a href="#f19">Traceability matrix</a></li>
+    <li><a href="#f20">Non-functional requirements</a></li>
+    <li><a href="#f21">Key data objects</a></li>
+    <li><a href="#f22">Open items &amp; assumptions</a></li>
+    <li><a href="#f23">AI/ML roadmap</a></li>
+  </ol>
+</nav>
+
+<div>
+<header class="doc">
+  <div class="kicker">Functional Specification Document · v1.4</div>
+  <h1>Functional Specification</h1>
+  <p class="standfirst">Who does what, through which screen or interface, under which
+  rule. Eleven human personas and four system actors, specified as use cases against the
+  build that exists today — not a proposal for one.</p>
+
+  <dl class="control">
+    <div><dt>Document</dt><dd>FSD / Fraud360</dd></div>
+    <div><dt>Version</dt><dd>1.4</dd></div>
+    <div><dt>Date</dt><dd>28 September 2026</dd></div>
+    <div><dt>Derived from</dt><dd>BRD v1.7 · HLD v1.6</dd></div>
+    <div><dt>Verification basis</dt><dd>790 automated tests</dd></div>
+  </dl>
+
+  <div class="note">
+    <h5>How this document was built</h5>
+    <p>Every use case below traces to a business requirement in the BRD and to the
+    running code — the actor's role name, the roles permitted on a state transition, the
+    endpoint a step calls, the status values a record can hold. Where a capability exists
+    only as a roadmap item, the use case says so and is marked <span class="chip
+    pending">Pending</span> rather than described as present. Nothing here is aspirational
+    unless labelled as such.</p>
+  </div>
+</header>
+
+<main>
+
+<section id="f1">
+  <h2>Purpose, scope &amp; how to read this</h2>
+  <p class="lede">The BRD says what the platform must do and why. The HLD says how it is
+  built. This document says <strong>who</strong> triggers each piece of behaviour, from
+  which screen or interface, in what order, and what the system guarantees them in
+  return.</p>
+
+  <p>It is organised by <strong>actor</strong>, not by module, because that is how the
+  people who will sign off on this platform read it: a Principal Officer wants to see
+  everything they can do in one place, not their filing use cases in §9 and their alert
+  use cases scattered through detection. Each of the eleven human personas gets its own
+  section: a one-line summary, a use-case diagram scoped to that actor, a complete table
+  of their use cases, and a small number of fully detailed specifications for the ones
+  that carry the most procedural weight — a natural-justice hearing, a maker-checker
+  fraud declaration, a filing acknowledgement.</p>
+
+  <p>Four system actors are specified alongside the human ones — a payment switch or CBS
+  extract job, the bank's identity provider, the regulators who receive a filing, and law
+  enforcement — because a functional specification that only describes what a person can
+  click is missing half of what the platform does. §17 covers them.</p>
+
+  <h4>Notation used throughout</h4>
+  <ul>
+    <li><strong>UC-<em>XXX</em>-<em>nn</em></strong> — a use-case identifier, prefixed by
+      actor code (see the persona table in §3). Referenced from the traceability matrix in
+      §19 and, where relevant, from other use cases via <em>includes</em> — a step that is
+      itself specified in full somewhere else, rather than repeated.</li>
+    <li><strong>BR-<em>nnn</em></strong> — the business requirement in BRD v1.7 that this
+      use case satisfies. A use case with no BR reference is either purely a screen
+      convenience or a system-actor interface documented for completeness.</li>
+    <li><span class="chip built">Built</span> / <span class="chip partial">Partial</span> /
+      <span class="chip pending">Pending</span> — carried over unchanged from the BRD's own
+      status column. A pending use case is written in the future tense; everything else
+      describes what the running code does today, proven by the test named where it
+      matters.</li>
+  </ul>
+</section>
+
+<section id="f2">
+  <h2>System overview</h2>
+  <p class="lede">One paragraph, because the HLD already owns this ground in full.</p>
+
+  <p>Fraud360 is a multi-tenant fraud risk management and early-warning-signals platform
+  for Indian banks, co-operative banks and NBFCs. It ingests payments across five rails
+  (UPI, IMPS, NEFT, RTGS, card) and non-payment signals from the core banking system,
+  scores them against each tenant's own board-approved catalogue of indicators, and
+  carries a signal that fires all the way through to a defensible regulatory filing. Two
+  detection lanes exist side by side: an inline lane that returns a go/no-go answer inside
+  the payment window for the rails a tenant configures for it, and a near-real-time lane
+  that scores the full catalogue, including typologies that cannot be known at the moment
+  of authorisation, and raises alerts that a human works. Eleven roles see eleven
+  different slices of the same underlying facts, enforced server-side rather than by
+  hiding a tab in the console.</p>
+
+  <p>What follows takes that system as given and asks, screen by screen and interface by
+  interface: who is allowed to do what, and what happens when they do.</p>
+</section>
+
+<section id="f3">
+  <h2>Actors and personas</h2>
+  <p class="lede">Eleven human roles and their access, exactly as the server enforces it —
+  this table is generated from the same role definitions the console asks at login, not
+  maintained separately from them.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Persona</th><th>UC prefix</th><th>Role key</th><th>Primary question</th>
+        <th>Modules</th><th>Scope</th><th>Unmask PII</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Fraud Analyst (L1)</strong></td><td class="id">ANL</td><td class="id">analyst</td>
+          <td>Which alerts in my queue are real?</td><td>Monitoring</td><td>Own tenant</td>
+          <td>Yes, with justification</td></tr>
+        <tr><td><strong>Senior Investigator (L2)</strong></td><td class="id">INV</td><td class="id">investigator</td>
+          <td>Is this one mule, or a ring?</td><td>Monitoring</td><td>Own tenant</td>
+          <td>Yes, with justification</td></tr>
+        <tr><td><strong>Fraud Risk Manager</strong></td><td class="id">FRM</td><td class="id">risk_manager</td>
+          <td>Where is the queue failing, and why?</td><td>Monitoring, Audit</td><td>Own tenant</td>
+          <td>Yes, with justification</td></tr>
+        <tr><td><strong>Principal Officer (PMLA)</strong></td><td class="id">PO</td><td class="id">principal_officer</td>
+          <td>What must be filed with FIU-IND, by when?</td><td>Monitoring, Audit</td><td>Own tenant</td>
+          <td>Yes, with justification</td></tr>
+        <tr><td><strong>Compliance Supervisor</strong></td><td class="id">SUP</td><td class="id">supervisor</td>
+          <td>Are the regulatory clocks being met?</td><td>Monitoring, Audit</td><td>Own tenant</td>
+          <td>Yes, with justification</td></tr>
+        <tr><td><strong>Board / Executive</strong></td><td class="id">EXE</td><td class="id">board</td>
+          <td>What is our exposure and are we compliant?</td><td>Monitoring</td><td>Own tenant</td>
+          <td><strong>No</strong> — aggregate only</td></tr>
+        <tr><td><strong>CRO / ACB / Special Committee</strong></td><td class="id">CRO</td><td class="id">cro</td>
+          <td>Is the framework itself working?</td><td>Monitoring, Audit</td><td>Own tenant</td>
+          <td><strong>No</strong> — aggregate only</td></tr>
+        <tr><td><strong>Model Risk / Data Science</strong></td><td class="id">MDL</td><td class="id">data_scientist</td>
+          <td>Is the model still fit, fair and explainable?</td><td>Monitoring</td><td>Own tenant</td>
+          <td><strong>No</strong> — models run on masked data</td></tr>
+        <tr><td><strong>Internal Audit / RBI Inspection</strong></td><td class="id">AUD</td><td class="id">rbi_inspector</td>
+          <td>Can each figure and decision be evidenced?</td><td>Monitoring, Audit</td><td>Own tenant</td>
+          <td>Read-only, with justification</td></tr>
+        <tr><td><strong>Tenant Administrator</strong></td><td class="id">TAD</td><td class="id">tenant_admin</td>
+          <td>Is my institution configured correctly?</td><td>Control Plane, Monitoring, Audit</td>
+          <td>Own tenant</td><td>Yes, with justification</td></tr>
+        <tr><td><strong>Platform Administrator</strong> (vendor)</td><td class="id">PAD</td><td class="id">platform_admin</td>
+          <td>Is the service healthy across tenants?</td><td>All four modules</td><td>Cross-tenant</td>
+          <td><strong>No</strong> — see below</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note risk">
+    <h5>The outsourcing boundary applies to every use case in this document</h5>
+    <p>No role — including the vendor's own Platform Administrator — can unmask a bank's
+    customer identifiers. This is not a UI restriction; the reveal capability is a field
+    on the role definition itself (<code>can_reveal_pii</code>), checked server-side on
+    every field that carries one, and it is <code>False</code> for platform staff by
+    design. Where a use case below says "view masked account number", that masking is
+    unconditional for that actor — there is no admin override written into any use case
+    in this document.</p>
+  </div>
+
+  <h4>System actors, specified in §17</h4>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Actor</th><th>UC prefix</th><th>Relationship</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Payment switch / CBS extract / ETL job</strong></td><td class="id">EXT</td>
+          <td>Sends transactions and core-banking events; requests inline decisions.
+              Authenticates as a machine, never as a person</td></tr>
+        <tr><td><strong>Bank's identity provider</strong></td><td class="id">EXT</td>
+          <td>Authenticates human users via OIDC or SAML 2.0</td></tr>
+        <tr><td><strong>RBI / NABARD / NHB / FIU-IND</strong></td><td class="id">EXT</td>
+          <td>Receives the generated FMR and STR artefacts</td></tr>
+        <tr><td><strong>Law enforcement</strong></td><td class="id">EXT</td>
+          <td>Receives a referral recorded against a case</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="f4">
+  <h2>Master use-case model</h2>
+  <p class="lede">Every capability in the platform, grouped by the question it answers,
+  against the actor groups that use it. Persona-scoped diagrams follow in each of the
+  eleven sections after this one — this is the map before the detail.</p>
+
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    subgraph ACT["actors"]
+      direction TB
+      A1(["👤 L1 Analyst / L2 Investigator /<br/>Fraud Risk Manager"])
+      A2(["👤 Principal Officer /<br/>Compliance Supervisor"])
+      A3(["👤 Board / CRO / ACB"])
+      A4(["👤 Model Risk / Data Science"])
+      A5(["👤 Internal Audit / RBI Inspection"])
+      A6(["👤 Tenant Administrator"])
+      A7(["👤 Platform Administrator"])
+      A8(["🖥️ Payment switch / CBS<br/>(machine credential)"])
+    end
+
+    subgraph DET["detection & triage"]
+      UC1("Triage the alert queue")
+      UC2("Investigate account 360°")
+      UC3("Review EWS indicator health")
+      UC4("Simulate a threshold change")
+    end
+
+    subgraph RFA["RFA lifecycle & natural justice"]
+      UC5("Flag a Red Flagged Account")
+      UC6("Conduct the natural-justice hearing")
+      UC7("Declare fraud — maker &amp; checker")
+      UC8("Examine staff accountability")
+      UC9("Record recovery &amp; LEA referral")
+    end
+
+    subgraph REG["regulatory reporting"]
+      UC10("Track filing due dates")
+      UC11("Generate FMR / STR return")
+      UC12("Acknowledge a filed return")
+    end
+
+    subgraph GOV["governance & assurance"]
+      UC13("Generate &amp; issue board / ACB pack")
+      UC14("Review framework effectiveness")
+      UC15("Review model inventory &amp; drift")
+      UC16("Retrieve evidence for a decision")
+    end
+
+    subgraph CFG["tenant &amp; configuration"]
+      UC17("Onboard a tenant")
+      UC18("Override a policy threshold")
+      UC19("Invite &amp; manage users")
+      UC20("Configure SSO / IdP")
+      UC21("Issue a machine credential")
+      UC22("Suspend / resume / offboard tenant")
+    end
+
+    subgraph OPS["platform operations"]
+      UC23("Monitor tenant health, fleet-wide")
+      UC24("Ingest transactions &amp; request inline decisions")
+    end
+
+    A1 --> UC1 & UC2 & UC3 & UC4 & UC5 & UC9
+    A2 --> UC6 & UC7 & UC10 & UC11 & UC12 & UC14
+    A3 --> UC13 & UC14
+    A4 --> UC15 & UC3
+    A5 --> UC16 & UC14
+    A6 --> UC17 & UC18 & UC19 & UC20 & UC21 & UC22 & UC8
+    A7 --> UC17 & UC22 & UC23
+    A8 --> UC24
+</pre>
+    <p class="cap">Actor groups on the left stand in for the eleven personas detailed in
+    §6–§16; the payment switch stands in for every machine caller specified in §17. Every
+    use case named here is detailed in its owning persona section, with the endpoint,
+    business rules and BR reference behind it.</p>
+  </div>
+</section>
+
+<section id="f5">
+  <h2>Cross-cutting specifications</h2>
+  <p class="lede">Three use cases sit underneath nearly everything else in this document.
+  Specified once here, and referenced as <em>includes</em> from every persona section
+  rather than repeated eleven times.</p>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-AUTH-01</span>
+      <h4>Sign in with a second factor</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Every human persona</div>
+      <div class="uc-lbl">Trigger</div><div>The user submits an email and password on the
+        console login screen, or arrives via the bank's SSO link</div>
+      <div class="uc-lbl">Preconditions</div><div>The user has an active account for a
+        tenant that is not suspended or offboarded</div>
+      <div class="uc-lbl">Main flow</div>
+      <div>
+        <ol>
+          <li>User submits email and password, or is redirected from the bank's OIDC or
+            SAML 2.0 identity provider (discovery is by organisation short name, so the
+            user never has to know which protocol their bank uses)</li>
+          <li>The system verifies the credential and issues an <code>mfa_pending</code>
+            token — not a usable session</li>
+          <li>User supplies a TOTP code, or a single-use backup code as fallback</li>
+          <li>The system verifies the code and issues a full session: an access token
+            valid 30 minutes, and a refresh token</li>
+          <li>The refresh token is honoured up to 4 hours of inactivity, or 7 days
+            absolute, whichever comes first</li>
+        </ol>
+      </div>
+      <div class="uc-lbl">Alternate flows</div>
+      <div><ul>
+        <li><strong>First login</strong> — the user is forced to set a permanent password
+          and enrol a second factor (QR code, confirmed by one live code) before a session
+          is issued. An enrolment that is never confirmed leaves the account without a
+          usable second factor and the login refused, rather than silently weaker</li>
+        <li><strong>Federated sign-on</strong> — the identity provider's signed assertion
+          is read only from the element the signature actually covers (defends against
+          signature wrapping), and the assertion ID is recorded so it cannot be replayed</li>
+      </ul></div>
+      <div class="uc-lbl">Exception flows</div>
+      <div><ul>
+        <li>5 consecutive failures on the password or the TOTP code lock the account for
+          15 minutes</li>
+        <li>A tenant that is suspended or offboarded refuses every login, with the reason
+          — see UC-TEN-01</li>
+      </ul></div>
+      <div class="uc-lbl">Postconditions</div><div>A session exists, scoped to the user's
+        role and tenant; every subsequent action is attributed to it</div>
+      <div class="uc-lbl">Business rules</div><div>BR-706, BR-707, BR-708, BR-709, BR-710</div>
+    </div>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-M2M-01</span>
+      <h4>Authenticate a bank system as a machine</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Payment switch, CBS extract job, ETL pipeline
+        (system actor, §17)</div>
+      <div class="uc-lbl">Trigger</div><div>The system needs to submit transactions or
+        request an inline decision, and holds no valid token</div>
+      <div class="uc-lbl">Preconditions</div><div>A Tenant Administrator has issued a
+        credential scoped <code>ingest</code>, <code>decide</code>, or both — never full
+        access</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>The system exchanges its client ID and secret for a bearer token via the
+          OAuth2 client-credentials grant — no MFA, and none bypassed, because this
+          credential class has no interactive login path to bypass</li>
+        <li>The token carries the credential's scope and a short expiry</li>
+        <li>Every subsequent call presents the token; the standard principal check refuses
+          machine tokens by default, so an endpoint must opt in to accept one</li>
+      </ol></div>
+      <div class="uc-lbl">Exception flows</div>
+      <div><ul>
+        <li>An expired, revoked, IP-disallowed or certificate-mismatched credential is
+          refused with the specific reason, not a generic error</li>
+        <li>A token scoped <code>ingest</code> cannot request a decision, and vice versa</li>
+        <li>The tenant's own lifecycle status is checked on every token issuance and,
+          for the decision path, cached and re-checked every 15 seconds — a suspended
+          tenant's switch stops within that window, not only its human users (see UC-TEN-01)</li>
+      </ul></div>
+      <div class="uc-lbl">Postconditions</div><div>A scoped, time-limited token; every
+        issuance and refusal is audited, since a refusal is often the more interesting
+        record for an investigation</div>
+      <div class="uc-lbl">Business rules</div><div>BR-213</div>
+    </div>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-TEN-01</span>
+      <h4>Suspend, resume or offboard a tenant</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Platform Administrator (offboarding is a
+        vendor act); Tenant Administrator does not self-suspend</div>
+      <div class="uc-lbl">Trigger</div><div>A commercial or compliance decision to stop,
+        pause, or end service for one tenant</div>
+      <div class="uc-lbl">Preconditions</div><div>The tenant is in a state the requested
+        transition permits — <code>suspend</code> from active or degraded,
+        <code>resume</code> only from suspended, <code>offboard</code> from any served
+        state</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>Actor selects the tenant and the transition</li>
+        <li>The system validates the transition against the tenant's current status and
+          applies it</li>
+        <li>Human logins for that tenant are refused immediately with the reason</li>
+        <li>Machine callers stop within the 15-second status cache window on their next
+          token request or decision call</li>
+        <li>The fraud record remains exportable throughout — suspension is not a data
+          lock</li>
+      </ol></div>
+      <div class="uc-lbl">Postconditions</div><div>Tenant status updated; every affected
+        service now refuses that tenant's traffic with a stated reason rather than a
+        generic error</div>
+      <div class="uc-lbl">Business rules</div><div>BR-107</div>
+    </div>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-TEN-02</span>
+      <h4>Export a tenant's complete fraud record</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Platform Administrator</div>
+      <div class="uc-lbl">Trigger</div><div>A tenant relationship is ending, or a bank
+        exercises its right to its own data under the outsourcing directions</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>Actor requests the export for a tenant</li>
+        <li>The system assembles tenant configuration (branding, thresholds, users) and
+          the fraud record — cases, alerts, the evidence transactions behind them, the
+          transition log including refusals, accountability examinations, LEA referrals,
+          recoveries, and filed FMR/STR returns with their content hashes</li>
+        <li>Full transaction history and document bytes are deliberately excluded from
+          the JSON bundle and instead counted and pointed at the bulk export path — a
+          bundle nobody can open would satisfy the letter of the requirement and fail its
+          purpose</li>
+        <li>The bundle carries an explicit <code>complete</code> flag: any section that
+          failed to assemble is named, not silently omitted</li>
+      </ol></div>
+      <div class="uc-lbl">Postconditions</div><div>A bundle the bank can act on
+        independently of the platform, honest about what it does and does not contain</div>
+      <div class="uc-lbl">Business rules</div><div>BR-107, REG-06</div>
+    </div>
+  </div>
+</section>
+
+<section id="f5b">
+  <h2>Detection scope — Lane A / Lane B / Lane C</h2>
+  <p class="lede">Which of the 31 EWS rules run where, and why — the question the two-lane
+  architecture raises the moment anyone asks "does real-time mean I lose detection
+  quality?" The answer is a table, not a slogan: Lane A is a strict subset of Lane B, and
+  the boundary is drawn by whether the signal exists yet at the moment of authorisation,
+  not by how fast a rule happens to compute.</p>
+
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    TXN(["Transaction / event arrives"])
+    subgraph A["Lane A — inline · in scope today"]
+      direction TB
+      A1["9 rules<br/>single-key counter or request-supplied"]
+    end
+    subgraph B["Lane B — near-real-time · in scope today"]
+      direction TB
+      B1["31 rules<br/>the full catalogue, incl. Lane A's 9"]
+    end
+    subgraph C["Lane C — periodic review · roadmap"]
+      direction TB
+      C1["15 RBI-42 signals<br/>read from the credit file, no rule yet"]
+    end
+    TXN -->|"UPI · IMPS · Card<br/>(rail configured inline)"| A
+    TXN -->|"every rail, always"| B
+    A -.-> B
+    C -.->|"scheduled read, not a transaction"| B
+</pre>
+    <p class="cap">Lane A answers inside the payment window and hands nothing back that
+    Lane B does not also compute — the dotted line marks that A is contained in B, not
+    parallel to it. Lane C has no transaction to react to at all; it is scoped in this
+    section for planning purposes and carries the <span class="chip pending">Pending</span>
+    status honestly throughout.</p>
+  </div>
+
+  <div class="note">
+    <h5>31, 12 and 9 are the counts for a lending-capable entity type — not every tenant (BR-111)</h5>
+    <p>A Payments Bank licence cannot extend credit (RBI/DoS/2026-27/430 carries none of the
+    borrower/financial-performance EWS language every other 2026 Direction does). The 12 rules
+    whose entire premise is a lending relationship — <code>BEH-02/03</code>, <code>CPT-03</code>,
+    <code>CBS-01/02/03</code>, <code>QUAL-01/02/03</code>, <code>LOS-01/02/03</code> (BR-214,
+    an application or a valuation cannot exist without a credit facility to originate) — are
+    never seeded for one, not just muted. All 12 were already Lane B-only (see the per-rule
+    table below), so Lane A stays at 9 of 9 for every entity type unchanged; only Lane B's
+    count moves, from 31 to 19 for a Payments Bank tenant. Nothing else in the catalogue is
+    gated this way today — see FSD §"Entity-type gating" note under the rule table for what
+    was checked and deliberately left ungated.</p>
+  </div>
+
+  <h3>Lane A — inline decisioning</h3>
+  <p>Answers <strong>allow</strong> or <strong>decline</strong> (UPI, IMPS) or additionally
+  <strong>challenge</strong> (Card) inside the payment window, on a per-rail latency
+  budget the tenant sets. NEFT and RTGS are routed to Lane B by default — they settle in a
+  window wide enough that scoring with full context finds more than an 80&nbsp;ms check
+  ever could.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Rail</th><th>Default mode</th><th>Budget</th><th>Actions available</th></tr></thead>
+      <tbody>
+        <tr><td><strong>UPI</strong></td><td>Inline (Lane A)</td><td>80 ms</td><td>allow, decline</td></tr>
+        <tr><td><strong>IMPS</strong></td><td>Inline (Lane A)</td><td>150 ms</td><td>allow, decline</td></tr>
+        <tr><td><strong>Card</strong></td><td>Inline (Lane A)</td><td>100 ms</td><td>allow, challenge, decline</td></tr>
+        <tr><td><strong>NEFT</strong></td><td>Near-real-time (Lane B)</td><td>—</td><td>—</td></tr>
+        <tr><td><strong>RTGS</strong></td><td>Near-real-time (Lane B)</td><td>—</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>UPI and IMPS carry no <code>challenge</code> action — the PIN is captured at the
+  remitter's PSP before the request reaches the bank, so by decision time the customer has
+  already authenticated and the only real answers are approve or decline. A rail may not
+  be configured with an action it cannot execute; the platform refuses that configuration
+  outright rather than returning an answer the switch would ignore.</p>
+
+  <div class="note">
+    <h5>Reaching Lane A over ISO 8583, not only JSON (BR-317, Partial)</h5>
+    <p>The <code>/decide</code> contract above is JSON. Some card/EFT switches have no
+    practical way to originate a JSON call — asking every such vendor to build a
+    translation layer of their own does not scale. A second front door,
+    <code>iso8583_gateway</code>, decodes an ISO 8583 authorisation message (the standard
+    public data elements — PAN, amount, transmission time, STAN/RRN, terminal and
+    merchant ids) and calls the same <code>/decide</code> contract as any JSON integrator
+    would: same rule catalogue, same policy, same decision log. It is a protocol adapter
+    in front of the one decision engine, not a second one. Core codec, field mapping and
+    connection handling are built and unit-tested; it is not yet deployed for any tenant.
+    Every switch vendor's private data elements and exact response-code table differ, so
+    field mapping is confirmed against a named pilot vendor's own spec before go-live, and
+    whether Fraud360 terminating a raw PAN brings it into PCI-DSS scope is a compliance
+    decision still open. See <code>docs/ISO8583_LANE_A_SCOPING.md</code>.</p>
+  </div>
+
+  <h3>The 31 indicators, by lane</h3>
+  <p>Nine indicators are inline-eligible because their observation is either a
+  precomputed per-account counter or something the channel already supplies with the
+  request — nothing that needs a lookup. All 31 run in Lane B for a lending-capable entity
+  type; the "Lane" column below says which additionally run in Lane A. See the entity-type
+  gating note directly below this table for the one entity type this doesn't hold for.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Family</th><th>Rule</th><th>Lane</th><th>Inline source /
+        deferral reason</th></tr></thead>
+      <tbody>
+        <tr><td rowspan="3">Velocity (VEL)</td><td class="id">VEL-01</td>
+          <td><span class="chip built">A + B</span></td><td>Counter — value vs. 30-day baseline</td></tr>
+        <tr><td class="id">VEL-02</td><td>B only</td>
+          <td>Same first-seen-pair set as CPT-01, and the same <code>lte</code> trap</td></tr>
+        <tr><td class="id">VEL-03</td><td><span class="chip built">A + B</span></td>
+          <td>Counter — rolling small-credit count</td></tr>
+        <tr><td rowspan="3">Structuring (SME)</td><td class="id">SME-01</td>
+          <td><span class="chip built">A + B</span></td><td>Counter — sub-CTR-threshold count</td></tr>
+        <tr><td class="id">SME-02</td><td><span class="chip built">A + B</span></td>
+          <td>Counter — near PIN-less UPI limit count</td></tr>
+        <tr><td class="id">SME-03</td><td>B only</td>
+          <td>Needs invoice-level data, which no feed supplies</td></tr>
+        <tr><td rowspan="4">Layering / mule (LAY)</td><td class="id">LAY-01</td>
+          <td><span class="chip built">A + B</span></td><td>Counter — outflow vs. inflow ratio</td></tr>
+        <tr><td class="id">LAY-02</td><td><span class="chip built">A + B</span></td>
+          <td>Counter — distinct counterparties</td></tr>
+        <tr><td class="id">LAY-03</td><td>B only</td>
+          <td>Needs a multi-hop graph traversal; the cycle has not closed yet</td></tr>
+        <tr><td class="id">LAY-04</td><td><span class="chip built">A + B</span></td>
+          <td>Counter — accounts sharing the device fingerprint</td></tr>
+        <tr><td rowspan="3">Behavioural (BEH)</td><td class="id">BEH-01</td>
+          <td><span class="chip built">A + B</span></td><td>Counter — dormancy gap on a
+          high-value payment</td></tr>
+        <tr><td class="id">BEH-02</td><td>B only</td>
+          <td>Needs the CBS repayment funding source, posted after settlement</td></tr>
+        <tr><td class="id">BEH-03</td><td>B only</td>
+          <td>Needs end-use tracing across subsequent transactions</td></tr>
+        <tr><td rowspan="3">Channel / device (CHN)</td><td class="id">CHN-01</td>
+          <td><span class="chip built">A + B</span></td><td>Request — new device / new
+          payee / high value, supplied by the channel</td></tr>
+        <tr><td class="id">CHN-02</td><td>B only</td>
+          <td>Needs a geolocation feed that is not contracted</td></tr>
+        <tr><td class="id">CHN-03</td><td>B only</td>
+          <td>Needs the account's hour profile, held but not published as a counter</td></tr>
+        <tr><td rowspan="3">Counterparty (CPT)</td><td class="id">CPT-01</td><td>B only</td>
+          <td>Beneficiary age needs the first-seen-pair set, not an account counter — an
+          unknown pair would read as age zero and fire on every high-value payment</td></tr>
+        <tr><td class="id">CPT-02</td><td>B only</td>
+          <td>Sanctions and PEP screening lists are not loaded in the payment path</td></tr>
+        <tr><td class="id">CPT-03</td><td>B only</td>
+          <td>CERSAI charge registry is a lookup, and not on this path</td></tr>
+        <tr><td rowspan="3">Loan conduct (CBS)</td><td class="id">CBS-01</td><td>B only</td>
+          <td>Needs the loan account's disbursal-to-withdrawal history from the CBS</td></tr>
+        <tr><td class="id">CBS-02</td><td>B only</td>
+          <td>Needs security and stock records from the CBS</td></tr>
+        <tr><td class="id">CBS-03</td><td>B only</td>
+          <td>Needs sale-proceeds routing, known only after the fact</td></tr>
+        <tr><td rowspan="3">Trade-based (TBM)</td><td class="id">TBM-01</td><td>B only</td>
+          <td>Needs trade-finance records</td></tr>
+        <tr><td class="id">TBM-02</td><td>B only</td><td>Needs trade-finance records</td></tr>
+        <tr><td class="id">TBM-03</td><td>B only</td>
+          <td>Needs the foreign-bills register</td></tr>
+        <tr><td rowspan="3">Qualitative (QUAL)</td><td class="id">QUAL-01</td><td>B only</td>
+          <td>Qualitative, entered by credit monitoring</td></tr>
+        <tr><td class="id">QUAL-02</td><td>B only</td>
+          <td>Qualitative, entered by credit monitoring</td></tr>
+        <tr><td class="id">QUAL-03</td><td>B only</td>
+          <td>Qualitative, entered by credit monitoring</td></tr>
+        <tr><td rowspan="3">Loan origination (LOS)</td><td class="id">LOS-01</td><td>B only</td>
+          <td>Needs the applicant's own account history from the payment stream, plus
+          declared income from the LOS - neither exists at authorisation time</td></tr>
+        <tr><td class="id">LOS-02</td><td>B only</td>
+          <td>Needs a peer set of other valuers' assessments, accumulated over up to a
+          year</td></tr>
+        <tr><td class="id">LOS-03</td><td>B only</td>
+          <td>Needs a cross-application identity search, not a property of one payment</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <h5>Entity-type gating (BR-111)</h5>
+    <p>The 12 rules marked "B only" above and named in the table — <code>BEH-02/03</code>,
+    <code>CPT-03</code>, <code>CBS-01/02/03</code>, <code>QUAL-01/02/03</code>,
+    <code>LOS-01/02/03</code> — share one property none of the other 19 do: their premise is
+    a lending relationship (a borrowal account, pledged collateral, a disbursement, a
+    "primary banker", or — for LOS — an application for one). Checked against the
+    actual Chapter III EWS text of all nine RBI 2026 Directions, every entity type carries
+    that borrower/financial-performance language except Payments Bank — a PB licence cannot
+    extend credit, and its Direction (RBI/DoS/2026-27/430) has no credit-related EWS section
+    at all. For a Payments Bank tenant, none of these 12 are seeded at onboarding; the platform
+    starts that tenant on 19 rules, not 31, and detection never evaluates the excluded 12
+    because they are absent from the tenant's active configuration, not merely deactivated.</p>
+    <p>TBM-01/02/03 (trade-based: merchanting trade, Letters of Credit, foreign bills) were
+    checked the same way and left ungated on purpose. None of the nine 2026 Directions tie
+    trade-finance authorisation to entity type — that vocabulary traces to RBI's older 2016
+    EWS circular, not the current Directions — and Authorised Dealer (forex) status is issued
+    to an institution separately from its entity-type licence. Gating TBM by entity_type would
+    encode a guess as if it were a verified fact; it is recorded as a roadmap item pending a
+    per-tenant AD-licence signal the platform does not yet capture, not built now.</p>
+  </div>
+
+  <h3>Deep dive: The 9 Lane A signals and how they work</h3>
+  <p>Each Lane A rule detects a specific fraud pattern using account counters available
+  at authorization time. Here is what each one catches, in language for a risk conversation.</p>
+
+  <h4>VEL-01 · Value velocity against baseline</h4>
+  <p><strong>What it catches:</strong> A single transaction that is dramatically larger
+  than the account's own historical pattern.</p>
+  <p><strong>Real example:</strong> A customer who normally sends ₹5,000–₹15,000 per month
+  suddenly initiates a ₹200,000 transfer. This 13× spike against their 30-day baseline
+  triggers an alert.</p>
+  <p><strong>How it works:</strong> Fraud360 maintains a rolling 30-day average for each
+  account and flags any single payment that exceeds a configurable multiple (often 5–10×).
+  Legitimate spike? The customer can be challenged or the rule threshold adjusted per-tenant.
+  A mule? The pattern fits.</p>
+
+  <h4>VEL-03 · Small-credit frequency spike</h4>
+  <p><strong>What it catches:</strong> A sudden explosion of micro-transactions below a
+  threshold, often used to evade detection or test compromised accounts.</p>
+  <p><strong>Real example:</strong> An account that has never transferred more than twice
+  per day suddenly initiates 15 transfers of ₹9,999 each within a single hour.</p>
+  <p><strong>How it works:</strong> Counts the rolling number of small transfers (below a
+  configurable amount like ₹10,000) in a time window. Structuring fraudsters often use
+  precisely this tactic to stay under AML thresholds while moving large sums.</p>
+
+  <h4>SME-01 · Sub-CTR structuring count</h4>
+  <p><strong>What it catches:</strong> Multiple transfers just below the Currency Transaction
+  Report (CTR) filing threshold (₹10 lakh), a classic structuring pattern.</p>
+  <p><strong>Real example:</strong> A borrower makes seven separate transfers of ₹9.99 lakh
+  on the same day, totalling ₹69.93 lakh. This is textbook structuring to evade regulatory
+  reporting.</p>
+  <p><strong>How it works:</strong> Counts transactions in a rolling window that fall just below
+  the CTR threshold and flags when the count crosses a limit (typically 3–5 in 24h). The
+  platform knows the exact CTR threshold for your jurisdiction.</p>
+
+  <h4>SME-02 · PIN-less UPI structuring</h4>
+  <p><strong>What it catches:</strong> Rapid-fire micro-UPI transfers (below the PIN-less limit)
+  that collectively move a large amount without individual authentication.</p>
+  <p><strong>Real example:</strong> A compromised phone sends 20 UPI transactions of ₹5,000
+  each to different beneficiaries within 10 minutes—totalling ₹1 lakh drained from the account
+  without a PIN being entered for each transfer (many banks allow PIN-less UPI up to ₹5,000).</p>
+  <p><strong>How it works:</strong> Tracks the count and volume of UPI transfers below the
+  PIN-less limit in a rolling window. A spike indicates either account compromise or deliberate
+  low-value-transfer fraud.</p>
+
+  <h4>LAY-01 · Outflow drain (layering)</h4>
+  <p><strong>What it catches:</strong> Nearly all money flowing into an account is immediately
+  funnelled out—the hallmark of a money mule or money-laundering layering account.</p>
+  <p><strong>Real example:</strong> An account receives ₹10 lakh over a week and within 3 days
+  sends out ₹9.8 lakh to 12 different beneficiaries. The outflow ratio is 98%—far above the
+  normal 40% for this account type.</p>
+  <p><strong>How it works:</strong> Compares outbound transaction volume to inbound volume in a
+  rolling window (typically 7 days). A ratio above a threshold (often 80–90%) flags the account.
+  Legitimate fast-flowing accounts (traders, e-commerce sellers) can be whitelisted at the
+  tenant's discretion.</p>
+
+  <h4>LAY-02 · Fan-in/fan-out hub (distinct counterparties)</h4>
+  <p><strong>What it catches:</strong> An account with an abnormally high number of unique
+  transacting partners—often a sign of a money-collection or distribution hub.</p>
+  <p><strong>Real example:</strong> A new account interacts with 47 different beneficiaries in
+  a single week, whereas the average account at this bank interacts with 3–4. Money is flowing
+  in from some and out to others in rapid succession.</p>
+  <p><strong>How it works:</strong> Counts distinct counterparties (unique beneficiary accounts)
+  in a rolling window and compares to the account's own baseline or a peer baseline. A sudden
+  spike to 40+ unique payees raises an alert. Legitimate high-volume merchants can be configured
+  with higher thresholds.</p>
+
+  <h4>LAY-04 · Device fingerprint clustering</h4>
+  <p><strong>What it catches:</strong> Multiple accounts being accessed from the same device
+  fingerprint (MAC address, device ID, etc.), suggesting fraud orchestration or account takeover
+  of multiple customer accounts.</p>
+  <p><strong>Real example:</strong> A compromised phone accesses 8 different customer accounts
+  within 30 minutes, each initiating a transfer. The device fingerprint is the same for all 8.</p>
+  <p><strong>How it works:</strong> Maps device fingerprints to account numbers and counts the
+  number of accounts accessed from a single fingerprint. A sharp rise (e.g., from 1 account to
+  5 accounts) indicates either fraud or a shared-device scenario (family phone). Tenant policy
+  decides the threshold.</p>
+
+  <h4>BEH-01 · Dormancy on large payment</h4>
+  <p><strong>What it catches:</strong> An account that has been inactive suddenly makes a
+  high-value payment—often the account has been dormant for months and an attacker has just
+  compromised it.</p>
+  <p><strong>Real example:</strong> A salaried customer's account has seen no transactions for
+  8 months, then suddenly initiates a ₹50,000 transfer. The account's baseline suggests this
+  customer is on extended leave or the account is dormant—a sudden large transfer is suspicious.</p>
+  <p><strong>How it works:</strong> Measures the time gap since the account's last transaction
+  and flags if a high-value payment (above a configurable threshold) arrives after an extended
+  dormancy period. Automated reactivation of old accounts often triggers this.</p>
+
+  <h4>CHN-01 · New device + new payee + high value</h4>
+  <p><strong>What it catches:</strong> A payment from an unfamiliar device to a unfamiliar
+  beneficiary, in a large amount—the classic account-takeover signature.</p>
+  <p><strong>Real example:</strong> A customer's phone is stolen and used immediately to send
+  ₹30,000 to a new account never seen before. The system sees three red flags at once: device
+  is new, payee is new, amount is high.</p>
+  <p><strong>How it works:</strong> The channel (mobile app or bank branch) supplies this
+  observation directly to Lane A (it's not computed here). The "risk_signals" count combines
+  device newness, payee newness, and value size. A combined score above a threshold (typically
+  2–3 simultaneous factors) triggers a decline or challenge.</p>
+
+  <div class="note">
+    <h5>Why these 9 work inline and others don't</h5>
+    <p>All nine Lane A rules rely on either (1) precomputed per-account counters that are
+    updated on every transaction, or (2) information the channel already has. No external
+    lookup, no missing data, no waiting for the settlement window. The other 19 rules need
+    either a feed not yet connected (sanctions lists, trade records), a fact that only emerges
+    after settlement (CBS repayment data), or a signal that cannot exist yet (a beneficiary's
+    age, if you have never seen that pair before). Those rules do not belong in a 50–150 ms
+    decision window; they belong in Lane B, where the full account and network context is
+    available.</p>
+  </div>
+
+  <h3>Deep dive: The 19 Lane B–only signals</h3>
+  <p>These 19 rules run only in Lane B (near-real-time, p99 2.65 seconds after settlement).
+  They either need external data, post-settlement facts, or signals that only form over time.</p>
+
+  <h4>CPT-01 · Beneficiary age (new payee)</h4>
+  <p><strong>Why it's Lane B only:</strong> Requires a set store (first-seen timestamp for each
+  payee pair), not an account counter. If derived from counters alone, an unknown payee would
+  always read as age zero and fire on every large payment—a false positive generator, not a
+  control.</p>
+  <p><strong>What it catches:</strong> Payments to a beneficiary added to the account for the
+  first time, especially in a large amount. Legitimate? Maybe. Suspicious? Depends on the account.</p>
+  <p><strong>Example:</strong> A customer adds a new payee and immediately sends ₹2 lakh. Lane B
+  has the full history and can assess whether the account routinely adds and uses new payees or
+  whether this is out of pattern.</p>
+
+  <h4>VEL-02 · Beneficiary-pair age velocity</h4>
+  <p><strong>Why it's Lane B only:</strong> Same issue as CPT-01—relies on first-seen-pair data
+  that cannot be reconstructed from counters without false alarms.</p>
+  <p><strong>What it catches:</strong> A sudden jump in value to a very new payee pair.</p>
+
+  <h4>CPT-02 · Sanctions / PEP / Central Fraud Registry screening</h4>
+  <p><strong>Why it's Lane B only:</strong> Sanctions, PEP (Politically Exposed Person) and CFR
+  (BR-509) lists are not loaded in the payment authorization path; they are too large and update
+  too frequently. They are queried asynchronously after settlement.</p>
+  <p><strong>What it catches:</strong> Transactions to or from sanctioned individuals, entities,
+  PEPs without prior disclosures, or parties already reported as fraud elsewhere in the banking
+  system via RBI's Central Fraud Registry.</p>
+  <p><strong>Example:</strong> A payment arrives from an account to an entity later identified
+  as OFAC-listed. The transaction proceeds but an alert is raised in Lane B for investigation
+  and possible reversal.</p>
+  <p><strong>On CFR specifically:</strong> unlike a sanctions list, RBI does not publish CFR as
+  a bulk feed — a bank's users hold individual portal credentials for case-by-case lookups
+  (Directions, Chapter VI-B). The Directions' own definition (para 4(1)) is that CFR is
+  populated <em>from</em> a bank's own FMR filings, not a return the bank files separately —
+  so there is no second filing to build here, only the screening side: a tenant's compliance
+  team loads what its portal lookups found through the same reference-data console every other
+  list uses, honestly unloaded — not silently clean — until they do.</p>
+
+  <h4>CPT-03 · CERSAI charge registry</h4>
+  <p><strong>Why it's Lane B only:</strong> CERSAI (Central Registry of Securitisation Asset
+  Reconstruction and Security Interest) lookups are external registry calls, not real-time.</p>
+  <p><strong>What it catches:</strong> Transactions from accounts with undisclosed charges,
+  liens, or pledged collateral flagged by CERSAI.</p>
+
+  <h4>LAY-03 · Circular/multi-hop money flow</h4>
+  <p><strong>Why it's Lane B only:</strong> Requires a graph traversal across multiple
+  transactions to detect cycles (A → B → C → A). The cycle has not closed at the moment of A's
+  payment; Lane B detects it only after B and C settle.</p>
+  <p><strong>What it catches:</strong> Money laundering "round-tripping" where funds move in
+  circles to obscure origin and create false transaction records.</p>
+  <p><strong>Example:</strong> Funds flow from Account A to B (detected), then B to C, then C
+  back to A. Lane B's post-settlement analysis spots the cycle.</p>
+
+  <h4>CHN-02 · Geolocation anomaly</h4>
+  <p><strong>Why it's Lane B only:</strong> Geolocation feeds are not contracted in-path and
+  must be queried post-settlement.</p>
+  <p><strong>What it catches:</strong> A payment from a device whose geolocation is
+  inconsistent with the account's known geography or profile.</p>
+  <p><strong>Example:</strong> An account normally operates in Mumbai but a high-value payment
+  originates from a device located in a high-crime territory or a country on a watch list.</p>
+
+  <h4>CHN-03 · Off-hours activity</h4>
+  <p><strong>Why it's Lane B only:</strong> Requires the account's hourly activity profile,
+  which is computed post-settlement and not exposed as a real-time counter.</p>
+  <p><strong>What it catches:</strong> Transactions at hours when the account holder never
+  normally transacts (e.g., 3 AM for an account that always transacts 9–5 AM).</p>
+
+  <h4>SME-03 · Invoice-level trade structuring</h4>
+  <p><strong>Why it's Lane B only:</strong> Requires invoice-level data from supply-chain or
+  trade systems—not available at authorization.</p>
+  <p><strong>What it catches:</strong> Over-invoicing or invoice manipulation in trade flows to
+  move money disguised as legitimate commerce.</p>
+
+  <h4>BEH-02 · Repayment source mismatch</h4>
+  <p><strong>Why it's Lane B only:</strong> Requires CBS repayment data, posted after settlement.
+  The repayment funding source is not known until settlement clears.</p>
+  <p><strong>What it catches:</strong> A loan repayment arriving from an unexpected source (not
+  the original borrower, not a known guarantor)—may indicate account takeover or fraud.</p>
+  <p><strong>Example:</strong> A borrower's loan repayment arrives from a third-party account
+  that was never listed as authorized to repay—suspicious and potentially a misapplied payment.</p>
+
+  <h4>BEH-03 · End-use deviation</h4>
+  <p><strong>Why it's Lane B only:</strong> Requires tracing money across subsequent
+  transactions to confirm it reached its stated end use. Only visible after multiple settlement
+  cycles.</p>
+  <p><strong>What it catches:</strong> Loan funds disbursed for one purpose being diverted to
+  another use—either fraud or violation of loan covenants.</p>
+  <p><strong>Example:</strong> A working-capital loan is disbursed for inventory purchase, but
+  the funds immediately flow into a real-estate investment account. Lane B flags the deviation.</p>
+
+  <h4>CBS-01 · Disbursal-to-withdrawal deviation</h4>
+  <p><strong>Why it's Lane B only:</strong> Requires loan account history from the CBS (Core
+  Banking System), available post-settlement.</p>
+  <p><strong>What it catches:</strong> A loan disbursed but immediately withdrawn/repaid or
+  moved out before the borrower had time to deploy it—often a sign of layering or loan fraud.</p>
+
+  <h4>CBS-02 · Collateral and security inconsistency</h4>
+  <p><strong>Why it's Lane B only:</strong> Requires stock audit reports and security records
+  from the CBS—not real-time feeds.</p>
+  <p><strong>What it catches:</strong> Transactions from loan accounts where the pledged
+  collateral appears to be missing, sold, or transferred without disclosure.</p>
+
+  <h4>CBS-03 · Sale proceeds misrouting</h4>
+  <p><strong>Why it's Lane B only:</strong> Sale proceeds are only known after the asset-sale
+  transaction settles and is recorded in the CBS.</p>
+  <p><strong>What it catches:</strong> Proceeds from an asset sale being routed to unauthorized
+  accounts instead of loan repayment or the borrower's specified account.</p>
+
+  <h4>TBM-01, TBM-02, TBM-03 · Trade-based money laundering</h4>
+  <p><strong>Why they're Lane B only:</strong> Require trade-finance records (LC details, bills
+  of lading, invoices) and the foreign-bills register—all external to the payment system.</p>
+  <p><strong>What they catch:</strong> Over/under-invoicing, double-invoicing, phantom
+  shipments, and other classic trade-finance fraud schemes.</p>
+  <p><strong>Example:</strong> An import LC shows ₹10 lakh for goods, but the invoice is ₹5
+  lakh—over-invoicing by 100% to move money across borders in disguise.</p>
+
+  <h4>QUAL-01, QUAL-02, QUAL-03 · Qualitative credit indicators</h4>
+  <p><strong>Why they're Lane B only:</strong> Entered manually by the credit-monitoring team
+  after review of account behavior and external data (media reports, customer complaints,
+  regulatory notices).</p>
+  <p><strong>What they catch:</strong> Red flags identified through human review: adverse
+  media mentions, management concerns, sudden behavioral changes, etc.</p>
+  <p><strong>Example:</strong> The credit team notes that a borrower has appeared in adverse
+  media (alleged involvement in litigation, regulatory penalty, or reputational event). This
+  feeds into the qualitative score in Lane B.</p>
+
+  <div class="note">
+    <h5>Summary: Why the split works</h5>
+    <p><strong>Lane A (9 rules):</strong> Detects the most urgent fraud signatures using only
+    data that exists at authorization time—account counters and channel-supplied signals. Answer
+    in 50–150 milliseconds.</p>
+    <p><strong>Lane B (31 rules for a lending-capable entity type):</strong> Adds 22 more rules
+    that need external feeds, post-settlement facts, or signals that only form after the
+    payment clears — or, for the three loan-origination rules (BR-214), before it. Answer in
+    ~2.65 seconds, but with full context. Includes all of Lane A's
+    signals, so no coverage is lost—only timing. A Payments Bank tenant runs 19 in Lane B, not
+    31 — the 12 credit-linked rules are never seeded for a licence that cannot extend credit
+    (BR-111, see the entity-type gating note above).</p>
+    <p><strong>Result:</strong> A bank that runs only Lane A gets 9 out of its entity type's
+    catalogue in real time and loses nothing—the 9 catch the highest-confidence attacks and are
+    unaffected by entity-type gating. A bank that runs both gets its full catalogue: 9 at
+    authorization time, the rest after settlement. A bank that runs only Lane B gets the full
+    catalogue but waits 2–3 seconds.</p>
+  </div>
+
+  <div class="note">
+    <h5>The boundary is not speed</h5>
+    <p>Three of the twenty-two deferred rules — LAY-03, CPT-01, VEL-02 — are excluded for a
+    reason no amount of engineering removes: the signal has not <em>formed</em> yet at
+    authorisation time. A fan-in hub is invisible until the fan has formed; a beneficiary
+    read from a context with no first-seen-pair set would compute as age zero and fire on
+    every high-value payment, which is a broken control, not a fast one. The other nineteen
+    are deferred because a feed is not yet connected or a fact only exists after
+    settlement — connecting them moves rules from Lane B's "unmeasured" state to scored,
+    not from Lane B to Lane A.</p>
+  </div>
+
+  <h3>Lane C — periodic borrower assessment <span class="chip pending">Pending — roadmap</span></h3>
+  <p>Lanes A and B both react to a transaction or an account event; nothing in either can
+  read an auditor's qualification or a rise in unbilled revenue, because nothing about
+  those facts arrives on a payment rail. Lane C is scoped as a third, deliberately
+  different engine: no transaction stream, a periodic read of the credit file on a review
+  cadence — the way a bank's own credit team already works.</p>
+
+  <p>It is scoped against 15 of the RBI 2016 illustrative early-warning signals that
+  neither lane can reach no matter which feeds are connected, because the underlying fact
+  is not transactional at all:</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Signal (RBI 2016 illustrative list)</th><th>What Lane C would read</th></tr></thead>
+      <tbody>
+        <tr><td>Default in undisputed payment to statutory bodies per the annual report</td>
+          <td rowspan="15">Audited financial statements, the annual report and the
+            auditor's report — assessed against the prior filing, not against a live
+            feed. No indicator ID exists for these yet; Lane C is unbuilt, so none has
+            been catalogued</td></tr>
+        <tr><td>Frequent change in the scope of the project</td></tr>
+        <tr><td>Request to postpone godown inspection for flimsy reasons</td></tr>
+        <tr><td>Non-production of original bills for verification</td></tr>
+        <tr><td>Inventory movements disproportionate to turnover</td></tr>
+        <tr><td>Receivables movements disproportionate to turnover / ageing</td></tr>
+        <tr><td>Disproportionate change in other current assets</td></tr>
+        <tr><td>Working capital borrowing rising as a percentage of turnover</td></tr>
+        <tr><td>Fixed assets increasing without corresponding long-term sources</td></tr>
+        <tr><td>Borrowings increasing despite large cash balances</td></tr>
+        <tr><td>Frequent change in accounting period or accounting policies</td></tr>
+        <tr><td>Claims not acknowledged as debt are high</td></tr>
+        <tr><td>Substantial increase in unbilled revenue year after year</td></tr>
+        <tr><td>Material discrepancies / inconsistencies within the annual report</td></tr>
+        <tr><td>Poor disclosure of adverse information, no auditor qualification</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note risk">
+    <h5>Twelve more signals look like Lane C but are not</h5>
+    <p>Of the 27 RBI-42 signals no platform rule currently covers, 15 are the credit-file
+    group above and belong to Lane C. The remaining 12 — securities and stock-audit
+    records, ROC/MCA and depository feeds, CBS cheque-return data, project-appraisal data
+    — are connectable data for rules the platform can extend within <strong>Lane B</strong>,
+    not a reason to build a third engine. Scoping them into Lane C would overstate what
+    Lane C is for and understate what a connected feed already unlocks. See
+    <code>docs/rbi_ews_mapping.py</code> — the source this table and BRD v1.7's own
+    RBI-signal note are both generated from — for the full 42-signal mapping.</p>
+  </div>
+</section>
+
+<section id="f6">
+  <h2>Fraud Analyst (L1)</h2>
+  <div class="persona">
+    <div><dt>Primary question</dt><dd>Which alerts in my queue are real?</dd></div>
+    <div><dt>Dashboards</dt><dd>Analyst · EWS Signals · Real-Time</dd></div>
+    <div><dt>PII</dt><dd>Yes, with justification</dd></div>
+  </div>
+  <p class="lede">The first line. Everything the platform detects arrives here first,
+  and every hour spent chasing a false positive is an hour not spent on a real one — the
+  dormant-indicator register and the reconciliation strip on this screen exist to keep
+  that hour honest.</p>
+
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    ANL(["👤 Fraud Analyst (L1)"])
+    UC01("UC-ANL-01<br/>Triage the alert queue")
+    UC02("UC-ANL-02<br/>Disposition an alert")
+    UC03("UC-ANL-03<br/>Flag a Red Flagged Account")
+    UC04("UC-ANL-04<br/>Review EWS indicator health")
+    UC05("UC-ANL-05<br/>View the real-time decision panel")
+    INC1(("UC-AUTH-01<br/>Sign in"))
+    ANL --> UC01 --> UC02
+    UC02 -.include.-> INC1
+    UC02 --> UC03
+    ANL --> UC04
+    ANL --> UC05
+</pre>
+    <p class="cap">UC-ANL-02 includes UC-AUTH-01 by definition — every use case in this
+    document assumes an authenticated session, shown explicitly only here as the pattern
+    to read into the rest.</p>
+  </div>
+
+  <h3>Use cases</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>ID</th><th>Name</th><th>Trigger</th><th>BRs</th></tr></thead>
+      <tbody>
+        <tr><td class="id">UC-ANL-01</td><td>Triage the alert queue</td>
+          <td>Analyst dashboard load, or filter change</td><td>BR-603, BR-604, BR-605</td></tr>
+        <tr><td class="id">UC-ANL-02</td><td>Disposition an alert</td>
+          <td>Analyst opens an alert from the queue</td><td>BR-401, BR-402, BR-409, BR-410</td></tr>
+        <tr><td class="id">UC-ANL-03</td><td>Flag a Red Flagged Account</td>
+          <td>Evidence in the alert supports escalation</td><td>BR-401, BR-402, BR-409</td></tr>
+        <tr><td class="id">UC-ANL-04</td><td>Review EWS indicator health</td>
+          <td>Periodic review, or a dormant-indicator alert</td><td>BR-306, BR-307</td></tr>
+        <tr><td class="id">UC-ANL-05</td><td>View the real-time decision panel</td>
+          <td>Analyst dashboard, Real-Time tab</td><td>BR-312, BR-313</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-ANL-01</span>
+      <h4>Triage the alert queue</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Fraud Analyst (L1)</div>
+      <div class="uc-lbl">Trigger</div><div>Analyst opens the console, or changes a
+        filter on an open dashboard</div>
+      <div class="uc-lbl">Preconditions</div><div>An authenticated session (UC-AUTH-01);
+        the tenant has at least one active rule catalogue</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>Analyst lands on the Analyst dashboard, scoped by default to their own tenant
+          and the current period</li>
+        <li>The system computes headline KPIs from one shared metric registry and runs
+          reconciliation invariants at query time, shown beside the figures rather than
+          asserted separately</li>
+        <li>Analyst narrows by any of 24 dimensions — rail, family, severity, region,
+          product, segment, and more — and the queue re-sorts</li>
+        <li>Analyst drills from a figure through to the individual transaction and its
+          evidence trail: which rule fired, the observed value, the threshold applied, the
+          configuration version in force at scoring time</li>
+        <li>Analyst distinguishes live traffic from demonstration data on every row — a
+          badge, not an inference</li>
+      </ol></div>
+      <div class="uc-lbl">Alternate flows</div>
+      <div>Analyst saves the current filter combination as a named view for reuse,
+        optionally shared within the tenant and put on a schedule that emails the export
+        to named recipients (BR-609)</div>
+      <div class="uc-lbl">Postconditions</div><div>Analyst holds a prioritised, evidenced
+        queue rather than a raw alert list</div>
+      <div class="uc-lbl">Business rules</div><div>BR-601 to BR-608, BR-611</div>
+    </div>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-ANL-02</span>
+      <h4>Disposition an alert</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Fraud Analyst (L1); Senior Investigator and
+        Fraud Risk Manager share this use case (UC-INV-02, UC-FRM-03)</div>
+      <div class="uc-lbl">Trigger</div><div>Analyst opens an alert grouped into a case
+        (BR-308 groups related alerts by account, so a mule ring is one investigation)</div>
+      <div class="uc-lbl">Preconditions</div><div>The case is in the <code>under_review</code>
+        state — the only state this use case's actions apply from</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>Analyst reviews the rule-evaluation trace for every alert on the case</li>
+        <li>Analyst chooses <strong>close — not fraud</strong>, supplying a reason, which
+          moves the case to <code>exonerated</code>; or</li>
+        <li>Analyst chooses <strong>flag as Red Flagged Account</strong> (UC-ANL-03),
+          moving the case to <code>rfa_flagged</code> and handing it to Compliance</li>
+        <li>Every attempt — including one an analyst's role is not permitted to take — is
+          written to the case's append-only history, and an unavailable action is shown
+          disabled with the reason rather than hidden</li>
+      </ol></div>
+      <div class="uc-lbl">Postconditions</div><div>The case has moved state, or the
+        analyst has been told exactly why it could not</div>
+      <div class="uc-lbl">Business rules</div><div>BR-401, BR-402, BR-409, BR-410</div>
+    </div>
+  </div>
+</section>
+
+<section id="f7">
+  <h2>Senior Investigator (L2)</h2>
+  <div class="persona">
+    <div><dt>Primary question</dt><dd>Is this one mule, or a ring?</dd></div>
+    <div><dt>Dashboards</dt><dd>Investigator · Account 360 · RFA Lifecycle · EWS Signals ·
+      Analyst</dd></div>
+    <div><dt>PII</dt><dd>Yes, with justification</dd></div>
+  </div>
+  <p class="lede">Inherits the L1 queue and adds the two things escalation actually needs:
+  a full picture of one account, and the authority to carry a case through the
+  natural-justice hearing that RBI's directions and <em>SBI v. Rajesh Agarwal</em> both
+  require before any adverse finding.</p>
+
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    INV(["👤 Senior Investigator (L2)"])
+    UC01("UC-INV-01<br/>Build Account 360°")
+    UC02("UC-INV-02<br/>Trace the counterparty network")
+    UC03("UC-INV-03<br/>Issue a show-cause notice")
+    UC04("UC-INV-04<br/>Record the borrower's response")
+    UC05("UC-INV-05<br/>Close the response window")
+    INV --> UC01 --> UC02
+    INV --> UC03 --> UC04 --> UC05
+</pre>
+    <p class="cap">UC-INV-03 through UC-INV-05 are three stages of one hearing, specified
+    together below because the guard between them is the whole point of the use case.</p>
+  </div>
+
+  <h3>Use cases</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>ID</th><th>Name</th><th>Trigger</th><th>BRs</th></tr></thead>
+      <tbody>
+        <tr><td class="id">UC-INV-01</td><td>Build Account 360°</td>
+          <td>Investigator opens an account from a case or a search</td>
+          <td>BR-603, BR-702, BR-703</td></tr>
+        <tr><td class="id">UC-INV-02</td><td>Trace the counterparty network</td>
+          <td>Investigator suspects a ring rather than a single actor</td>
+          <td>BR-310, BR-607</td></tr>
+        <tr><td class="id">UC-INV-03</td><td>Issue a show-cause notice</td>
+          <td>Case is <code>rfa_flagged</code> and merits a hearing</td>
+          <td>BR-402, BR-403, BR-408</td></tr>
+        <tr><td class="id">UC-INV-04</td><td>Record the borrower's response</td>
+          <td>The borrower replies, at any point in the window</td><td>BR-405</td></tr>
+        <tr><td class="id">UC-INV-05</td><td>Close the response window</td>
+          <td>The window has elapsed with no reply</td><td>BR-404</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-INV-01</span>
+      <h4>Build Account 360°</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Senior Investigator (L2); also used by Internal
+        Audit / RBI Inspection, read-only (UC-AUD-03)</div>
+      <div class="uc-lbl">Trigger</div><div>Investigator selects an account from a case,
+        an alert, or a direct search</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>The system assembles every fact the platform holds on the account: alert
+          history, case history, transaction evidence, and the graph position (fan-in,
+          fan-out, cluster membership)</li>
+        <li>Customer identifiers are masked by default — account numbers, device IDs, IP
+          addresses</li>
+        <li>Investigator invokes the unmask capability, supplying a justification, which
+          is itself an audited action (viewing is logged, not only changing)</li>
+        <li>Masked or unmasked, the screen is otherwise identical — unmasking changes what
+          is shown, not what is computed</li>
+      </ol></div>
+      <div class="uc-lbl">Postconditions</div><div>Investigator holds a single evidenced
+        view of the account, and the reveal — if any — is on the audit trail</div>
+      <div class="uc-lbl">Business rules</div><div>BR-702, BR-703</div>
+    </div>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-INV-03 – UC-INV-05</span>
+      <h4>Conduct the natural-justice hearing</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Senior Investigator, Fraud Risk Manager, or
+        Principal Officer — the same three roles the lifecycle grants this transition</div>
+      <div class="uc-lbl">Trigger</div><div>A case is in <code>rfa_flagged</code></div>
+      <div class="uc-lbl">Preconditions</div><div>The response-window length is the
+        tenant's own board-approved figure (BR-403) — not a platform constant</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li><strong>Issue show-cause</strong> — moves the case to <code>natural_justice</code>
+          and starts the response-window clock. Issuing it after the policy window has
+          already elapsed is permitted and permanently recorded as a breach on the
+          transition, rather than silently allowed or silently blocked</li>
+        <li><strong>Record the response</strong> — the borrower's reply, whenever it
+          arrives, moves the case to <code>response_evaluation</code>. Always permitted; a
+          reply can arrive at any time</li>
+        <li><strong>Close the window</strong> — with no reply, the case may only move to
+          <code>response_evaluation</code> once the window has genuinely elapsed. No user
+          at any seniority may cut it short (REG-02) — the guard is a clock comparison the
+          server evaluates, not a permission a more senior role can override</li>
+      </ol></div>
+      <div class="uc-lbl">Exception flows</div>
+      <div>An attempt to close the window before it has elapsed is refused with the time
+        remaining, and the refusal itself is written to the case history</div>
+      <div class="uc-lbl">Postconditions</div><div>The case is ready for a decision
+        (UC-FRM-02 / UC-PO-02): declare fraud, or exonerate</div>
+      <div class="uc-lbl">Business rules</div><div>BR-402, BR-403, BR-404, BR-405, BR-408, BR-409</div>
+    </div>
+  </div>
+</section>
+
+<section id="f8">
+  <h2>Fraud Risk Manager</h2>
+  <div class="persona">
+    <div><dt>Primary question</dt><dd>Are we within SLA and correctly staffed?</dd></div>
+    <div><dt>Dashboards</dt><dd>Operations · EWS Signals · Real-Time · Analyst ·
+      Investigator · RFA Lifecycle · Board</dd></div>
+    <div><dt>PII</dt><dd>Yes, with justification</dd></div>
+  </div>
+  <p class="lede">Runs the operation and owns the configuration underneath it — the only
+  persona that both retunes a threshold and answers for the queue that threshold
+  produces.</p>
+
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    FRM(["👤 Fraud Risk Manager"])
+    UC01("UC-FRM-01<br/>Monitor queue &amp; SLA health")
+    UC02("UC-FRM-02<br/>Declare fraud — maker/checker")
+    UC03("UC-FRM-03<br/>Override a policy threshold")
+    UC04("UC-FRM-04<br/>Simulate before activating")
+    UC05("UC-FRM-05<br/>Examine staff accountability")
+    UC06("UC-FRM-06<br/>Prepare &amp; issue board pack")
+    UC07("UC-FRM-07<br/>Graduate a rail from shadow to enforcement")
+    FRM --> UC01 & UC02 & UC03 & UC05 & UC06 & UC07
+    UC03 --> UC04
+</pre>
+  </div>
+
+  <h3>Use cases</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>ID</th><th>Name</th><th>Trigger</th><th>BRs</th></tr></thead>
+      <tbody>
+        <tr><td class="id">UC-FRM-01</td><td>Monitor queue &amp; SLA health</td>
+          <td>Operations dashboard load</td><td>BR-603, BR-208</td></tr>
+        <tr><td class="id">UC-FRM-02</td><td>Declare fraud — maker &amp; checker</td>
+          <td>Response evaluated, evidence sustains the finding</td>
+          <td>BR-406, BR-407</td></tr>
+        <tr><td class="id">UC-FRM-03</td><td>Override a policy threshold</td>
+          <td>A rule is over- or under-firing against real traffic</td>
+          <td>BR-104, BR-105, BR-106, BR-715</td></tr>
+        <tr><td class="id">UC-FRM-04</td><td>Simulate before activating</td>
+          <td>Before saving a threshold change</td><td>BR-311</td></tr>
+        <tr><td class="id">UC-FRM-05</td><td>Examine staff accountability</td>
+          <td>A case reaches <code>fraud_declared</code></td><td>BR-414</td></tr>
+        <tr><td class="id">UC-FRM-06</td><td>Prepare &amp; issue board pack</td>
+          <td>Scheduled cadence, or on demand</td><td>BR-507</td></tr>
+        <tr><td class="id">UC-FRM-07</td><td>Graduate a rail from shadow to enforcement</td>
+          <td>A rail has an observed shadow-mode record and the tenant wants to begin
+          enforcing</td><td>BR-313, BR-316</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-FRM-02</span>
+      <h4>Declare fraud — maker and checker</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Fraud Risk Manager, Senior Investigator, or
+        Principal Officer, as maker; a different person holding one of the same three
+        roles, as checker</div>
+      <div class="uc-lbl">Trigger</div><div>Case is in <code>response_evaluation</code>
+        and the evidence, including the borrower's reply if any, sustains a finding of
+        fraud</div>
+      <div class="uc-lbl">Preconditions</div><div>A <code>reasoned_order</code> document
+        is already attached to the case — the speaking order the hearing exists to
+        produce</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>Maker proposes <strong>declare fraud</strong>, supplying a reason; the system
+          refuses the transition outright if no reasoned order is attached (BR-406)</li>
+        <li>The system requires a second, different person holding an approver role to
+          confirm — the proposer can never also be the approver</li>
+        <li>On confirmation, the case moves to <code>fraud_declared</code> and three
+          clocks start at once: the FMR filing window, the STR filing window, and the
+          staff accountability examination window</li>
+      </ol></div>
+      <div class="uc-lbl">Alternate flows</div>
+      <div><strong>Exonerate</strong> — the same evidence review can instead conclude the
+        allegation is not sustained, moving the case to <code>exonerated</code> with a
+        reason and no second approval required</div>
+      <div class="uc-lbl">Postconditions</div><div>A declared fraud with an unforgeable
+        maker/checker record, or an exoneration; either way the case history shows who
+        proposed and who, if anyone, confirmed</div>
+      <div class="uc-lbl">Business rules</div><div>BR-406, BR-407, BR-408, BR-409</div>
+    </div>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-FRM-03 / UC-FRM-04</span>
+      <h4>Override a policy threshold, simulated before activation</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Fraud Risk Manager or Tenant Administrator, as
+        proposer; a different person holding Fraud Risk Manager, Tenant Administrator or
+        Platform Administrator, as confirmer</div>
+      <div class="uc-lbl">Trigger</div><div>A rule is producing too many, or too few,
+        alerts against real traffic</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>Actor opens the structured rule editor for the indicator — no hand-edited
+          JSON</li>
+        <li>Actor changes the band, and requests a simulation: the new threshold is run
+          against historical data using the scoring engine itself, not an estimate of it,
+          and the projected alert volume is shown before anything is saved</li>
+        <li>Actor proposes activation of the new version. For a policy config, the system
+          first checks that the activation is board-approved — the approving body, date,
+          and a minute reference. The version now sits as <code>pending_activation</code>;
+          nothing scores against it yet (BR-715)</li>
+        <li>A second, different eligible person confirms. Only then is exactly one
+          configuration marked active per (tenant, kind, name), the previous version
+          archived, never deleted, and the tenant's live catalogue updated on the next
+          scoring run, with no deployment. A pending proposal may instead be rejected back
+          to draft by the proposer or another eligible reviewer</li>
+        <li>Every alert scored from this point records the configuration version in force
+          at scoring time (BR-304), so a later question about "what threshold applied
+          then" has a real answer</li>
+      </ol></div>
+      <div class="uc-lbl">Exception flows</div>
+      <div>Proposing activation of a policy without a recorded approving body is refused
+        (422); confirming with the same account that proposed it is refused (403,
+        self-approval); proposing or confirming from a role outside Fraud Risk Manager /
+        Tenant Administrator / Platform Administrator is refused (403); a config-service
+        outage during activation is a build failure, not a fallback to a lower threshold —
+        see HLD §7 on the fallback-policy incident this guards against</div>
+      <div class="uc-lbl">Postconditions</div><div>One new active version, confirmed by
+        someone other than its proposer; the tenant's entire live catalogue reflects it on
+        the next scoring run, with no deployment</div>
+      <div class="uc-lbl">Business rules</div><div>BR-104, BR-105, BR-106, BR-302, BR-311,
+        BR-715</div>
+    </div>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-FRM-07</span>
+      <h4>Graduate a rail from shadow to enforcement</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Fraud Risk Manager or Tenant Administrator, as
+        proposer, with Board / ACB sign-off recorded on the record itself; a different
+        person holding Fraud Risk Manager, Tenant Administrator or Platform
+        Administrator, as confirmer</div>
+      <div class="uc-lbl">Trigger</div><div>A rail has run in shadow mode long enough to
+        have an observed false-positive rate, and the tenant wants to begin enforcing it</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>Actor reviews the rail's shadow-mode record (<code>/decisions/{tenant}/shadow</code>)
+          — every decision it would have enforced, over the full observation window.
+          Whether each was a genuine catch or a false alarm needs the case disposition,
+          which lives in a different service's schema by design; the false-positive rate
+          is cross-referenced by the actor and recorded, not re-derived by the platform</li>
+        <li>Actor prepares a new <code>decision_policy</code> version marking the rail
+          enforced, with a graduation record attached: the observed window (≥30 days),
+          the false-positive rate, who evaluated it, and the board/ACB approving body,
+          date and minute reference</li>
+        <li>Actor proposes activation. Both the observation window and the record's
+          completeness are checked before the version may even enter
+          <code>pending_activation</code> — a rail marked enforced with no graduation
+          record, or one short of the minimum window, is refused</li>
+        <li>A second, different eligible person confirms (BR-715) — the same
+          maker-checker discipline UC-FRM-03 and UC-MDL-04 already use. Only then does
+          the rail's enforcement status actually change</li>
+        <li>Decision-service picks up the newly active policy off the payment path (the
+          same never-fetch-inline discipline the rule catalogue already has) — a moment
+          of eventual consistency, not a synchronous switch. The graduation record stays
+          on the config version permanently, so a later audit question ("why did we
+          start enforcing this rail, and on what basis") has a real answer</li>
+      </ol></div>
+      <div class="uc-lbl">Exception flows</div>
+      <div>Proposing activation with an enforced rail carrying no graduation record, or
+        one short of the 30-day minimum, is refused (422, <code>graduation_required</code>);
+        confirming with the same account that proposed it is refused (403,
+        <code>self_approval</code>). Enforcement never turns on by a missed validation —
+        only by an explicit, recorded decision, confirmed by someone other than who
+        proposed it</div>
+      <div class="uc-lbl">Postconditions</div><div>The rail moves from shadow to enforced;
+        every decision from that point returns its actual action, not always <code>allow</code></div>
+      <div class="uc-lbl">Business rules</div><div>BR-313, BR-316, BR-715</div>
+    </div>
+  </div>
+</section>
+
+<section id="f9">
+  <h2>Principal Officer (PMLA)</h2>
+  <div class="persona">
+    <div><dt>Primary question</dt><dd>What must be filed with FIU-IND, and by when?</dd></div>
+    <div><dt>Dashboards</dt><dd>AML / STR · RFA Lifecycle · Compliance</dd></div>
+    <div><dt>PII</dt><dd>Yes, with justification</dd></div>
+  </div>
+  <p class="lede">The PMLA obligation runs on its own track, independent of whether a case
+  is also travelling the fraud-classification lifecycle — an STR can be filed on a case
+  that never becomes a declared fraud, which is why this persona's dashboard and clocks
+  are separate from the RFA lifecycle's.</p>
+
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    PO(["👤 Principal Officer (PMLA)"])
+    UC01("UC-PO-01<br/>Track filing due dates")
+    UC02("UC-PO-02<br/>Generate the STR / FMR artefact")
+    UC03("UC-PO-03<br/>Acknowledge a filed return")
+    UC04("UC-PO-04<br/>Generate and file a CTR")
+    PO --> UC01 --> UC02 --> UC03
+    PO --> UC04
+</pre>
+  </div>
+
+  <h3>Use cases</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>ID</th><th>Name</th><th>Trigger</th><th>BRs</th></tr></thead>
+      <tbody>
+        <tr><td class="id">UC-PO-01</td><td>Track filing due dates</td>
+          <td>AML / STR dashboard load</td><td>BR-501, BR-503</td></tr>
+        <tr><td class="id">UC-PO-02</td><td>Generate the STR / FMR artefact</td>
+          <td>Case reaches <code>fraud_declared</code>, or an STR trigger independent
+          of it</td><td>BR-502, BR-504, BR-505</td></tr>
+        <tr><td class="id">UC-PO-03</td><td>Acknowledge a filed return</td>
+          <td>The regulator's acknowledgement is received</td><td>BR-506</td></tr>
+        <tr><td class="id">UC-PO-04</td><td>Generate and file a CTR</td>
+          <td>An account's cash transactions for the calendar month reach the PMLA
+          Rule 3 threshold</td><td>BR-508</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-PO-02</span>
+      <h4>Generate the FMR / STR artefact</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Principal Officer, Compliance Supervisor, Fraud
+        Risk Manager, or Tenant Administrator — the server checks role membership in this
+        list, or the caller's <code>can_admin_tenant</code> capability, so a Platform
+        Administrator also has access without being named explicitly</div>
+      <div class="uc-lbl">Trigger</div><div>A case's FMR or STR clock is running and the
+        underlying evidence is complete</div>
+      <div class="uc-lbl">Preconditions</div><div>The case carries an FMR category
+        classification (BR-502) and, for FMR, a reasoned order. For STR, the filing
+        Principal Officer's name must be set on the tenant's active, attested FRM policy,
+        which a tenant admin now sets from the console; see §23</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>Actor requests generation for the case and the filing kind</li>
+        <li>The system assembles the return from the case, its evidence and the reasoned
+          order; validates it against the schema; computes a content hash; and retains it
+          with the generation timestamp and the data version behind it</li>
+        <li>A prior <code>generated</code> filing for the same case and kind is marked
+          <code>superseded</code> rather than overwritten</li>
+        <li>The system refuses to generate a return with a known evidentiary gap, rather
+          than producing an incomplete filing that reads as ready</li>
+      </ol></div>
+      <div class="uc-lbl">Exception flows</div>
+      <div><strong>Format binding.</strong> The return is assembled, validated, hashed and
+        retained in the platform's own structured form. The prescribed RBI / FIU-IND
+        submission format itself is <code>not_bound</code> pending OD-04 — the published
+        schemas have not been adopted. A named officer can submit from the pack today;
+        the platform cannot yet claim the artefact is in the regulator's own file format
+        <span class="chip partial">Partial</span></div>
+      <div class="uc-lbl">Postconditions</div><div>A retained, hashed filing record, ready
+        for submission and for UC-PO-03</div>
+      <div class="uc-lbl">Business rules</div><div>BR-501, BR-502, BR-504, BR-505, BR-506</div>
+    </div>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-PO-04</span>
+      <h4>Generate and file a Cash Transaction Report</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Principal Officer, Compliance Supervisor, Fraud
+        Risk Manager, or Tenant Administrator — same role set as UC-PO-02, since a CTR
+        pack carries the same class of account identifiers</div>
+      <div class="uc-lbl">Trigger</div><div>An account's cash transactions for a
+        calendar month — deposits and withdrawals both, individually or in aggregate —
+        reach the Rs 10,00,000 threshold under PMLA Rule 3</div>
+      <div class="uc-lbl">Preconditions</div><div>At least one <code>cash_transaction</code>
+        CBS event has been reported for the account in the period, explicitly marked
+        live — see Exception flows</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>Actor checks the due list for a calendar month: every account whose reported
+          cash transactions already meet the threshold</li>
+        <li>Actor requests generation for one account and period. The system aggregates
+          every <code>cash_transaction</code> event for that account in that calendar
+          month, computes the total, and assembles the return</li>
+        <li>A prior <code>generated</code> filing for the same account and period is
+          marked <code>superseded</code> rather than overwritten, exactly as UC-PO-02</li>
+        <li>The system refuses to generate a return for an account that has not actually
+          met the threshold that month, rather than producing one nobody was required to
+          file</li>
+      </ol></div>
+      <div class="uc-lbl">Exception flows</div>
+      <div><strong>Provenance.</strong> A CTR may not be built from anything other than
+        cash-transaction events explicitly marked live — the CBS event pipeline has fed
+        only detection indicators until now, where scoring demonstration data is normal,
+        so nothing before this needed a live/synthetic distinction on that stream. This
+        is the first CBS-derived <em>filing</em>, so it is the first consumer to require
+        one (BR-611).<br><strong>Format binding.</strong> Same honesty as UC-PO-02: the
+        FIU-IND FINnet CTR schema itself is <code>not_bound</code> — nothing has examined
+        it yet <span class="chip partial">Partial</span></div>
+      <div class="uc-lbl">Postconditions</div><div>A retained, hashed filing record for
+        one account and one calendar month, ready for submission — structurally
+        independent of the FMR/STR filing table, since a CTR is not about a case</div>
+      <div class="uc-lbl">Business rules</div><div>BR-508, BR-611</div>
+    </div>
+  </div>
+</section>
+
+<section id="f10">
+  <h2>Compliance Supervisor</h2>
+  <div class="persona">
+    <div><dt>Primary question</dt><dd>Are the regulatory clocks being met?</dd></div>
+    <div><dt>Dashboards</dt><dd>Compliance · RFA Lifecycle · AML / STR · EWS Signals ·
+      Board</dd></div>
+    <div><dt>PII</dt><dd>Yes, with justification</dd></div>
+  </div>
+  <p class="lede">Sits above the case-by-case work, watching the clocks rather than any
+  one case — the 30-day EWS examination window the Master Directions set (2024
+  originals, superseded 31 Jul 2026 by nine entity-specific successors — see BRD REG-01),
+  and the filing and hearing windows the tenant's own policy sets.</p>
+
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    SUP(["👤 Compliance Supervisor"])
+    UC01("UC-SUP-01<br/>Monitor regulatory clocks")
+    UC02("UC-SUP-02<br/>Close a fraud case")
+    UC03("UC-SUP-03<br/>Escalate a breached clock")
+    UC04("UC-SUP-04<br/>Reopen an exonerated case")
+    SUP --> UC01 --> UC03
+    SUP --> UC02 --> UC04
+</pre>
+  </div>
+
+  <h3>Use cases</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>ID</th><th>Name</th><th>Trigger</th><th>BRs</th></tr></thead>
+      <tbody>
+        <tr><td class="id">UC-SUP-01</td><td>Monitor regulatory clocks</td>
+          <td>Compliance dashboard load</td><td>BR-503</td></tr>
+        <tr><td class="id">UC-SUP-02</td><td>Close a fraud case</td>
+          <td>Case is <code>fmr_reported</code></td><td>BR-414</td></tr>
+        <tr><td class="id">UC-SUP-03</td><td>Escalate a breached clock</td>
+          <td>A clock approaches or breaches its window</td><td>BR-413</td></tr>
+        <tr><td class="id">UC-SUP-04</td><td>Reopen an exonerated case</td>
+          <td>New evidence surfaces after exoneration</td><td>BR-401</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-SUP-02</span>
+      <h4>Close a fraud case</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Compliance Supervisor, or Fraud Risk Manager</div>
+      <div class="uc-lbl">Trigger</div><div>Case is in <code>fmr_reported</code> and the
+        supervisor considers the record complete</div>
+      <div class="uc-lbl">Preconditions</div><div>The staff accountability examination
+        opened on this case has reached <code>concluded</code></div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>Supervisor requests <strong>close case</strong></li>
+        <li>The system checks the accountability guard: a fraud may be <em>reported</em>
+          to RBI with the examination still open, because reporting must not wait on
+          it, but it may not be <em>closed away</em> with the question never answered</li>
+        <li>On a concluded examination, the case moves to <code>closed_fraud</code> — a
+          terminal state; it cannot be reopened, because it has already been reported</li>
+      </ol></div>
+      <div class="uc-lbl">Exception flows</div>
+      <div>Closure with an open or absent examination is refused, naming which case
+        blocks it — precisely the paper-compliance gap an inspection looks for</div>
+      <div class="uc-lbl">Postconditions</div><div>The case is closed and immutable; only
+        <code>exonerated</code> cases, not <code>closed_fraud</code> ones, may ever be
+        reopened (UC-SUP-04)</div>
+      <div class="uc-lbl">Business rules</div><div>BR-401, BR-414</div>
+    </div>
+  </div>
+</section>
+
+<section id="f11">
+  <h2>Board / Executive</h2>
+  <div class="persona">
+    <div><dt>Primary question</dt><dd>What is our fraud exposure and trend?</dd></div>
+    <div><dt>Dashboards</dt><dd>Board</dd></div>
+    <div><dt>PII</dt><dd><strong>No</strong> — aggregate only</dd></div>
+  </div>
+  <p class="lede">One dashboard, deliberately. Everything this persona sees is aggregate
+  by construction — the role carries no PII-reveal capability, so there is no screen to
+  restrict; the figures shown are already the only figures the role can ever see.</p>
+
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    EXE(["👤 Board / Executive"])
+    UC01("UC-EXE-01<br/>Review exposure &amp; trend")
+    UC02("UC-EXE-02<br/>Receive the scheduled board pack")
+    EXE --> UC01
+    EXE -.receives.-> UC02
+</pre>
+    <p class="cap">UC-EXE-02 is dashed because the Board persona is the pack's
+    <em>recipient</em>, not its preparer — UC-FRM-06 in §8 does the preparing and issuing.</p>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-EXE-01</span>
+      <h4>Review exposure and trend</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Board / Executive</div>
+      <div class="uc-lbl">Trigger</div><div>Board dashboard load, or the delivered board
+        pack</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>The system presents fraud value, case counts, RFA and closure trend, and
+          compliance posture, built from the same metric registry every other dashboard
+          reads — the board sees a different aggregation of the identical figures the
+          analyst sees at transaction level, never a separately computed one</li>
+        <li>Every figure carries its reconciliation status alongside it, at query time</li>
+      </ol></div>
+      <div class="uc-lbl">Postconditions</div><div>A governance-grade view with no
+        customer-identifying detail anywhere on the screen, by construction rather than
+        by a filter a mistake could remove</div>
+      <div class="uc-lbl">Business rules</div><div>BR-601, BR-602, BR-603</div>
+    </div>
+  </div>
+</section>
+
+<section id="f12">
+  <h2>CRO / ACB / Special Committee</h2>
+  <div class="persona">
+    <div><dt>Primary question</dt><dd>Is the framework itself working?</dd></div>
+    <div><dt>Dashboards</dt><dd>Board · Compliance · RFA Lifecycle · Operations · AML /
+      STR · EWS Signals</dd></div>
+    <div><dt>PII</dt><dd><strong>No</strong> — aggregate only</dd></div>
+  </div>
+  <p class="lede">Governance needs exposure and compliance posture together, not one or
+  the other — the only persona spanning the Board's aggregate view and the Compliance
+  Supervisor's clock view, still with no PII-reveal capability across either.</p>
+
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    CRO(["👤 CRO / ACB / Special Committee"])
+    UC01("UC-CRO-01<br/>Review framework effectiveness")
+    UC02("UC-CRO-02<br/>Issue the board / ACB pack")
+    CRO --> UC01 --> UC02
+</pre>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-CRO-02</span>
+      <h4>Issue the board / ACB pack</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>CRO / ACB / Special Committee, or Fraud Risk
+        Manager, Principal Officer, Tenant Administrator (preparation only — see
+        UC-FRM-06)</div>
+      <div class="uc-lbl">Trigger</div><div>The scheduled cadence for the tenant's pack
+        has arrived, or the committee requests one on demand</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>A pack is <strong>prepared</strong> for the period that has actually
+          finished — never the period the committee is still sitting in, which would show
+          an incomplete figure as though it were final</li>
+        <li>The pack is a frozen record: content-hashed, versioned, and an unissued draft
+          for the same period is superseded by a later preparation rather than edited in
+          place</li>
+        <li>The CRO, or another issue-permitted role, <strong>issues</strong> the pack —
+          a deliberate, separate act from preparing it. An issued pack is never
+          superseded; the committee has seen it and the minutes refer to it</li>
+        <li>Delivery to named recipients is recorded per recipient, so "was this actually
+          sent" has an answer independent of "was it prepared"</li>
+      </ol></div>
+      <div class="uc-lbl">Postconditions</div><div>An immutable, delivered pack the
+        committee's minutes can cite by hash</div>
+      <div class="uc-lbl">Business rules</div><div>BR-507</div>
+    </div>
+  </div>
+</section>
+
+<section id="f13">
+  <h2>Model Risk / Data Science</h2>
+  <div class="persona">
+    <div><dt>Primary question</dt><dd>Is detection still fit for the population?</dd></div>
+    <div><dt>Dashboards</dt><dd>Model Risk · EWS Signals · Analyst</dd></div>
+    <div><dt>PII</dt><dd><strong>No</strong> — models run on masked data</dd></div>
+  </div>
+  <p class="lede">The one persona defined by what it must <em>not</em> see rather than
+  what it must: FREE-AI model governance requires detection work to run on masked data, so
+  this role carries no reveal capability under any circumstance — not "usually masked",
+  never unmasked.</p>
+
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    MDL(["👤 Model Risk / Data Science"])
+    UC01("UC-MDL-01<br/>Review the model inventory")
+    UC02("UC-MDL-02<br/>Monitor population drift")
+    UC03("UC-MDL-03<br/>Review dormant indicators")
+    UC04("UC-MDL-04<br/>Promote a candidate model")
+    MDL --> UC01 & UC02 & UC03 & UC04
+</pre>
+  </div>
+
+  <h3>Use cases</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>ID</th><th>Name</th><th>Trigger</th><th>BRs</th></tr></thead>
+      <tbody>
+        <tr><td class="id">UC-MDL-01</td><td>Review the model inventory</td>
+          <td>Model Risk dashboard load</td><td>BR-801, BR-802</td></tr>
+        <tr><td class="id">UC-MDL-02</td><td>Monitor population drift</td>
+          <td>Periodic review, or a drift alert</td><td>BR-803</td></tr>
+        <tr><td class="id">UC-MDL-03</td><td>Review dormant indicators</td>
+          <td>Periodic review of the EWS dashboard</td><td>BR-307</td></tr>
+        <tr><td class="id">UC-MDL-04</td><td>Promote a candidate model</td>
+          <td>A candidate model version has been evaluated and is proposed for
+          activation</td><td>BR-807, BR-808, BR-715</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-MDL-02</span>
+      <h4>Monitor population drift</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Model Risk / Data Science</div>
+      <div class="uc-lbl">Trigger</div><div>Periodic review, or an inventory entry
+        flagged as scoring live traffic under a configuration that is not currently
+        approved</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>The system computes Population Stability Index and Kolmogorov–Smirnov
+          statistics between a reference window and the current one, banded into a
+          plain-language read rather than a raw statistic alone</li>
+        <li>The system attributes drift to specific rules — PSI says the population
+          shifted; the per-rule breakdown says where to look</li>
+        <li>Every alert remains explainable to a non-technical reviewer without reference
+          to source code — the same rule-evaluation trace an analyst reads</li>
+      </ol></div>
+      <div class="uc-lbl">Postconditions</div><div>A drift reading the reviewer can act
+        on — retune, backtest, or escalate to champion/challenger evaluation
+        (UC-MDL-04)</div>
+      <div class="uc-lbl">Business rules</div><div>BR-801, BR-803, BR-805</div>
+    </div>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-MDL-04</span>
+      <h4>Promote a candidate model</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Model Risk / Data Science, as proposer; a
+        different person holding Model Risk / Data Science, Fraud Risk Manager, Tenant
+        Administrator or Platform Administrator, as confirmer</div>
+      <div class="uc-lbl">Trigger</div><div>A candidate model version has been backtested
+        (BR-806) against the version it would replace and is ready to be proposed for
+        activation</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>Actor records the champion/challenger evaluation on the candidate's
+          <code>model</code> config version: what was measured, the method, and how it
+          compares to the champion it would replace — or, for a tenant's first model,
+          that there was no champion to compare against</li>
+        <li>Actor records the Model Risk Management Committee's approval: approving
+          body, date, and a minute reference — the same mechanism BR-104 uses for a
+          board-approved policy, naming a model-specific committee</li>
+        <li>Actor proposes activation. Both records are checked before the version may
+          even enter <code>pending_activation</code> — a blank evaluation or attestation
+          is refused, not defaulted</li>
+        <li>A second, different eligible person confirms (BR-715). Only then is the
+          version marked active and the previous one archived, never deleted</li>
+      </ol></div>
+      <div class="uc-lbl">Exception flows</div>
+      <div>Proposing activation without a recorded evaluation is refused (422,
+        <code>challenger_evaluation_required</code>); without a recorded committee
+        approval, refused (422, <code>attestation_required</code>); confirming with the
+        same account that proposed it is refused (403, <code>self_approval</code>)</div>
+      <div class="uc-lbl">Postconditions</div><div>One new active model version, with its
+        evaluation and committee approval attached to the row and its confirmer distinct
+        from its proposer. No live scoring reads this version yet — Fraud360 has no ML
+        detection in production (see <a href="#f23">AI/ML roadmap</a>, OD-06); this is
+        the gate a model needs before it can be promoted, built ahead of one existing</div>
+      <div class="uc-lbl">Business rules</div><div>BR-807, BR-808, BR-715, BR-104</div>
+    </div>
+  </div>
+</section>
+
+<section id="f14">
+  <h2>Internal Audit / RBI Inspection</h2>
+  <div class="persona">
+    <div><dt>Primary question</dt><dd>Can each figure and decision be evidenced?</dd></div>
+    <div><dt>Dashboards</dt><dd>Inspection · RFA Lifecycle · Compliance · Board · AML /
+      STR · Model Risk · EWS Signals · Account 360</dd></div>
+    <div><dt>PII</dt><dd>Read-only, with justification</dd></div>
+  </div>
+  <p class="lede">Sees more of the platform than any tenant-scoped role except the Tenant
+  Administrator, and changes none of it — enforced by holding no admin capability and no
+  Control Plane module access at all, not by convention.</p>
+
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    AUD(["👤 Internal Audit / RBI Inspection"])
+    UC01("UC-AUD-01<br/>Retrieve the evidence trail for a decision")
+    UC02("UC-AUD-02<br/>Export audited evidence")
+    UC03("UC-AUD-03<br/>Read Account 360° (read-only)")
+    AUD --> UC01 --> UC02
+    AUD --> UC03
+</pre>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-AUD-01</span>
+      <h4>Retrieve the evidence trail for a decision</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Internal Audit / RBI Inspection</div>
+      <div class="uc-lbl">Trigger</div><div>An inspection question: why was this account
+        flagged, why was this fraud declared, why was this threshold changed</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>Auditor opens the Inspection dashboard and locates the case, alert, or
+          configuration change in question</li>
+        <li>The system shows the rule-evaluation trace behind an alert (which band
+          matched, the observed value, the threshold, the configuration version), the
+          full case transition history including every refused attempt, and — for a
+          threshold change — the approving body, date and minute reference recorded at
+          activation</li>
+        <li>Unmasking a customer identifier along the way is available, and is itself
+          audited as a view, not only as a change</li>
+        <li>The auditor's own access is unable to alter anything on the screens it
+          reads — no admin capability is granted to this role under any configuration</li>
+      </ol></div>
+      <div class="uc-lbl">Postconditions</div><div>A defensible answer to "why", backed by
+        a record the auditor did not have to trust the platform's word for — every figure
+        traces to a stored trace, not a derived narrative</div>
+      <div class="uc-lbl">Business rules</div><div>BR-304, BR-409, BR-606, BR-703, BR-705</div>
+    </div>
+  </div>
+</section>
+
+<section id="f15">
+  <h2>Tenant Administrator</h2>
+  <div class="persona">
+    <div><dt>Primary question</dt><dd>Is my institution configured correctly?</dd></div>
+    <div><dt>Modules</dt><dd>Control Plane · Monitoring · Audit</dd></div>
+    <div><dt>PII</dt><dd>Yes, with justification</dd></div>
+  </div>
+  <p class="lede">The bank's own break-glass role: every dashboard a tenant-scoped
+  persona can see, plus the configuration surface underneath the whole platform for that
+  one institution. <code>tenant_admin</code> is added automatically to every case
+  transition's permitted-roles list in the lifecycle engine (§8, HLD), so this persona
+  can always act when no one else can.</p>
+
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    TAD(["👤 Tenant Administrator"])
+    UC01("UC-TAD-01<br/>Onboard the tenant")
+    UC02("UC-TAD-02<br/>Configure branding")
+    UC03("UC-TAD-03<br/>Configure SSO / IdP")
+    UC04("UC-TAD-04<br/>Issue a machine credential")
+    UC05("UC-TAD-05<br/>Review usage &amp; metering")
+    UC06("UC-TAD-06<br/>View the role catalogue")
+    UC07("UC-TAD-07<br/>Create, edit and delete a role")
+    UC08("UC-TAD-08<br/>View and export the audit trail")
+    UC09("UC-TAD-09<br/>Invite, update and remove a user")
+    TAD --> UC01 --> UC02 & UC03 & UC04
+    TAD --> UC05
+    TAD --> UC06 --> UC07
+    TAD --> UC08
+    TAD --> UC09
+</pre>
+  </div>
+
+  <h3>Use cases</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>ID</th><th>Name</th><th>Trigger</th><th>BRs</th></tr></thead>
+      <tbody>
+        <tr><td class="id">UC-TAD-01</td><td>Onboard the tenant</td>
+          <td>Platform Administrator provisions a new institution (UC-PAD-01), handed
+          to the tenant's first administrator</td><td>BR-101, BR-103</td></tr>
+        <tr><td class="id">UC-TAD-02</td><td>Configure branding</td>
+          <td>Onboarding, or a rebrand</td><td>BR-102</td></tr>
+        <tr><td class="id">UC-TAD-03</td><td>Configure SSO / IdP</td>
+          <td>The tenant wants federated sign-on against its own directory</td>
+          <td>BR-708</td></tr>
+        <tr><td class="id">UC-TAD-04</td><td>Issue a machine credential</td>
+          <td>A payment switch, CBS extract job, or ETL pipeline needs to connect</td>
+          <td>BR-213</td></tr>
+        <tr><td class="id">UC-TAD-05</td><td>Review usage &amp; metering</td>
+          <td>Billing period close, or on demand</td><td>BR-110</td></tr>
+        <tr><td class="id">UC-TAD-06</td><td>View the role catalogue</td>
+          <td>Deciding which role to assign a new user, or auditing who holds an
+          admin-capable or PII-revealing role</td><td>BR-112, BR-113</td></tr>
+        <tr><td class="id">UC-TAD-07</td><td>Create, edit and delete a role</td>
+          <td>The fixed ten roles do not match the bank's own org structure</td>
+          <td>BR-113</td></tr>
+        <tr><td class="id">UC-TAD-08</td><td>View and export the audit trail</td>
+          <td>Reviewing recent activity, or assembling evidence for a compliance
+          review or an RBI inspection request</td><td>BR-701, BR-705, BR-716</td></tr>
+        <tr><td class="id">UC-TAD-09</td><td>Invite, update and remove a user</td>
+          <td>Staff joins, changes desk, or leaves — without waiting on the vendor's
+          own platform staff to act on the tenant's behalf</td><td>BR-108</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-TAD-06</span>
+      <h4>View the role catalogue</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Tenant Administrator (any tenant-scoped role,
+        in fact — see below)</div>
+      <div class="uc-lbl">Trigger</div><div>Deciding which of the ten roles to invite a
+        new user under, or checking who in the bank currently holds an admin-capable
+        or PII-revealing role</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>Actor requests <code>GET /tenants/{id}/roles</code></li>
+        <li>The system returns every role this tenant has — the fixed ten, plus any it
+          has created itself (UC-TAD-07) — never <code>platform_admin</code>, which is
+          cross-tenant and excluded here the same way BR-108's invite flow already
+          excludes it from what a tenant may hand out. Each entry carries its label,
+          the modules and dashboards it reaches, whether it can administer the tenant,
+          whether it can reveal customer PII, whether an elevation is pending
+          confirmation, and how many of this tenant's own users currently hold it</li>
+        <li>The system reads this tenant's own materialised <code>tenant_roles</code>
+          rows if BR-113 (phase 2a) has seeded them — every tenant onboarded from that
+          point on — and falls back to the platform's hardcoded catalogue otherwise. The
+          two sources are verified indistinguishable to the caller: the same response
+          shape, checked against the same test suite either way</li>
+      </ol></div>
+      <div class="uc-lbl">Postconditions</div><div>Nothing changes — this is read-only.
+        Creating, editing, deleting or assigning a role happens through UC-TAD-07 and
+        BR-108's invite flow, not here</div>
+      <div class="uc-lbl">Business rules</div><div>BR-112, BR-113</div>
+    </div>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-TAD-07</span>
+      <h4>Create, edit and delete a role</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Any role holding <code>can_admin_tenant</code>
+        — checked dynamically, so a custom role the tenant has granted admin scope to
+        can manage further roles itself, not only the seeded <code>tenant_admin</code></div>
+      <div class="uc-lbl">Trigger</div><div>The fixed ten roles do not match the bank's
+        own org structure — a title, a narrower grant, or a role scoped to one region
+        or desk</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>Actor names a role, chooses its modules and dashboards, and optionally
+          grants any combination of <code>can_admin_tenant</code>,
+          <code>can_reveal_pii</code> and <code>can_activate_config</code> (the
+          risk_manager-equivalent capability to propose or confirm a configuration
+          activation, BR-715 — independent of admin scope), via
+          <code>POST /tenants/{id}/roles</code></li>
+        <li>The system refuses a name that collides with one of the platform's ten
+          reserved names (including <code>platform_admin</code>), and refuses any grant
+          reaching the platform-only <code>administration</code> module or the
+          <code>tenant_health</code> dashboard — regardless of who is asking. Cross-tenant
+          reach needs no separate check: the tenant a role belongs to is always the URL
+          path, never a field the caller controls</li>
+        <li>A grant that does not raise any of the three capability flags applies
+          immediately on <code>PUT /tenants/{id}/roles/{name}</code> — this includes
+          lowering any of them, which is always safe to apply unilaterally. Editing a
+          seeded role marks it <code>custom</code>: it is no longer an unedited copy
+          of the platform catalogue</li>
+        <li>A grant that <em>raises</em> any of the three is staged, not applied, and
+          needs a different eligible actor to confirm it via
+          <code>POST /tenants/{id}/roles/{name}/confirm</code> — the same maker-checker
+          asymmetry BR-715 applies elsewhere. The actor who staged it cannot confirm
+          their own change (<code>self_approval</code>, refused)</li>
+        <li>The system deletes a custom role via <code>DELETE .../roles/{name}</code>,
+          refusing one of the fixed ten outright and refusing any role still held by a
+          user until they are reassigned</li>
+        <li>The resulting role becomes immediately assignable through BR-108's existing
+          invite flow — a custom role is not a second-class name; the moment it exists,
+          <code>POST /tenants/{id}/users</code> accepts it exactly as it would
+          <code>analyst</code> or <code>risk_manager</code></li>
+      </ol></div>
+      <div class="uc-lbl">Exception flows</div><div><code>reserved_name</code> /
+        <code>name_exists</code> (422) — the name collides with a platform role or an
+        existing one of the tenant's own. <code>role_guardrail</code> (422) — the grant
+        reaches platform-only surface. <code>insufficient_role</code> (403) — the caller
+        lacks <code>can_admin_tenant</code>, dynamically checked. <code>self_approval</code>
+        (403) — the proposer tried to confirm their own elevation.
+        <code>fixed_role</code> / <code>role_in_use</code> (409) — delete refused. Every
+        refusal is audited, not only every success</div>
+      <div class="uc-lbl">Postconditions</div><div>Every create, edit, confirmation and
+        delete — success or refusal — writes a full before/after snapshot to the audit
+        trail, so a role's history is reconstructable without a separate version table
+        and is never rewritten in place</div>
+      <div class="uc-lbl">Business rules</div><div>BR-113</div>
+    </div>
+  </div>
+
+  <div class="note">
+    <h5>BR-113's capability check now runs platform-wide, three flags deep</h5>
+    <p>A tenant's roles are real, editable, per-tenant database rows — the write path,
+    the platform-only guardrails, the maker-checker elevation and the full audit
+    snapshot on every change are all built (phase 2b). A custom role is functional
+    within tenant-service's own admin surface, assignable to a user via BR-108, and
+    — phase 2c — recognised by analytics-service, config-service, decision-service
+    and notification-service too, through <code>cp_common.dynamic_roles</code>: a
+    shared module every one of them imports, fetching a tenant's custom-role
+    catalogue from tenant-service's <code>GET /tenants/internal/{tenant_id}/roles</code>
+    and caching it against the same generation-token mechanism config-service's
+    rule/policy changes already use, so an edit is visible everywhere the instant it
+    is made, not after some clock interval. Every one of the ten fixed roles still
+    resolves with zero network calls — nothing about existing behaviour changed for
+    them. <code>ingestion-service</code> needed no change at all: BR-213 machine
+    credentials carry scopes, not human roles.</p>
+    <p><strong>Phase 2d</strong> closed the sharpest remaining gap: config-service's
+    <code>maker_checker.ELIGIBLE_ROLES</code> used to be a hardcoded name list mixing
+    <code>risk_manager</code> in alongside the two admin-capable roles, because
+    <code>TenantRole</code> had no flag for "may activate configuration" on its own.
+    It has one now — <code>can_activate_config</code>, checked dynamically the same
+    way as the other two — so <code>ensure_eligible()</code> is one capability check
+    instead of a name comparison plus a fallback, and a custom role can be granted
+    exactly the risk_manager-equivalent capability, independent of
+    <code>can_admin_tenant</code>. Raising it is staged through the same elevation
+    confirmation as the other two flags; a bank does not get to hand out configuration
+    authority any more casually than it hands out admin scope. What remains open is
+    narrower still: a small number of call sites (analytics-service's
+    <code>FILING_ROLES</code>/<code>CTR_ROLES</code>) mix in roles like
+    <code>principal_officer</code> that no flag on this platform describes at all —
+    extending those means new capability flags, real and separately-scoped, not
+    attempted here. Recorded rather than left implicit, in the same spirit as the
+    BR-108 invite-flow finding above.</p>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-TAD-08</span>
+      <h4>View and export the audit trail</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Any role granted the <code>audit</code>
+        module — tenant_admin, risk_manager, principal_officer, supervisor, cro,
+        rbi_inspector by default, or a BR-113 custom role granted it explicitly</div>
+      <div class="uc-lbl">Trigger</div><div>Reviewing recent activity in the console's
+        Audit panel, or assembling evidence for a compliance review or an RBI
+        inspection request</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>Actor requests <code>GET /audit</code>, optionally with
+          <code>action_prefix</code> (e.g. <code>role.</code> for role-management
+          events only) — the console's "Role changes only" checkbox sets this</li>
+        <li>The system scopes the result to the caller's own tenant automatically;
+          platform staff may target any tenant, or omit one for the fleet-wide view</li>
+        <li>Actor downloads the same, filtered trail as CSV via
+          <code>GET /audit/export</code> — the console's Download CSV button — for a
+          record that survives outside the console</li>
+      </ol></div>
+      <div class="uc-lbl">Exception flows</div><div><code>insufficient_role</code>
+        (403) — the caller's role, fixed or custom, does not grant the
+        <code>audit</code> module. <code>cross_tenant</code> / 403 — a tenant-scoped
+        caller requested a tenant_id other than their own</div>
+      <div class="uc-lbl">Postconditions</div><div>Nothing changes — this is read-only,
+        the same as UC-TAD-06</div>
+      <div class="uc-lbl">Business rules</div><div>BR-701, BR-705, BR-716</div>
+    </div>
+  </div>
+
+  <div class="note risk">
+    <h5>Found while answering "is audit access actually in place": it was granted, not enforced</h5>
+    <p>cp_common.rbac has granted the <code>audit</code> module to six tenant-scoped
+    roles since long before this session, and the console has shown all six an
+    "Audit" nav item for just as long. <code>GET /audit</code>, however, was gated
+    <code>require_role("platform_admin")</code> — so every one of those six roles
+    403'd the instant they used the feature the platform's own rbac.py said they had.
+    A specification or a test written against the same assumption the code made would
+    not have caught this; it surfaced only by checking the grant against the actual
+    route guard. Fixed under BR-701/BR-716: the endpoint now checks audit-module
+    access dynamically (fixed or BR-113 custom role), pinned to the caller's own
+    tenant. Verified against the running console, including a role created and
+    exercised live through the UI, not only by unit test.</p>
+  </div>
+
+  <div class="note">
+    <h5>Deliberately not admin-gated, and not the same as <code>/auth/me</code></h5>
+    <p><code>/auth/me</code> already tells a signed-in user their <em>own</em> modules
+    and dashboards, for console navigation. UC-TAD-06 is different: it is the full
+    catalogue side by side — every role, what each can reach, and this tenant's actual
+    headcount against each one — which nothing exposed before BR-112. It carries the
+    same access level as <code>GET /tenants/{id}/users</code>, which it complements: any
+    authenticated user of the tenant, not only an administrator. That is a deliberate
+    match to an existing precedent, not a new, looser boundary — this endpoint changes
+    no privilege, it only reports one that already governs every other route.</p>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-TAD-02</span>
+      <h4>Configure branding</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Tenant Administrator</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>Actor sets display name, logo, primary/accent/neutral colours, default theme
+          and (where applicable) a custom domain for their own tenant only</li>
+        <li>The system serves the resulting theme as CSS and JSON, cached by clients —
+          branding is treated as non-sensitive and requires no authentication to fetch</li>
+      </ol></div>
+      <div class="uc-lbl">Postconditions</div><div>The console renders under the
+        tenant's own identity from the next page load</div>
+      <div class="uc-lbl">Business rules</div><div>BR-102</div>
+    </div>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-TAD-04</span>
+      <h4>Issue a machine credential</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Tenant Administrator</div>
+      <div class="uc-lbl">Trigger</div><div>A bank system needs to submit transactions or
+        request inline decisions without a human logging in</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>Actor names the credential, selects a scope — <code>ingest</code>,
+          <code>decide</code>, or both, never full access — and optionally an IP
+          allow-list and a certificate binding</li>
+        <li>The system generates a client ID and secret; the secret is shown exactly
+          once and is never retrievable afterwards</li>
+        <li>Actor may later <strong>rotate</strong> the credential (issuing a new secret
+          with an overlap window so rotation is not an outage) or <strong>revoke</strong>
+          it outright, with a reason recorded</li>
+      </ol></div>
+      <div class="uc-lbl">Postconditions</div><div>A scoped, attributable credential the
+        bank's own systems use instead of a shared user password with MFA disabled</div>
+      <div class="uc-lbl">Business rules</div><div>BR-213</div>
+    </div>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-TAD-09</span>
+      <h4>Invite, update and remove a user</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Any role granted <code>can_admin_tenant</code>
+        — tenant_admin by default, dynamically checked so a BR-113 custom role granted
+        it works identically</div>
+      <div class="uc-lbl">Trigger</div><div>Staff joins, changes desk, or leaves</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li><strong>Invite</strong> — <code>POST /tenants/{id}/users</code> with an
+          email and any role this tenant actually has (the ten fixed roles, or a
+          custom one); a one-time temporary password is returned and never logged</li>
+        <li><strong>Update</strong> — <code>PUT /tenants/{id}/users/{id}</code>
+          reassigns role. For a local-password user this is the only way to change a
+          role at all; for an SSO-federated user it is a stopgap between logins — the
+          directory re-syncs the role automatically on their next sign-in regardless
+          (UC-TAD-03; routes/sso.py::_complete_sso), so this does not compete with
+          that sync, it only covers the gap before it next runs</li>
+        <li><strong>Remove</strong> — <code>DELETE /tenants/{id}/users/{id}</code></li>
+        <li>Every one of the three is refused if it would leave the tenant with
+          nobody able to administer it — not merely if it would leave zero users.
+          Removing the tenant's fourth user out of five is refused if that fourth
+          user is the only one left with <code>can_admin_tenant</code>, even though
+          three other people would still have accounts</li>
+      </ol></div>
+      <div class="uc-lbl">Exception flows</div><div><code>insufficient_role</code>
+        (403) — caller lacks <code>can_admin_tenant</code>. <code>unknown_role</code>
+        (422) — the role named does not exist for this tenant.
+        <code>last_user</code> (409) — would leave the tenant with zero accounts.
+        <code>last_admin</code> (409) — would leave the tenant with accounts but no
+        one able to administer them</div>
+      <div class="uc-lbl">Postconditions</div><div>Every invite, update and removal is
+        audited with a full record — for update, the role it changed from and to</div>
+      <div class="uc-lbl">Business rules</div><div>BR-108</div>
+    </div>
+  </div>
+
+  <div class="note">
+    <h5>Found and fixed: invite and remove were platform-staff-only, and update did not exist</h5>
+    <p>The persona table (§3) and BR-108 both described a tenant administrator
+    inviting their own users. As implemented until this session,
+    <code>POST /tenants/{id}/users</code> and <code>DELETE .../users/{id}</code> were
+    both <code>require_role("platform_admin")</code> — only the vendor's own staff
+    could act, not the tenant's own administrator, and there was no way to change an
+    existing user's role at all, by any actor. All three are now UC-TAD-09, gated by
+    the same dynamic <code>can_admin_tenant</code> check BR-113 already uses, with a
+    sole-admin safety net strengthened at the same time — the previous check only
+    refused emptying a tenant to zero users, not to zero *administerable* users, which
+    this wider actor set made a real risk rather than a theoretical one.</p>
+  </div>
+</section>
+
+<section id="f16">
+  <h2>Platform Administrator</h2>
+  <div class="persona">
+    <div><dt>Primary question</dt><dd>Is the service healthy across tenants?</dd></div>
+    <div><dt>Modules</dt><dd>Control Plane · Monitoring · Audit · Administration
+      (all four)</dd></div>
+    <div><dt>PII</dt><dd><strong>No</strong> — see the outsourcing boundary in §3</dd></div>
+  </div>
+  <p class="lede">The vendor's own role. The only persona not scoped to one tenant, and
+  — deliberately — the only one whose breadth is not matched by a PII-reveal capability:
+  operating the service does not require seeing a bank's customers, and that is the first
+  question an outsourcing review asks.</p>
+
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    PAD(["👤 Platform Administrator"])
+    BANK(["🏦 Prospective Bank<br/>(no login)"])
+    UC01("UC-PAD-01<br/>Onboard a tenant")
+    UC01B("UC-PAD-01b<br/>Self-service sandbox signup")
+    UC02("UC-PAD-02<br/>Invite a tenant's first user")
+    UC03("UC-PAD-03<br/>Suspend / resume / offboard")
+    UC03B("UC-PAD-03b<br/>Promote a sandbox to production")
+    UC04("UC-PAD-04<br/>Monitor tenant health, fleet-wide")
+    PAD --> UC01 --> UC02
+    BANK --> UC01B
+    PAD --> UC03B
+    PAD --> UC03
+    PAD --> UC04
+</pre>
+  </div>
+
+  <h3>Use cases</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>ID</th><th>Name</th><th>Trigger</th><th>BRs</th></tr></thead>
+      <tbody>
+        <tr><td class="id">UC-PAD-01</td><td>Onboard a tenant</td>
+          <td>A new institution signs a contract</td><td>BR-101, BR-103</td></tr>
+        <tr><td class="id">UC-PAD-01b</td><td>Self-service sandbox signup</td>
+          <td>A prospective bank wants to integrate before any contract is signed</td>
+          <td>BR-109</td></tr>
+        <tr><td class="id">UC-PAD-02</td><td>Invite a tenant's first user</td>
+          <td>Immediately after onboarding</td><td>BR-108</td></tr>
+        <tr><td class="id">UC-PAD-03</td><td>Suspend / resume / offboard</td>
+          <td>Contractual or compliance decision — includes UC-TEN-01, UC-TEN-02</td>
+          <td>BR-107</td></tr>
+        <tr><td class="id">UC-PAD-03b</td><td>Promote a sandbox to production</td>
+          <td>Commercial agreement reached with a sandbox's owning bank</td>
+          <td>BR-109</td></tr>
+        <tr><td class="id">UC-PAD-04</td><td>Monitor tenant health, fleet-wide</td>
+          <td>Operational monitoring, incident response</td><td>BR-208, BR-902, BR-905</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-PAD-01</span>
+      <h4>Onboard a tenant</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Platform Administrator</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>Actor registers the entity: slug, legal name, entity type, and — for
+          co-operative banks — supervisory tier</li>
+        <li>The system derives the tenant's default FRM policy from entity type and
+          tier, including the governing Direction and the correct reporting line (RBI,
+          NABARD, NHB, or FIU-IND) — a UCB and a commercial bank do not inherit the same
+          starting policy</li>
+        <li>The system seeds the tenant's starter EWS rule catalogue, gated by what its
+          entity type is licensed to do — a Payments Bank does not receive the 9
+          credit-linked rules a lending entity type does, because it cannot generate the
+          underlying event (BR-111)</li>
+        <li>The tenant enters <code>provisioning</code>, then <code>active</code>,
+          ready for UC-PAD-02 and UC-TAD-01</li>
+      </ol></div>
+      <div class="uc-lbl">Postconditions</div><div>A tenant with its own configuration,
+        isolated by database role from every other tenant on the platform</div>
+      <div class="uc-lbl">Business rules</div><div>BR-101, BR-103, BR-111. This is the
+        <code>platform_admin</code> path; a prospective bank may instead self-provision
+        a sandbox with no platform_admin involved at all — see UC-PAD-01b (BR-109)</div>
+    </div>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-PAD-01b</span>
+      <h4>Self-service sandbox signup</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Prospective Bank (unauthenticated — no
+        platform_admin, no prior tenant, no login of any kind)</div>
+      <div class="uc-lbl">Trigger</div><div>A bank's own integration team wants a
+        working environment to build and test against before a commercial relationship
+        exists</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>Actor reaches <code>POST /tenants/self-service</code> — the one path the
+          gateway admits under the <code>tenants</code> segment with no bearer token —
+          either directly, or through the "Request a free sandbox" form on the
+          console's own login page</li>
+        <li>Actor submits the same fields UC-PAD-01 collects (slug, legal name,
+          display name, entity type) plus their own admin email and a password of
+          their choosing</li>
+        <li>Refused if the slug is taken (<code>slug_conflict</code>), or if this email
+          already administers another live sandbox (<code>sandbox_exists</code> — one
+          self-service sandbox per email, so a script cannot spin up an unbounded
+          number)</li>
+        <li>The system runs the identical onboarding orchestration UC-PAD-01 does —
+          default FRM policy, starter EWS catalogue, branding — but the resulting
+          tenant carries <code>is_sandbox = true</code></li>
+        <li>Actor signs in immediately with the email and password just chosen; no
+          invitation, no waiting on a platform_admin</li>
+      </ol></div>
+      <div class="uc-lbl">Postconditions</div><div>A fully functional tenant, reachable
+        on every real endpoint, that can never submit a batch labelled
+        <code>source="live"</code> — <code>/ingest/{tenant_id}/transactions</code> and
+        <code>/cbs-events</code> both refuse it outright
+        (<code>sandbox_cannot_be_live</code>) for as long as
+        <code>is_sandbox</code> stays true. Isolation is enforced at the endpoint, not
+        left to the integrator's own honesty about labelling</div>
+      <div class="uc-lbl">Business rules</div><div>BR-109 <span class="chip built">Built</span></div>
+    </div>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-PAD-04</span>
+      <h4>Monitor tenant health, fleet-wide</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Platform Administrator</div>
+      <div class="uc-lbl">Trigger</div><div>Routine operational monitoring, or an
+        incident</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>The Tenant Health dashboard — excluded from every tenant-scoped role,
+          including Tenant Administrator, since a bank's own admin has no business in
+          another bank's operational telemetry — shows ingestion lag, feed freshness and
+          queue depth across every served tenant</li>
+        <li>Actor identifies a degraded pipeline before a bank's own analysts notice the
+          gap</li>
+      </ol></div>
+      <div class="uc-lbl">Postconditions</div><div>An operational issue is caught at the
+        platform level, scoped to no single tenant's customer data</div>
+      <div class="uc-lbl">Business rules</div><div>BR-208, BR-902, BR-903, BR-905</div>
+    </div>
+  </div>
+</section>
+
+<section id="f17">
+  <h2>External and system actors</h2>
+  <p class="lede">Nothing above reaches the platform without one of these four. They are
+  specified with the same rigour as the human personas, because a machine caller can do
+  more damage per minute than any of them.</p>
+
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    SW(["🖥️ Payment switch / CBS extract / ETL"])
+    IDP(["🔐 Bank's identity provider"])
+    REG(["🏛️ RBI · NABARD · NHB · FIU-IND"])
+    LEA(["⚖️ Law enforcement"])
+    UC1("UC-EXT-01<br/>Submit transactions / CBS events")
+    UC2("UC-EXT-02<br/>Request an inline decision")
+    UC3("UC-EXT-03<br/>Authenticate a human via SSO")
+    UC4("UC-EXT-04<br/>Receive a filed FMR / STR")
+    UC5("UC-EXT-05<br/>Receive a case referral")
+    SW --> UC1 --> UC2
+    IDP --> UC3
+    REG -.receives.-> UC4
+    LEA -.receives.-> UC5
+</pre>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-EXT-01</span>
+      <h4>Submit transactions or core-banking events</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Payment switch, CBS extract job, or ETL
+        pipeline, authenticated per UC-M2M-01</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>Caller submits a batch over REST (JSON), or a bulk file over SFTP in CSV or
+          ISO 20022 <code>pacs.008</code> / <code>pain.001</code></li>
+        <li>Every rail's native shape is mapped to one canonical transaction at the edge,
+          so no detection rule ever learns what a UPI collect request looks like versus an
+          RTGS credit</li>
+        <li>Money is represented as integer paise throughout; an amount finer than one
+          paisa is rejected rather than rounded, and a timestamp without a timezone offset
+          is rejected with an explanatory error</li>
+        <li>The system deduplicates on the rail's own identifier, so a replayed file does
+          not double-count value</li>
+        <li>A batch is accepted <em>partially</em>: each rejected row is reported with its
+          index and reason, and the rest are retained — the caller learns exactly which
+          three of forty thousand rows failed, not that the whole file did</li>
+        <li>The inbound payload is retained immutably, separate from anything derived
+          from it, with the time of receipt — so "we sent you 40,000 rows and you booked
+          39,997" is answerable with the three rows, not a count</li>
+      </ol></div>
+      <div class="uc-lbl">Postconditions</div><div>Accepted rows enter the near-real-time
+        detection lane; queue depth, provenance and freshness are exposed for operational
+        monitoring (UC-PAD-04)</div>
+      <div class="uc-lbl">Business rules</div><div>BR-201 to BR-212</div>
+    </div>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-EXT-02</span>
+      <h4>Request an inline decision</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Payment switch, for a rail the tenant has
+        configured into the inline lane</div>
+      <div class="uc-lbl">Trigger</div><div>A UPI, IMPS or card payment is at the point
+        of authorisation</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>Switch calls the decision endpoint with the payment and whatever signals the
+          channel already knows — new device, new beneficiary</li>
+        <li>The system evaluates the rail's inline-eligible rule subset against a
+          per-rail latency budget (50–150 ms, set by the tenant) and returns
+          allow, challenge, hold, or decline</li>
+        <li>A rail configured for the near-real-time lane instead is refused with
+          <code>rail_not_inline</code> rather than answered <code>allow</code> — an
+          unscreened rail must never look screened</li>
+        <li>If the budget expires mid-evaluation, the response names which rules did not
+          run and the outcome is recorded as <code>budget_exceeded</code>, never as a
+          clean pass</li>
+        <li>While a rail is in shadow mode, the response the switch acts on is always
+          <code>allow</code>; the decision the platform would have enforced is recorded
+          separately for UC-FRM-01's operations view</li>
+      </ol></div>
+      <div class="uc-lbl">Postconditions</div><div>A decision returned inside the payment
+        window, fully explained in the same terms an alert is explained</div>
+      <div class="uc-lbl">Business rules</div><div>BR-312, BR-313, BR-314, BR-315</div>
+    </div>
+  </div>
+
+  <h3>Remaining system-actor use cases</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>ID</th><th>Name</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="id">UC-EXT-03</td><td>Authenticate a human via SSO</td>
+          <td>See UC-AUTH-01. Discovery by organisation short name; the signed assertion
+          is read only from the element the signature covers, and assertion IDs are
+          recorded to refuse replay</td></tr>
+        <tr><td class="id">UC-EXT-04</td><td>Receive a filed FMR / STR</td>
+          <td>The output of UC-PO-02 / UC-PO-03. Prescribed submission format binding is
+          <span class="chip partial">Partial</span>, pending OD-04</td></tr>
+        <tr><td class="id">UC-EXT-05</td><td>Receive a case referral</td>
+          <td>Recorded against a case alongside any recovery entries (BR-415);
+          transmission to the agency is outside the platform's boundary</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="f18">
+  <h2>Screen &amp; dashboard inventory</h2>
+  <p class="lede">Thirteen dashboards inside the Monitoring module, each answering one
+  persona's stated question — this table is the same one the console asks the server for
+  at login, not a separately maintained description of it.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Dashboard key</th><th>Label</th><th>Primary persona</th>
+        <th>Question it answers</th></tr></thead>
+      <tbody>
+        <tr><td class="id">analyst</td><td>Analyst</td><td>L1 Fraud Analyst</td>
+          <td>What do I work next, and is it real?</td></tr>
+        <tr><td class="id">ews</td><td>EWS Signals</td><td>Fraud Risk Manager / Analyst</td>
+          <td>Which indicators are firing — and which are silent?</td></tr>
+        <tr><td class="id">rfa</td><td>RFA Lifecycle</td><td>Investigator / Compliance</td>
+          <td>Where is each red-flagged account in its lifecycle?</td></tr>
+        <tr><td class="id">board</td><td>Board</td><td>CRO / ACB / Special Committee</td>
+          <td>What is our exposure and are we compliant?</td></tr>
+        <tr><td class="id">supervisor</td><td>Compliance</td><td>Compliance Supervisor</td>
+          <td>Are the regulatory clocks being met?</td></tr>
+        <tr><td class="id">realtime</td><td>Real-Time</td><td>Operations</td>
+          <td>What is flowing right now, and what are we stopping?</td></tr>
+        <tr><td class="id">aml</td><td>AML / STR</td><td>Principal Officer (PMLA)</td>
+          <td>What must be filed with FIU-IND, by when?</td></tr>
+        <tr><td class="id">account360</td><td>Account 360</td><td>Investigator</td>
+          <td>Everything known about one account</td></tr>
+        <tr><td class="id">investigator</td><td>Investigator</td><td>L2 Senior Investigator</td>
+          <td>Is this one mule, or a ring?</td></tr>
+        <tr><td class="id">model</td><td>Model Risk</td><td>Model Risk / Data Science</td>
+          <td>Is the model still fit, fair and explainable?</td></tr>
+        <tr><td class="id">tenant_health</td><td>Tenant Health</td><td>Platform Administrator</td>
+          <td>Which bank's pipeline is degraded?</td></tr>
+        <tr><td class="id">risk_manager</td><td>Operations</td><td>Fraud Risk Manager</td>
+          <td>Where is the queue failing, and why?</td></tr>
+        <tr><td class="id">inspection</td><td>Inspection</td><td>Internal Audit / RBI Inspection</td>
+          <td>Prove why this account was flagged</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Which of these thirteen a given persona sees is exactly the "Dashboards" row in that
+  persona's summary card in §6–§16 — <code>tenant_health</code> is the one dashboard
+  excluded from every tenant-scoped role, including Tenant Administrator, since a bank's
+  own admin has no business in another bank's operational telemetry.</p>
+</section>
+
+<section id="f19">
+  <h2>Traceability matrix</h2>
+  <p class="lede">Every use case specified in this document, the business requirements it
+  satisfies, and the honest status of each — generated from the same requirement-status
+  data the BRD itself carries, so this table cannot silently drift from it.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>UC ID</th><th>Name</th><th>Persona</th><th>BR references</th>
+        <th>Status</th></tr></thead>
+      <tbody>
+        <tr><td class="id">UC-AUTH-01</td><td>Sign in with a second factor</td><td>Cross-cutting</td><td class="mono">BR-706, BR-707, BR-708, BR-709, BR-710</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-M2M-01</td><td>Authenticate a bank system as a machine</td><td>Cross-cutting</td><td class="mono">BR-213</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-TEN-01</td><td>Suspend, resume or offboard a tenant</td><td>Cross-cutting</td><td class="mono">BR-107</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-TEN-02</td><td>Export a tenant's complete fraud record</td><td>Cross-cutting</td><td class="mono">BR-107</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-ANL-01</td><td>Triage the alert queue</td><td>Fraud Analyst (L1)</td><td class="mono">BR-601, BR-602, BR-603, BR-604, BR-605, BR-606, BR-607, BR-608, BR-609, BR-611</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-ANL-02</td><td>Disposition an alert</td><td>Fraud Analyst (L1)</td><td class="mono">BR-401, BR-402, BR-409, BR-410</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-ANL-03</td><td>Flag a Red Flagged Account</td><td>Fraud Analyst (L1)</td><td class="mono">BR-401, BR-402, BR-409</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-ANL-04</td><td>Review EWS indicator health</td><td>Fraud Analyst (L1)</td><td class="mono">BR-306, BR-307</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-ANL-05</td><td>View the real-time decision panel</td><td>Fraud Analyst (L1)</td><td class="mono">BR-312, BR-313</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-INV-01</td><td>Build Account 360°</td><td>Senior Investigator (L2)</td><td class="mono">BR-702, BR-703</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-INV-02</td><td>Trace the counterparty network</td><td>Senior Investigator (L2)</td><td class="mono">BR-310, BR-607</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-INV-03</td><td>Issue a show-cause notice</td><td>Senior Investigator (L2)</td><td class="mono">BR-402, BR-403, BR-408</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-INV-04</td><td>Record the borrower's response</td><td>Senior Investigator (L2)</td><td class="mono">BR-405</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-INV-05</td><td>Close the response window</td><td>Senior Investigator (L2)</td><td class="mono">BR-404</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-FRM-01</td><td>Monitor queue &amp; SLA health</td><td>Fraud Risk Manager</td><td class="mono">BR-603, BR-208</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-FRM-02</td><td>Declare fraud — maker &amp; checker</td><td>Fraud Risk Manager</td><td class="mono">BR-406, BR-407, BR-408, BR-409</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-FRM-03</td><td>Override a policy threshold</td><td>Fraud Risk Manager</td><td class="mono">BR-104, BR-105, BR-106, BR-715</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-FRM-04</td><td>Simulate before activating</td><td>Fraud Risk Manager</td><td class="mono">BR-311</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-FRM-05</td><td>Examine staff accountability</td><td>Fraud Risk Manager</td><td class="mono">BR-414</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-FRM-06</td><td>Prepare &amp; issue board pack</td><td>Fraud Risk Manager</td><td class="mono">BR-507</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-FRM-07</td><td>Graduate a rail from shadow to enforcement</td><td>Fraud Risk Manager</td><td class="mono">BR-313, BR-316</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-PO-01</td><td>Track filing due dates</td><td>Principal Officer (PMLA)</td><td class="mono">BR-501, BR-503</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-PO-02</td><td>Generate the STR / FMR artefact</td><td>Principal Officer (PMLA)</td><td class="mono">BR-502, BR-504, BR-505</td><td><span class="chip partial">Partial</span></td></tr>
+        <tr><td class="id">UC-PO-03</td><td>Acknowledge a filed return</td><td>Principal Officer (PMLA)</td><td class="mono">BR-506</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-PO-04</td><td>Generate and file a CTR</td><td>Principal Officer (PMLA)</td><td class="mono">BR-508, BR-611</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-SUP-01</td><td>Monitor regulatory clocks</td><td>Compliance Supervisor</td><td class="mono">BR-503</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-SUP-02</td><td>Close a fraud case</td><td>Compliance Supervisor</td><td class="mono">BR-401, BR-414</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-SUP-03</td><td>Escalate a breached clock</td><td>Compliance Supervisor</td><td class="mono">BR-413</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-SUP-04</td><td>Reopen an exonerated case</td><td>Compliance Supervisor</td><td class="mono">BR-401</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-EXE-01</td><td>Review exposure &amp; trend</td><td>Board / Executive</td><td class="mono">BR-601, BR-602, BR-603</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-EXE-02</td><td>Receive the scheduled board pack</td><td>Board / Executive</td><td class="mono">BR-507</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-CRO-01</td><td>Review framework effectiveness</td><td>CRO / ACB</td><td class="mono">BR-603, BR-503</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-CRO-02</td><td>Issue the board / ACB pack</td><td>CRO / ACB</td><td class="mono">BR-507</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-MDL-01</td><td>Review the model inventory</td><td>Model Risk / DS</td><td class="mono">BR-801, BR-802</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-MDL-02</td><td>Monitor population drift</td><td>Model Risk / DS</td><td class="mono">BR-801, BR-803, BR-805</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-MDL-03</td><td>Review dormant indicators</td><td>Model Risk / DS</td><td class="mono">BR-307</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-MDL-04</td><td>Promote a candidate model</td><td>Model Risk / DS</td><td class="mono">BR-807, BR-808, BR-715</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-AUD-01</td><td>Retrieve evidence trail for a decision</td><td>Internal Audit / RBI Inspection</td><td class="mono">BR-304, BR-409, BR-606, BR-703, BR-705</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-AUD-02</td><td>Export audited evidence</td><td>Internal Audit / RBI Inspection</td><td class="mono">BR-610</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-AUD-03</td><td>Read Account 360° (read-only)</td><td>Internal Audit / RBI Inspection</td><td class="mono">BR-702, BR-703</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-TAD-01</td><td>Onboard the tenant</td><td>Tenant Administrator</td><td class="mono">BR-101, BR-103</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-TAD-02</td><td>Configure branding</td><td>Tenant Administrator</td><td class="mono">BR-102</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-TAD-03</td><td>Configure SSO / IdP</td><td>Tenant Administrator</td><td class="mono">BR-708</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-TAD-04</td><td>Issue a machine credential</td><td>Tenant Administrator</td><td class="mono">BR-213</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-TAD-05</td><td>Review usage &amp; metering</td><td>Tenant Administrator</td><td class="mono">BR-110</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-TAD-06</td><td>View the role catalogue</td><td>Tenant Administrator</td><td class="mono">BR-112, BR-113</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-TAD-07</td><td>Create, edit and delete a role</td><td>Tenant Administrator</td><td class="mono">BR-113</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-TAD-08</td><td>View and export the audit trail</td><td>Tenant Administrator</td><td class="mono">BR-701, BR-705, BR-716</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-TAD-09</td><td>Invite, update and remove a user</td><td>Tenant Administrator</td><td class="mono">BR-108</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-PAD-01</td><td>Onboard a tenant</td><td>Platform Administrator</td><td class="mono">BR-101, BR-103</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-PAD-01b</td><td>Self-service sandbox signup</td><td>Prospective Bank (unauthenticated)</td><td class="mono">BR-109</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-PAD-02</td><td>Invite a tenant's first user</td><td>Platform Administrator</td><td class="mono">BR-108</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-PAD-03</td><td>Suspend / resume / offboard</td><td>Platform Administrator</td><td class="mono">BR-107</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-PAD-03b</td><td>Promote a sandbox to production</td><td>Platform Administrator</td><td class="mono">BR-109</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">UC-PAD-04</td><td>Monitor tenant health, fleet-wide</td><td>Platform Administrator</td><td class="mono">BR-208, BR-902, BR-905</td><td><span class="chip built">Built</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>51 use cases; 50 built, 1 partial, none pending outright — every use case specified
+  here has at least a working path today. UC-PO-02 stays Partial because BR-504/BR-505
+  (binding the FMR/STR artefact to FIU-IND's prescribed submission format) are themselves
+  Partial, pending OD-04's format choice; the use case's core function — generating and
+  filing the return — is built, and the gap is named in its own detail box rather than in
+  this table's status column. UC-MDL-04 (BR-807/808/AD-14) is Built and has now been
+  exercised against a real model — AI/ML roadmap Phase 2 (transaction velocity/anomaly
+  detection, VEL-04) genuinely scores traffic once a version clears the gate (<a
+  href="#f23">§23</a>). Phases 3 and 4 (<a href="#f23">AI/ML roadmap</a>, OD-06) still
+  have no live scoring.</p>
+</section>
+
+<section id="f20">
+  <h2>Non-functional requirements</h2>
+  <p class="lede">Carried from BRD v1.7 §14, with the one figure this session's work
+  changed: detection latency at single-worker scale is now measured, not merely
+  targeted.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>ID</th><th>Attribute</th><th>Target</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td class="id">NFR-01</td><td>Detection latency</td>
+          <td>Under 5 seconds from receipt to alert at peak</td>
+          <td><span class="chip partial">Measured at single-worker scale</span> — p99
+            2.65 s at 200 tps per worker (HLD §11). Multi-worker capacity at a tenant's
+            contracted peak is <span class="chip pending">Unvalidated</span> (BR-909)</td></tr>
+        <tr><td class="id">NFR-02</td><td>Ingestion throughput</td><td>Sustained peak TPS per tenant, contracted individually</td><td><span class="chip pending">Unvalidated</span></td></tr>
+        <tr><td class="id">NFR-03</td><td>Dashboard response</td><td>95th percentile under 3 seconds on 12 months of data</td><td><span class="chip pending">Unvalidated</span></td></tr>
+        <tr><td class="id">NFR-04</td><td>Availability</td><td>99.5% monthly for the console; 99.9% for ingestion</td><td><span class="chip partial">Design supports</span></td></tr>
+        <tr><td class="id">NFR-05</td><td>Recovery</td><td>RPO 15 minutes, RTO 4 hours</td><td><span class="chip pending">Pending</span></td></tr>
+        <tr><td class="id">NFR-06</td><td>Data residency</td><td>All data in Indian regions (REG-07)</td><td><span class="chip partial">Deployment-dependent</span></td></tr>
+        <tr><td class="id">NFR-07</td><td>Retention</td><td>Fraud records for the statutory period; operational data minimised (REG-05)</td><td><span class="chip built">Built — retention floors and automated purge (BR-713)</span></td></tr>
+        <tr><td class="id">NFR-08</td><td>Auditability</td><td>Every figure reproducible as at any past date, against the config then in force</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">NFR-09</td><td>Accessibility</td><td>WCAG 2.1 AA for the console</td><td><span class="chip pending">Not assessed</span></td></tr>
+        <tr><td class="id">NFR-10</td><td>Browser support</td><td>Current Chrome, Edge, Firefox, Safari; no external CDN dependency (air-gapped deployments)</td><td><span class="chip built">Built</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h4>Latency budgets by decision path</h4>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Path</th><th>Budget</th><th>Basis</th></tr></thead>
+      <tbody>
+        <tr><td>Inline decision — UPI</td><td>80 ms</td><td>Tenant-configured, per rail</td></tr>
+        <tr><td>Inline decision — IMPS</td><td>150 ms</td><td>Tenant-configured, per rail</td></tr>
+        <tr><td>Inline decision — Card</td><td>100 ms</td><td>Tenant-configured, per rail</td></tr>
+        <tr><td>Near-real-time detection</td><td>p99 2.65 s, single worker at 200 tps</td>
+          <td>Measured (BR-309). Multi-worker figure pending (BR-909)</td></tr>
+        <tr><td>Machine credential token</td><td>1800 s expiry (default)</td>
+          <td>Configurable per credential at issuance</td></tr>
+        <tr><td>Human session</td><td>30 min access token · 4 h idle · 7 days absolute</td>
+          <td>BR-709</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="f21">
+  <h2>Key data objects</h2>
+  <p class="lede">The nouns every use case above operates on, briefly — full schemas are
+  HLD §5 territory; this is only enough to read the use cases without cross-referencing
+  constantly.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Object</th><th>Key states / fields</th><th>Owning service</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Tenant</strong></td>
+          <td><code>provisioning → active ⇄ suspended → offboarded</code>; also
+            <code>degraded</code></td><td>tenant-service</td></tr>
+        <tr><td><strong>Service credential</strong></td>
+          <td>Scope <code>ingest</code> / <code>decide</code> / <code>ingest+decide</code>;
+            <code>active → revoked</code>; rotation with overlap</td><td>tenant-service</td></tr>
+        <tr><td><strong>Case</strong></td>
+          <td><code>under_review → rfa_flagged → natural_justice →
+            response_evaluation → fraud_declared → fmr_reported → closed_fraud</code>
+            (terminal), or <code>exonerated</code> at two points, reopenable once</td>
+          <td>analytics-service</td></tr>
+        <tr><td><strong>Alert</strong></td><td>Band matched, observed value, threshold,
+            config version — the rule-evaluation trace</td><td>analytics-service</td></tr>
+        <tr><td><strong>Decision log</strong> (Lane A)</td>
+          <td>Outcome: <code>clean</code> / <code>matched</code> /
+            <code>budget_exceeded</code> / <code>store_unavailable</code> /
+            <code>no_policy</code> / <code>not_screened</code>; <code>enforced</code>
+            boolean; <code>would_be</code> action</td><td>decision-service</td></tr>
+        <tr><td><strong>Board pack</strong></td>
+          <td><code>draft → superseded</code> or <code>issued</code>; content-hashed,
+            revisioned</td><td>analytics-service</td></tr>
+        <tr><td><strong>Filing</strong></td>
+          <td>Kind <code>fmr</code> / <code>str</code>;
+            <code>generated → superseded</code> or <code>acknowledged</code></td>
+          <td>analytics-service</td></tr>
+        <tr><td><strong>Staff accountability examination</strong></td>
+          <td><code>open → concluded</code>; blocks case closure while open</td>
+          <td>analytics-service</td></tr>
+        <tr><td><strong>Recovery / LEA referral</strong></td>
+          <td>Recorded against a closed or declared fraud case</td>
+          <td>analytics-service</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="f22">
+  <h2>Open items &amp; assumptions</h2>
+  <p class="lede">What a reader should not take for granted from the rest of this
+  document — findings from writing it, and constraints inherited from the BRD.</p>
+
+  <h4>Findings from specifying against the running code</h4>
+  <ul>
+    <li><strong>User invitation is now a Tenant Administrator action.</strong>
+      <code>POST /tenants/{id}/users</code>, and the update/remove routes beside it, are
+      guarded by <code>require_capability("can_admin_tenant")</code> — checked
+      dynamically against the tenant's own role catalogue (BR-113), not
+      <code>require_role("platform_admin")</code>. A guard against leaving a tenant with
+      zero admin-capable users (<code>_sole_admin_guard</code>) applies to every
+      reassignment and removal. This was previously platform-only; it no longer is. See
+      §15.</li>
+    <li><strong>SSO / IdP configuration now has a console UI.</strong> A Tenant
+      Administrator can create, edit and delete their own OIDC/SAML providers, with
+      role-mapping validated against the tenant's own assignable roles and the client
+      secret write-only. UC-TAD-03 is now marked Built in §20.</li>
+    <li><strong>Self-service tenant onboarding (BR-109) is now built</strong> as its own
+      unauthenticated path (<code>POST /tenants/self-service</code>, UC-PAD-01b) rather
+      than as an extension of user invitation — the two were previously conflated in
+      this document. A prospective bank provisions a fully working sandbox tenant with
+      no platform_admin action of any kind; isolation is enforced by refusing
+      <code>source="live"</code> traffic from a sandbox tenant at the ingestion
+      endpoints themselves, not left to self-reporting. Promotion out of sandbox
+      (UC-PAD-03b) remains a deliberate platform_admin action.</li>
+    <li><strong>A tenant's FRM policy — including its PMLA Principal Officer — now has
+      a console and API path too.</strong> <code>ConfigCreate.kind</code> validated
+      against <code>rule|typology|network_map</code> only, refusing <code>policy</code>
+      at the request schema — not merely a missing editor. That is fixed: a tenant admin
+      can create and activate a policy version from the console, including the Principal
+      Officer field mandatory on every STR (see §10 UC-PO-02), still gated by the same
+      board-attestation requirement on activation as before.</li>
+    <li><strong>Branding and machine-credential administration are tenant-scoped, not
+      role-restricted.</strong> The server checks <code>resolve_tenant_scope</code> on
+      these endpoints — any role scoped to the tenant may call them — rather than a
+      specific role name. The console only exposes them to Tenant Administrator, so this
+      is a defence-in-depth gap rather than a live exposure, and is noted for completeness
+      rather than urgency.</li>
+    <li><strong>Maker-checker now extends to privileged configuration changes, not only
+      fraud declaration.</strong> Activating a rule, policy or model config version
+      passes through <code>pending_activation</code>: a second, different eligible
+      person must confirm before it reaches live decisioning, and the proposer may not
+      also be the confirmer (BR-715, UC-FRM-03). Closes the item previously carried
+      forward as open below.</li>
+    <li><strong>Champion/challenger evaluation, committee approval, and a loadable
+      artifact reference before a model configuration is promoted are now built — and a
+      model now genuinely scores real traffic.</strong> A new <code>model</code> config
+      kind may not even be proposed for activation without a recorded evaluation
+      (BR-807), Model Risk Management Committee sign-off (BR-808), and a verified
+      <code>model_artifact</code> reference (AI/ML roadmap Phase 2, HLD AD-14) — see
+      UC-MDL-04. Once activated, analytics-service's detection worker loads that
+      artifact and scores VEL-04 in the same batch every other rule scores in
+      (<a href="#f23">§23</a>). This was previously a governance floor built ahead of
+      any model existing; it no longer is, for Phase 2 specifically — Phases 3 and 4
+      (<a href="#f23">AI/ML roadmap</a>, OD-06) still have no live scoring.</li>
+    <li><strong>RBI's Central Fraud Registry (CFR) needed no second filing.</strong> The
+      Directions define CFR as populated automatically from FMR submissions (already
+      built); the bank's own obligation is to <em>screen</em> against it. CFR is now a
+      reference-data source alongside sanctions/PEP/negative-list, feeding CPT-02
+      (BR-509) — honestly unloaded, since RBI grants CFR access as per-user portal
+      credentials rather than a bulk feed a schedule can poll.</li>
+  </ul>
+
+  <h4>Carried forward from the BRD</h4>
+  <ul>
+    <li>FMR and STR artefacts are assembled, validated, hashed and retained in the
+      platform's own structured form; binding to RBI's and FIU-IND's own prescribed
+      submission formats is a compliance decision pending OD-04, not engineering work
+      (UC-PO-02).</li>
+    <li>Right-to-audit evidence pack, documented disaster recovery with a stated RPO/RTO,
+      and capacity evidence beyond a single worker are all Pending (BR-908, BR-909,
+      BR-910) — see the BRD's own release-gate table for what each blocks.</li>
+  </ul>
+
+  <h4>Assumptions this document inherits from the BRD</h4>
+  <ul>
+    <li>Each tenant can expose transaction data by API or file within minutes of
+      settlement, and federates identity from an existing IdP rather than managing users
+      in the platform long-term.</li>
+    <li>Each tenant's board approves its own thresholds; the vendor supplies defaults,
+      never advice — reflected throughout §6–§16 as "board-approved", never as a platform
+      constant.</li>
+    <li>Reference data (sanctions, CERSAI, CBS extracts) is licensed or supplied by the
+      tenant, not by the platform.</li>
+  </ul>
+</section>
+
+<section id="f23">
+  <h2>AI/ML roadmap</h2>
+  <p class="lede">What each persona actually sees change, phase by phase. Committed
+  scope per the BRD's <a href="brd.html#s19">AI/ML roadmap</a> (OD-06); no remaining phase has a
+  committed delivery date, and each depends on the one before it landing first. Phase 2
+  has now landed - see its own heading below for what actually changed, not just what
+  was planned.</p>
+
+  <h4>Phase 1 — Device &amp; behavioural biometrics</h4>
+  <p>No new screen. The Fraud Analyst's evidence drawer (§6, "why this fired") gains new
+  CHN-family reason codes sourced from device-posture and behavioural-biometric features
+  — typing cadence, touch pressure, session/gesture patterns — alongside the device id
+  already shown there. The EWS Signals dashboard's by-family breakdown starts reporting
+  volume under these new CHN sub-rules. Signal capture and matching are not specified
+  here — they are VideoPD's and the Human Fraud Detection Framework's functional
+  domain; this platform consumes their output as a feature, not a capability it
+  implements itself.</p>
+
+  <h4>Phase 2 — Transaction velocity &amp; anomaly-detection models <span
+      class="chip built">Built</span></h4>
+  <p>No new screen. This is the first phase where the Model Risk / Data Science
+  persona's existing UC-MDL-01…04 (§13) stop being exercised against an empty inventory:
+  a real <code>model</code> config version is proposed, evaluated, committee-approved
+  and now also artifact-verified (AD-14) through the same console flow already built,
+  and the Analyst's alerts genuinely carry a model-scored indicator (VEL-04) alongside
+  the rule-scored VEL family. The Fraud Analyst cannot yet tell which alerts came from
+  which — that distinction is Phase 4's job.</p>
+
+  <h4>Phase 3 — GNN-based fraud-ring detection <span class="chip built">Built</span></h4>
+  <p>The Investigator, Account 360 and AML dashboards' existing network-graph view
+  (already rendering the account graph for visual link analysis) is joined by a new
+  alert indicator, <b>LAY-05</b>, alongside the existing layering/mule family in the
+  Analyst's and Investigator's evidence drawer, with its own "why this fired" trace
+  like every other alert (BR-805) — a direct answer to the Senior Investigator's "is
+  this one mule, or a ring?" question (§7) instead of an inference from edge density
+  alone. Resolved by <a href="brd.html#s18">BRD OD-07</a>: this runs within one
+  tenant's own graph, no cross-tenant data-sharing decision needed.</p>
+  <p><b>One visible difference from every other indicator</b>: LAY-05's score refreshes
+  on whatever schedule an operator runs <code>scripts/refresh_ring_scores.py</code> on
+  (per <a href="hld.html#h16">HLD §16</a>), not per transaction the way VEL-04
+  (Phase 2) or the rule-based indicators do — a graph model is too expensive to
+  recompute for every batch. An Investigator opening a very recent case may see LAY-05
+  absent rather than stale on a brand-new account the last refresh never saw; the
+  <code>account_ring_score</code> row's own <code>computed_at</code> is available to
+  show when a present score was last produced, not just what it is.</p>
+
+  <h4>Phase 3b — Federated learning <span class="chip pending">Deferred</span></h4>
+  <p>Decoupled from Phase 3 by <a href="brd.html#s18">BRD OD-07</a>: aggregating model
+  updates across tenants/banks is not commercially triggered by any engagement in
+  front of it, and no screen is specified here because none is owed until one
+  exists.</p>
+
+  <h4>Phase 4 — Explainable-AI dashboards &amp; regulator-ready reporting</h4>
+  <p>The Model Risk dashboard gains a per-alert explainability panel distinguishing a
+  rule-scored decision from a model-scored one, and the scheduled board pack (already
+  built, BR-507) gains an explainability appendix for the RBI Inspection persona — the
+  same "prove why this account was flagged" question §14 already asks of the rules
+  engine, extended to cover Phase 2 and 3's models. Not independently specifiable: there
+  is nothing to explain or report on until those phases produce a model to describe.</p>
+</section>
+
+</main>
+
+<footer>
+  <p><strong>Read with</strong> BRD v1.7 for the numbered business requirements and release
+  gates, and HLD v1.6 for how each use case is actually carried out underneath — the
+  service, the schema, the latency budget. This document sits between the two: it is BRD
+  requirements resolved into who performs them and how, and it is HLD behaviour resolved
+  into who is allowed to trigger it.</p>
+</footer>
+
+</div>
+</div>
+
+<!-- mermaid-boot: replaced by an inlined bundle when make_pdf.py builds the print copy -->
+<script src="mermaid.min.js"></script>
+<script>
+  mermaid.initialize({
+    startOnLoad: true, theme: 'base', securityLevel: 'loose',
+    fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+    themeVariables: {
+      primaryColor: '#E3EFEF', primaryTextColor: '#101820',
+      primaryBorderColor: '#16565C', lineColor: '#5C7376',
+      secondaryColor: '#F7F9F9', tertiaryColor: '#FFFFFF',
+      fontSize: '14px'
+    },
+    flowchart: { curve: 'basis', useMaxWidth: true, nodeSpacing: 30, rankSpacing: 46 },
+    sequence: { useMaxWidth: true, wrap: true },
+    state: { useMaxWidth: true }
+  });
+</script>
+<!-- /mermaid-boot -->

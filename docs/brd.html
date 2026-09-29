@@ -1,0 +1,1017 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fraud360 — Business Requirements</title>
+
+<style>
+:root {
+  --accent:#16565C; --accent-soft:#E3EFEF; --ink:#101820; --ink-2:#35474B;
+  --muted:#64777A; --paper:#F7F9F9; --card:#FFFFFF; --rule:#DCE5E5;
+  --rule-strong:#C2D2D2; --ok:#17683F; --ok-bg:#E4F1E9; --warn:#8A5D08;
+  --warn-bg:#F8EED8; --crit:#A32218; --crit-bg:#F8E3E1; --info-bg:#E5EEF4;
+  --shadow:0 1px 2px rgba(16,24,32,.05), 0 8px 24px rgba(16,24,32,.05);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent:#4FB0B6; --accent-soft:#16292B; --ink:#E7EFEF; --ink-2:#B7C6C7;
+    --muted:#85999B; --paper:#0C1214; --card:#121A1C; --rule:#22302F;
+    --rule-strong:#32433F; --ok:#6FCB98; --ok-bg:#10251A; --warn:#E0B457;
+    --warn-bg:#291F0C; --crit:#F08A80; --crit-bg:#2A1412; --info-bg:#10202A;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"] {
+  --accent:#4FB0B6; --accent-soft:#16292B; --ink:#E7EFEF; --ink-2:#B7C6C7;
+  --muted:#85999B; --paper:#0C1214; --card:#121A1C; --rule:#22302F;
+  --rule-strong:#32433F; --ok:#6FCB98; --ok-bg:#10251A; --warn:#E0B457;
+  --warn-bg:#291F0C; --crit:#F08A80; --crit-bg:#2A1412; --info-bg:#10202A;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
+}
+:root[data-theme="light"] {
+  --accent:#16565C; --accent-soft:#E3EFEF; --ink:#101820; --ink-2:#35474B;
+  --muted:#64777A; --paper:#F7F9F9; --card:#FFFFFF; --rule:#DCE5E5;
+  --rule-strong:#C2D2D2; --ok:#17683F; --ok-bg:#E4F1E9; --warn:#8A5D08;
+  --warn-bg:#F8EED8; --crit:#A32218; --crit-bg:#F8E3E1; --info-bg:#E5EEF4;
+  --shadow:0 1px 2px rgba(16,24,32,.05), 0 8px 24px rgba(16,24,32,.05);
+}
+* { box-sizing: border-box; }
+body { margin:0; background:var(--paper); color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+  font-size:15.5px; line-height:1.62; -webkit-font-smoothing:antialiased; }
+.wrap { display:grid; grid-template-columns:250px minmax(0,1fr); gap:48px;
+  max-width:1240px; margin:0 auto; padding:0 32px 96px; }
+nav.toc { position:sticky; top:0; align-self:start; max-height:100vh; overflow-y:auto;
+  padding:40px 0; }
+nav.toc h2 { font:600 10.5px/1 system-ui,sans-serif; text-transform:uppercase;
+  letter-spacing:.12em; color:var(--muted); margin:0 0 14px; }
+nav.toc ol { list-style:none; margin:0; padding:0; display:flex; flex-direction:column;
+  gap:1px; counter-reset:toc; }
+nav.toc a { display:grid; grid-template-columns:22px 1fr; gap:8px; padding:5px 8px 5px 0;
+  text-decoration:none; color:var(--ink-2); font-size:13px; border-radius:5px; line-height:1.4; }
+nav.toc a::before { counter-increment:toc; content:counter(toc);
+  font:500 11px/1.5 ui-monospace,Menlo,Consolas,monospace; color:var(--muted); text-align:right; }
+nav.toc a:hover { color:var(--accent); background:var(--accent-soft); }
+nav.toc a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+header.doc { padding:56px 0 28px; border-bottom:2px solid var(--ink); }
+.kicker { font:600 11px/1 system-ui,sans-serif; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--accent); margin-bottom:18px; }
+header.doc h1 { font-family:Georgia,"Iowan Old Style","Times New Roman",serif;
+  font-size:clamp(30px,4.4vw,46px); line-height:1.1; font-weight:600; letter-spacing:-.015em;
+  margin:0 0 12px; text-wrap:balance; }
+.standfirst { font-size:17px; color:var(--ink-2); max-width:62ch; margin:0; }
+.control { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:0;
+  border:1px solid var(--rule); border-radius:8px; margin:28px 0 8px; overflow:hidden;
+  background:var(--card); }
+.control div { padding:11px 14px; border-right:1px solid var(--rule); }
+.control div:last-child { border-right:0; }
+.control dt { font:600 9.5px/1 system-ui,sans-serif; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--muted); margin-bottom:5px; }
+.control dd { margin:0; font-size:13.5px; font-weight:500; }
+main { counter-reset:sec; padding-top:8px; }
+section { padding-top:44px; scroll-margin-top:16px; }
+section > h2 { counter-increment:sec; font-family:Georgia,"Iowan Old Style",serif;
+  font-size:25px; font-weight:600; line-height:1.22; letter-spacing:-.01em; margin:0 0 6px;
+  display:grid; grid-template-columns:44px 1fr; gap:4px; text-wrap:balance; }
+section > h2::before { content:counter(sec) "."; color:var(--accent);
+  font:500 17px/1.55 ui-monospace,Menlo,Consolas,monospace; }
+section > h2 + .lede { margin:0 0 20px 44px; color:var(--ink-2); max-width:68ch; }
+h3 { font-family:Georgia,serif; font-size:17.5px; font-weight:600; margin:30px 0 8px;
+  letter-spacing:-.005em; }
+h4 { font:600 11px/1 system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--muted); margin:24px 0 8px; }
+p { max-width:72ch; margin:0 0 14px; }
+ul, ol.body { max-width:72ch; padding-left:20px; margin:0 0 14px; }
+li { margin-bottom:5px; }
+strong { font-weight:640; }
+a { color:var(--accent); }
+.tw { overflow-x:auto; margin:16px 0 22px; border:1px solid var(--rule); border-radius:8px;
+  background:var(--card); box-shadow:var(--shadow); }
+table { border-collapse:collapse; width:100%; font-size:13.5px; font-variant-numeric:tabular-nums; }
+th { text-align:left; font:600 10px/1.3 system-ui,sans-serif; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--muted); padding:11px 14px;
+  border-bottom:1px solid var(--rule-strong); white-space:nowrap; background:var(--paper); }
+td { padding:10px 14px; border-bottom:1px solid var(--rule); vertical-align:top; line-height:1.5; }
+tbody tr:last-child td { border-bottom:0; }
+td.id, code, .mono { font-family:ui-monospace,"Cascadia Code",Menlo,Consolas,monospace;
+  font-size:12.3px; }
+td.id { white-space:nowrap; color:var(--accent); font-weight:500; }
+code { background:var(--accent-soft); padding:1px 5px; border-radius:4px; }
+.chip { display:inline-block; font:600 10px/1.6 system-ui,sans-serif; letter-spacing:.04em;
+  padding:1px 8px; border-radius:20px; white-space:nowrap; text-transform:uppercase; }
+.built { background:var(--ok-bg); color:var(--ok); }
+.partial { background:var(--warn-bg); color:var(--warn); }
+.pending { background:var(--crit-bg); color:var(--crit); }
+.pri { display:inline-block; font:600 10px/1.6 ui-monospace,Menlo,monospace; padding:1px 7px;
+  border-radius:4px; background:var(--accent-soft); color:var(--accent); }
+.pri.should { background:transparent; color:var(--muted);
+  box-shadow:inset 0 0 0 1px var(--rule-strong); }
+.note { border-left:3px solid var(--accent); background:var(--card); padding:14px 18px;
+  margin:18px 0; border-radius:0 8px 8px 0; max-width:76ch; box-shadow:var(--shadow); }
+.note h5 { font:600 10.5px/1 system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--accent); margin:0 0 7px; }
+.note p:last-child { margin-bottom:0; }
+.note.risk { border-left-color:var(--crit); }
+.note.risk h5 { color:var(--crit); }
+.score { display:grid; grid-template-columns:repeat(auto-fit,minmax(128px,1fr)); gap:10px;
+  margin:20px 0 26px; }
+.score div { border:1px solid var(--rule); border-radius:8px; padding:13px 15px; background:var(--card); }
+.score .n { font:600 27px/1.05 Georgia,serif; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
+.score .l { font:600 9.5px/1.3 system-ui,sans-serif; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--muted); margin-top:5px; }
+.score .ok .n { color:var(--ok); }
+.score .wn .n { color:var(--warn); }
+.score .cr .n { color:var(--crit); }
+.diagram { border:1px solid var(--rule); border-radius:8px; background:var(--card); padding:20px;
+  margin:18px 0 22px; overflow-x:auto; box-shadow:var(--shadow); }
+.diagram .cap { font-size:12px; color:var(--muted); margin-top:12px; padding-top:10px;
+  border-top:1px solid var(--rule); }
+pre.mermaid { margin:0; text-align:center; }
+footer { margin-top:64px; padding-top:20px; border-top:1px solid var(--rule); font-size:12.5px;
+  color:var(--muted); max-width:72ch; }
+@media (max-width:900px) {
+  .wrap { grid-template-columns:1fr; gap:0; padding:0 20px 64px; }
+  nav.toc { position:static; max-height:none; padding:28px 0 0; border-bottom:1px solid var(--rule); }
+  nav.toc ol { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); }
+  section > h2 { grid-template-columns:34px 1fr; }
+  section > h2 + .lede { margin-left:34px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+  .gate-note{font-size:11px;color:#555;margin-top:4px;line-height:1.45}
+</style>
+
+<div class="wrap">
+
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#s1">Purpose &amp; scope</a></li>
+    <li><a href="#s2">Market &amp; business case</a></li>
+    <li><a href="#s3">Regulatory basis</a></li>
+    <li><a href="#s4">Stakeholders &amp; personas</a></li>
+    <li><a href="#s5">Requirements — tenancy</a></li>
+    <li><a href="#s6">Requirements — ingestion</a></li>
+    <li><a href="#s7">Requirements — detection</a></li>
+    <li><a href="#s8">Requirements — RFA lifecycle</a></li>
+    <li><a href="#s9">Requirements — reporting</a></li>
+    <li><a href="#s10">Requirements — analytics</a></li>
+    <li><a href="#s11">Requirements — access &amp; privacy</a></li>
+    <li><a href="#s12">Requirements — model governance</a></li>
+    <li><a href="#s13">Requirements — platform ops</a></li>
+    <li><a href="#s14">Non-functional</a></li>
+    <li><a href="#s15">Obligation traceability</a></li>
+    <li><a href="#s16">Assumptions &amp; exclusions</a></li>
+    <li><a href="#s17">Release plan</a></li>
+    <li><a href="#s17b">What still blocks a commercial release</a></li>
+    <li><a href="#s18">Open decisions</a></li>
+    <li><a href="#s19">AI/ML roadmap</a></li>
+  </ol>
+</nav>
+
+<div>
+<header class="doc">
+  <div class="kicker">Business Requirements Document · v1.7</div>
+  <h1>Fraud360</h1>
+  <p class="sub">Fraud Risk Management &amp; Early Warning Signals Platform</p>
+  <p class="standfirst">A multi-tenant, RBI-aligned FRMS with real-time transaction
+  monitoring, an enforced Red Flagged Account lifecycle, and regulatory reporting —
+  delivered as a shared service to commercial banks, co-operative banks and NBFCs.</p>
+
+  <dl class="control">
+    <div><dt>Document</dt><dd>BRD / FRMS-EWS</dd></div>
+    <div><dt>Version</dt><dd>1.7</dd></div>
+    <div><dt>Date</dt><dd>28 September 2026</dd></div>
+    <div><dt>Status</dt><dd>For review</dd></div>
+    <div><dt>Companion</dt><dd>HLD v1.6</dd></div>
+  </dl>
+</header>
+
+<main>
+
+<section id="s1">
+  <h2>Purpose and scope</h2>
+  <p class="lede">What this document commits the product to, and the boundary of the
+  first commercial release.</p>
+
+  <p>This BRD states the business requirements for a commercially licensed Fraud Risk
+  Management System (FRMS) incorporating an Early Warning Signal (EWS) framework, built
+  to the RBI Master Directions on Fraud Risk Management and the supervisory expectations
+  that surround them. The platform was originally built against the three combined
+  Directions issued 15 July 2024; RBI withdrew those on 31 July 2026 and replaced them
+  with nine entity-specific Directions (RBI/DoS/2026-27/412&ndash;463) &mdash; see REG-01.
+  The requirements below reflect the 2026 structure.</p>
+
+  <p>The platform is <strong>multi-tenant by design</strong>. One deployment serves many
+  regulated entities, each with its own branding, its own board-approved thresholds, its
+  own data and its own users. This is a deliberate commercial position: the compliance
+  machinery an EWS framework requires is largely identical across institutions, while the
+  thresholds and governance around it are emphatically not.</p>
+
+  <div class="score">
+    <div class="ok"><div class="n">91</div><div class="l">Built &amp; tested</div></div>
+    <div class="wn"><div class="n">7</div><div class="l">Partial</div></div>
+    <div class="cr"><div class="n">8</div><div class="l">Pending</div></div>
+    <div><div class="n">106</div><div class="l">Requirements</div></div>
+    <div><div class="n">80%</div><div class="l">EWS coverage*</div></div>
+  </div>
+  <p style="font-size:12.5px;color:var(--muted);margin-top:-12px">*Coverage of <i>our own</i> 25 indicators, which is a narrower claim than coverage of RBI's illustrative list &mdash; see the note below. 20 of 25 quantitative indicators are measurable once a tenant sends its feeds: 13 from the payment stream alone, CPT-02 and CPT-03 from screening lists, and BEH-02, BEH-03 and CBS-01/02/03 from the core-banking event intake. The remaining five need records the platform cannot yet take — invoice lines, session geolocation and trade-finance documents — and are reported as unmeasurable <i>with the reason</i>, never scored as zero. See section 7.</p>
+  <div class="callout" style="margin-top:14px">
+    <p style="margin:0"><b>On the RBI early-warning-signal list.</b> The 2016 Master
+    Directions on Frauds carried an illustrative annexure of <b>42</b> early-warning
+    signals (widely reported as 45). The <b>2024</b> Master Directions on Fraud Risk
+    Management (RBI/DOS/2024-25/118, 15 July 2024) <b>supersede</b> the 2016 Directions
+    and <b>enumerate no list at all</b> &mdash; they require each bank's board-approved
+    policy to define its own signals, attach EWS/RFA at the CRILC threshold of
+    <b>&#8377;3&nbsp;crore</b>, and examine an alert within <b>30 days</b>. RBI withdrew
+    the 2024 Directions in turn on 31 July 2026, splitting them into nine entity-specific
+    instruments (RBI/DoS/2026-27/412&ndash;463) that share the same chapter backbone and
+    the same no-enumerated-list, board-owns-its-own-signals design this note describes
+    &mdash; see REG-01. The specific rupee and day figures above are stated as this
+    platform's own configured defaults (see policy.py's threshold model per entity type)
+    and must be confirmed against each entity type's own 2026 Direction text before
+    being relied on as an exact regulatory figure.</p>
+    <p style="margin:.6em 0 0">Mapped against the 2016 annexure, the platform covers
+    <b>12 of 42</b> signals, partially covers <b>3</b>, and does not cover <b>27</b>.
+    That is not a defect. <b>26 of the 27</b> are borrower-conduct and credit-monitoring
+    signals &mdash; audited financials, stock-audit findings, ROC filings, auditor's
+    reports &mdash; which are read from a loan file on a periodic cycle, not from a
+    payment stream in real time. Conversely <b>16 of our 25</b> indicators have no
+    counterpart on that list, because they are payment-fraud typologies answering a
+    different question. Closing the remaining 27 is a separate periodic-assessment
+    capability (Lane&nbsp;C on the roadmap), not a threshold change. The mapping is
+    generated and kept current by <code>docs/rbi_ews_mapping.py</code>.</p>
+  </div>
+
+  <h4>In scope</h4>
+  <ul>
+    <li>Transaction ingestion across UPI, IMPS, NEFT, RTGS and card rails</li>
+    <li><b>Inline decisioning (Lane A)</b> — a go/no-go answer inside the payment window
+      for rails a tenant configures for it, alongside the existing queue-drained detection
+      lane. Shipped in <i>shadow</i> mode: every decision is computed, recorded and
+      reportable, and the enforced answer stays <code>allow</code> until a tenant turns
+      enforcement on. See BR-312 to BR-315</li>
+    <li>Rule-based EWS detection driven by each entity's configured catalogue</li>
+    <li>Alert triage, case management and the full RFA lifecycle including natural justice</li>
+    <li>Regulatory reporting to RBI (FMR) and FIU-IND (STR/CTR)</li>
+    <li>Board, supervisory, investigative and inspection-facing analytics</li>
+    <li>Tenant onboarding, branding, configuration and user administration</li>
+  </ul>
+
+  <h4>Explicitly out of scope for release 1</h4>
+  <ul>
+    <li>KYC/CKYC onboarding, AML customer risk rating and sanctions screening as primary
+      systems — the platform consumes these as feeds</li>
+    <li>Cheque truncation, trade finance document examination and loan origination</li>
+    <li>Recovery, legal case management and LEA case tracking beyond referral records</li>
+  </ul>
+</section>
+
+<section id="s2">
+  <h2>Market and business case</h2>
+  <p class="lede">Why a shared platform, and who buys it.</p>
+
+  <p>The July 2024 Directions extended a materially uniform fraud-governance obligation
+  across three very different populations of regulated entity. A large commercial bank
+  can fund a bespoke FRMS. A Tier-1 urban co-operative bank, a state co-operative bank or
+  a mid-size NBFC carries the same obligations — board-approved policy, EWS framework, RFA
+  classification, natural justice, FMR reporting — against a fraction of the technology
+  budget. That asymmetry is the market.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Segment</th><th>Governing instrument</th><th>Supervisor</th><th>Commercial position</th></tr></thead>
+      <tbody>
+        <tr><td>Commercial banks</td><td>MD on Fraud Risk Management in Commercial Banks, 2026 (RBI/DoS/2026-27/412)</td><td>RBI</td><td>Displace or augment an incumbent FRMS; strongest on EWS coverage evidence and reconciliation</td></tr>
+        <tr><td>Regional Rural Banks</td><td>MD on Fraud Risk Management in Regional Rural Banks, 2026 (RBI/DoS/2026-27/454) &mdash; no longer bundled with Commercial Banks</td><td>RBI, NABARD</td><td>Same commercial position as Commercial Banks, smaller scale</td></tr>
+        <tr><td>All India Financial Institutions</td><td>MD on Fraud Risk Management in AIFIs, 2026 (RBI/DoS/2026-27/457) &mdash; now its own instrument, not bundled with Commercial Banks</td><td>RBI</td><td>Small, named population (EXIM, NABARD, NHB, SIDBI, NaBFID) &mdash; not a volume segment</td></tr>
+        <tr><td>Urban co-operative banks (Tiers 1–4)</td><td>MD on Fraud Risk Management in Urban Co-operative Banks, 2026 (RBI/DoS/2026-27/439)</td><td>RBI</td><td>Primary target. Obligation without budget; tiered thresholds are a product feature</td></tr>
+        <tr><td>State &amp; central co-operative banks</td><td>MD on Fraud Risk Management in Rural Co-operative Banks, 2026 (RBI/DoS/2026-27/451) &mdash; UCB and rural co-operative banks are separate 2026 instruments, no longer one combined Direction</td><td>NABARD</td><td>Same as UCB, with NABARD reporting lines</td></tr>
+        <tr><td>Local Area Banks</td><td>MD on Fraud Risk Management in Local Area Banks, 2026 (RBI/DoS/2026-27/446)</td><td>RBI</td><td>Smallest, most geographically restricted licence class; not previously modelled as its own entity type</td></tr>
+        <tr><td>Small Finance Banks</td><td>MD on Fraud Risk Management in Small Finance Banks, 2026 (RBI/DoS/2026-27/421)</td><td>RBI</td><td>Full lending licence at smaller scale; not previously modelled as its own entity type</td></tr>
+        <tr><td>Payments Banks</td><td>MD on Fraud Risk Management in Payments Banks, 2026 (RBI/DoS/2026-27/430)</td><td>RBI</td><td>Cannot extend credit &mdash; credit-linked EWS rule families do not apply; not previously modelled as its own entity type</td></tr>
+        <tr><td>NBFCs and HFCs</td><td>MD on Fraud Risk Management in NBFCs (incl. HFCs), 2026 (RBI/DoS/2026-27/463)</td><td>RBI / NHB for HFCs</td><td>Growing enforcement attention; lighter transaction volume, same lifecycle burden</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <h5>Central product claim</h5>
+    <p>Every figure the platform reports is derived from a single metric definition and
+    is proven to reconcile at query time. A board pack, a supervisory return and an
+    analyst's screen cannot disagree, because they are the same SQL. This is the
+    differentiator against dashboards assembled from independent queries, and it is
+    verifiable rather than asserted.</p>
+  </div>
+</section>
+
+<section id="s3">
+  <h2>Regulatory basis</h2>
+  <p class="lede">The instruments that generate the obligations traced in section 15.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Ref</th><th>Instrument</th><th>Bearing on the platform</th></tr></thead>
+      <tbody>
+        <tr><td class="id">REG-01</td><td>RBI Master Directions on Fraud Risk Management, 31 Jul 2026 (RBI/DoS/2026-27/412&ndash;463, nine entity-specific instruments &mdash; withdrew and replaced the three combined 15 Jul 2024 Directions this platform was originally built against)</td><td>Board-approved fraud risk policy; EWS framework; RFA classification; staff accountability; FMR reporting; governance committee structure</td></tr>
+        <tr><td class="id">REG-02</td><td><em>State Bank of India v. Rajesh Agarwal</em> (SC, 2023)</td><td>A borrower must be given a hearing and a reasoned order before being classified as fraudulent. Procedural, not advisory</td></tr>
+        <tr><td class="id">REG-03</td><td>Prevention of Money Laundering Act and FIU-IND reporting rules</td><td>STR and CTR obligations; principal officer role; filing timelines</td></tr>
+        <tr><td class="id">REG-04</td><td>RBI FREE-AI Committee report, Aug 2025</td><td>Model governance, explainability, human oversight, model inventory and drift monitoring where AI/ML is used</td></tr>
+        <tr><td class="id">REG-05</td><td>Digital Personal Data Protection Act, 2023</td><td>Purpose limitation, data minimisation, retention limits, processor obligations</td></tr>
+        <tr><td class="id">REG-06</td><td>RBI MD on Outsourcing of IT Services, Apr 2023</td><td>Directly governs this platform as a service provider: right to audit, exit, concentration risk, sub-contracting, data localisation</td></tr>
+        <tr><td class="id">REG-07</td><td>RBI storage of payment system data directive, Apr 2018</td><td>Payment data to be stored within India</td></tr>
+        <tr><td class="id">REG-08</td><td>RBI MD on IT Governance, Risk, Controls and Assurance Practices, Nov 2023</td><td>Change management, access control, audit logging, BCP/DR</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note risk">
+    <h5>Threshold values are the entity's, never the vendor's</h5>
+    <p>Response windows, filing deadlines, materiality limits and severity bands differ by
+    entity type and tier, and each must be the figure that entity's own board approved.
+    The platform ships documented defaults so a new tenant is never unconfigured, and
+    treats every one of them as a value the tenant must review and own. No number in this
+    document should be read as regulatory advice.</p>
+  </div>
+</section>
+
+<section id="s4">
+  <h2>Stakeholders and personas</h2>
+  <p class="lede">Eleven roles, each with a different question and a different permitted
+  view of the same data.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Persona</th><th>Primary question</th><th>May unmask customer PII</th></tr></thead>
+      <tbody>
+        <tr><td>Fraud Analyst (L1)</td><td>Which alerts in my queue are real?</td><td>Yes, with justification</td></tr>
+        <tr><td>Senior Investigator (L2)</td><td>What is the full picture behind this case?</td><td>Yes, with justification</td></tr>
+        <tr><td>Fraud Risk Manager</td><td>Are we within SLA and correctly staffed?</td><td>Yes, with justification</td></tr>
+        <tr><td>Principal Officer (PMLA)</td><td>What must be filed with FIU-IND, and by when?</td><td>Yes, with justification</td></tr>
+        <tr><td>Compliance Supervisor</td><td>Are the regulatory clocks being met?</td><td>Yes, with justification</td></tr>
+        <tr><td>Board / Executive</td><td>What is our fraud exposure and trend?</td><td>No — aggregate only</td></tr>
+        <tr><td>CRO / ACB / Special Committee</td><td>Is the framework itself working?</td><td>No — aggregate only</td></tr>
+        <tr><td>Model Risk / Data Science</td><td>Is detection still fit for the population?</td><td>No — models run on masked data</td></tr>
+        <tr><td>Internal Audit / RBI Inspection</td><td>Can each figure and decision be evidenced?</td><td>Read-only, with justification</td></tr>
+        <tr><td>Tenant Administrator</td><td>Is my institution configured correctly?</td><td>Yes, with justification</td></tr>
+        <tr><td>Platform Administrator (vendor)</td><td>Is the service healthy across tenants?</td><td><strong>No</strong> — see below</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <h5>The outsourcing boundary</h5>
+    <p>Vendor staff cannot unmask a bank's customer identifiers under any role. Operating
+    the service does not require seeing the customers, and REG-06 makes this the first
+    question an outsourcing review asks. It is enforced in the permission model and in the
+    database grants, not by policy alone.</p>
+  </div>
+</section>
+
+<section id="s5">
+  <h2>Requirements — tenancy, onboarding and configuration</h2>
+  <p class="lede">BR-1xx. Making one platform serve many regulated entities, each
+  governed by its own board.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Priority</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td class="id">BR-101</td><td>Onboard a regulated entity with slug, legal name, entity type and, for UCBs, supervisory tier</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-102</td><td>Apply tenant branding — display name, logo, primary/accent/neutral colours, default theme, custom domain</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-103</td><td>Derive the tenant's default FRM policy from entity type and tier, including governing Direction and reporting lines (RBI / NABARD / NHB / FIU-IND)</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-104</td><td>Allow a tenant administrator to review and override every policy threshold, recording that it is board-approved</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-105</td><td>Version every configuration change; activate one version at a time; retain superseded versions</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-106</td><td>Provide a structured rule editor so thresholds can be retuned without editing JSON</td><td><span class="pri should">SHOULD</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-107</td><td>Suspend, resume and offboard a tenant, with a complete data export on exit (REG-06)</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-108</td><td>Invite tenant users with a role, a temporary password and forced reset at first login. <strong>Found and fixed this cycle</strong>: create and delete were <code>require_role("platform_admin")</code> only — a bank's own tenant_admin could view their user list but not invite, update or remove anyone; every one of those required the vendor's own staff to act on the bank's behalf, undocumented as an actor mismatch until this session's FSD sweep named it. Fixed: create, update (new — role reassignment, previously not possible for any actor at all) and delete are now gated by <code>can_admin_tenant</code>, checked dynamically so a BR-113 custom role granted admin scope gets the same reach as the seeded <code>tenant_admin</code>. A safety net added alongside: removing or demoting a user is refused if it would leave the tenant with nobody able to administer it, not merely if it would leave zero users — the latter is what the code checked before and would have allowed a tenant with several users but zero admin-capable ones</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-109</td><td>Self-service tenant onboarding and an isolated sandbox tenant for integration testing. Built as <code>POST /tenants/self-service</code> — unauthenticated (the one path the gateway admits under the <code>tenants</code> segment without a bearer token), running the same onboarding orchestration <code>platform_admin</code>'s <code>POST /tenants</code> always has, but always producing a tenant with <code>is_sandbox=true</code>. Isolation is enforced, not just labelled: <code>/ingest/{tenant_id}/transactions</code> and <code>/cbs-events</code> refuse a sandbox tenant's batch outright if it claims <code>source="live"</code>, so sandbox traffic can never be miscounted as the traffic BR-508 (CTR) or BR-611 build regulatory filings and live/demo reporting from. One live sandbox per admin email (a signup guard, not a login wall). A console form on the login page (no sign-in required) drives it end-to-end. Promotion to a real, billable tenant is a separate, deliberate <code>platform_admin</code> action (<code>POST /tenants/{id}/promote</code>) — never automatic, never self-service.</td><td><span class="pri should">SHOULD</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-110</td><td>Meter usage per tenant for billing (transactions ingested, alerts scored, seats)</td><td><span class="pri should">SHOULD</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-111</td><td>Gate the seeded EWS rule catalogue by entity-type capability — a licence that cannot extend credit (Payments Bank) does not get the 9 credit-linked rules (loan-account misuse, borrowal-account conduct, collateral, qualitative credit signals) seeded at onboarding</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-112</td><td>Phase 1 of role flexibility: give a tenant administrator a read-only view of the platform's role catalogue — what each of the ten fixed roles (BR-108) can access (modules, dashboards, PII-reveal, admin scope) — and which of their own users currently hold each one. Pure transparency over the existing catalogue in code; no new permission model, no write path. Establishes, from real tenant usage, whether the fixed set actually needs extending before Phase 2 is built. <code>GET /tenants/{id}/roles</code> — same access level as the existing user list (any authenticated user of the tenant, not admin-only), scoped to the ten tenant-assignable roles; <code>platform_admin</code> never appears, matching the floor BR-108's invite flow already enforces</td><td><span class="pri should">SHOULD</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-113</td><td>Phase 2 of role flexibility: let a tenant define its own roles and permission grants — custom module/dashboard access, PII-reveal and admin scope — beyond the fixed ten-role catalogue, with the same versioning, maker-checker and audit trail every other tenant configuration carries, and without a tenant-defined role ever able to reach cross-tenant scope or the platform-staff PII floor. Not a functional or regulatory gap today: RBAC, least-privilege and segregation of duties are already satisfied by the fixed catalogue, and every seeded role maps to a named persona the FRM Directions themselves expect (Principal Officer, ACB/CRO, board).
+          <br/><br/><strong>Phase 2a (persistence) is built</strong>: every tenant gets its own materialised <code>tenant_roles</code> rows, seeded at onboarding the same way BR-111 seeds the EWS rule catalogue, verified byte-for-byte equivalent to the pre-existing hardcoded catalogue against a frozen backup (<code>scripts/backups/rbac_py_pre_br113_20260816.py</code>).
+          <br/><br/><strong>Phase 2b (write path, guardrails, versioning, capability) is built</strong>: a tenant with <code>can_admin_tenant</code> — checked dynamically, so a custom role granting it can manage roles too, not only the seeded <code>tenant_admin</code> — can create, edit and delete a role via <code>POST</code>/<code>PUT</code>/<code>DELETE /tenants/{id}/roles</code>. Guardrails refuse a tenant role reaching the platform-only <code>administration</code> module or the <code>tenant_health</code> dashboard, and refuse shadowing a reserved platform name; cross-tenant reach is structurally impossible since <code>tenant_id</code> is never client-supplied. Raising <code>can_admin_tenant</code>/<code>can_reveal_pii</code> is staged and needs a <em>different</em> eligible person to confirm (<code>POST .../confirm</code>, <code>self_approval</code> refused) — the same maker-checker asymmetry BR-715 applies elsewhere: lowering a privilege applies immediately, raising one does not. Every create/edit writes a full before/after snapshot to the audit trail rather than mutating history in place, so "what could this role do on date X" stays answerable without a separate version table. A custom role is assignable through BR-108's invite flow the moment it exists. A minimal console screen (list, create, delete, with the invite form's role picker now reading the tenant's real catalogue instead of a hardcoded list) ships with it.
+          <br/><br/><strong>Phase 2c (cross-service capability) is built</strong>: analytics-service, config-service, decision-service and notification-service now consult a tenant's custom roles too, via <code>cp_common.dynamic_roles</code> — a shared module every one of them imports, so the fetch-and-cache logic against tenant-service's new internal endpoint (<code>GET /tenants/internal/{tenant_id}/roles</code>) is written once, not five times. Every one of the ten fixed roles resolves with zero network calls, exactly as before — only a name outside that set triggers a lookup, cached against the same generation-token mechanism config-service's rule/policy changes already use, so a role edit is visible to every service the instant tenant-service bumps it, not after a clock interval. This covers the four generic capability primitives — module access, dashboard access, <code>can_admin_tenant</code>, <code>can_reveal_pii</code> — which is what every dashboard gate, every "or admin" fallback, and config-service's maker-checker eligibility across all four services actually run on. <code>ingestion-service</code> needed no change: it has no human role checks at all, only machine-credential scopes (BR-213). Verified against real HTTP round trips between services, not only in-process function calls, including a caught-and-fixed bug (the internal endpoint's URL was missing its router prefix) that a narrower test would have missed.
+          <br/><br/><strong>Phase 2d (risk_manager-equivalent capability) is built</strong>: <code>TenantRole</code> gained a third flag, <code>can_activate_config</code> — may propose or confirm a configuration activation (BR-715), independent of <code>can_admin_tenant</code>. config-service's <code>maker_checker.ensure_eligible()</code> now checks this one flag dynamically instead of a hardcoded name list; <code>tenant_admin</code> and <code>platform_admin</code> carry it alongside full admin scope, <code>risk_manager</code> carries it on its own — exactly the distinction its own name always implied but the code never expressed as a settable grant. A custom role can now be given that narrower capability without also becoming a tenant administrator, or vice versa: administering a tenant (users, branding, other roles) no longer implies the power to activate fraud-detection configuration, and the two are verified independent of each other. Raising the flag is staged through the same maker-checker elevation as the other two — a different eligible person must confirm — and it is visible in the console's role table and create-role form alongside Admin and PII. A tenant-defined role is otherwise fully functional platform-wide: created via BR-113's write path, assignable to a user via BR-108, and recognised for module/dashboard access and all three capability flags in every service that gates on them. What remains open is narrower still: a small number of call sites gate an action behind a named list mixing in roles no flag on this platform describes at all (analytics-service's <code>FILING_ROLES</code>/<code>CTR_ROLES</code>, which include <code>principal_officer</code>) — extending those needs further capability flags, real and separately-scoped, not attempted here</td><td><span class="pri should">SHOULD</span></td><td><span class="chip built">Built</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s6">
+  <h2>Requirements — transaction ingestion</h2>
+  <p class="lede">BR-2xx. Getting real payments into the platform without corrupting them
+  on the way in.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Priority</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td class="id">BR-201</td><td>Accept transactions over an authenticated API in native rail formats for UPI, IMPS, NEFT, RTGS and card</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-202</td><td>Map each rail to one canonical transaction shape at the edge, so detection is rail-agnostic</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-213</td><td>Authenticate bank systems (payment switch, CBS extract, ETL) with a machine credential that has no interactive login path, a scope that cannot reach customer data, optional certificate binding, an address allow-list and enforced expiry — rather than a user account with MFA disabled</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-203</td><td>Represent money as integer paise end to end; reject amounts finer than one paisa rather than rounding</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-204</td><td>Reject timestamps without a timezone offset, with an explanatory error</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-205</td><td>Deduplicate on the rail's own identifier so a replayed file does not double-count value</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-206</td><td>Accept a batch partially: report each rejected row with its index and reason, and retain the rest</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-207</td><td>Retain the inbound payload immutably, separate from derived facts, with the time of receipt</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-208</td><td>Expose queue depth, provenance and freshness for operational monitoring</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-209</td><td>Accept bulk files over SFTP in CSV and ISO 20022, with the same validation contract</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-210</td><td>Support historical backfill and controlled replay after a rule change, without duplicating alerts</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-211</td><td>Ingest non-payment signals — CBS account events, loan account conduct, RM-raised qualitative indicators</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-212</td><td>Consume reference feeds: sanctions and negative lists, CERSAI charge registry, device/session telemetry</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-214</td><td>Ingest loan-origination (LOS) / underwriting-stage signals — falsified applications, straw borrowers, collusive valuations — not only post-disbursement CBS loan conduct. ~92% of FY25 reported bank fraud value is loan/advances fraud (RBI Annual Report FY25). Two new CBS event kinds (<code>loan_application</code>, <code>collateral_valuation</code>) and a new LOS rule family (LOS-01 declared income vs. observed activity, LOS-02 valuation vs. peer benchmark, LOS-03 identity reused across applications), evaluated in their own pass since an application has no payment transaction to piggyback scoring on — see FSD §"Detection scope"</td><td><span class="pri should">SHOULD</span></td><td><span class="chip built">Built</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s7">
+  <h2>Requirements — EWS detection</h2>
+  <p class="lede">BR-3xx. The indicator framework itself, and the rule that the entity's
+  own configuration governs it.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Priority</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td class="id">BR-301</td><td>Maintain an EWS indicator catalogue across ten families: velocity, structuring, behavioural, layering/mule, counterparty, channel/device, trade-based, loan-account misuse, qualitative, loan origination (BR-214)</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-302</td><td>Detection must read thresholds from the entity's active configuration, so retuning a band in the console changes what fires with no code change</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-303</td><td>A badly-tuned threshold must genuinely miss fraud — no indicator may be force-fired to populate a screen</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-304</td><td>Record on every alert the band matched, the observed value, the threshold applied, the unit, and the configuration version in force at scoring time</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-305</td><td>Score both the paying and the receiving account, so a collection account that only receives is still assessed</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-306</td><td>Report indicators that cannot be measured for want of a data feed, with the reason, and never approximate them</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-307</td><td>Maintain a dormant-indicator register: configured indicators that produced no signal in the period</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-308</td><td>Group related alerts into one case by account so a mule ring is one investigation, not forty alerts</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-309</td><td>Detect within seconds of receipt, sustained, at each tenant's peak transaction rate</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-310</td><td>Support network/graph typologies requiring multi-hop traversal (circular flow, layered chains)</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-311</td><td>Allow an authorised user to simulate a threshold change against historical data before activating it</td><td><span class="pri should">SHOULD</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-312</td><td>Return a go/no-go decision (allow, challenge, hold, decline) inside the payment window, on a per-rail latency budget set by the tenant</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-313</td><td>Run inline decisioning in shadow mode first — compute and record the decision that <i>would</i> have been taken while returning allow, so a tenant can measure the effect before enforcing it</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-314</td><td>Route each rail to the inline lane or the near-real-time lane by tenant configuration, and refuse a request for a rail configured for the other lane rather than answering allow</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-315</td><td>When the latency budget expires mid-evaluation, report which rules were skipped and record the outcome as budget-exceeded — never as a clean pass</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-316</td><td>Define and record graduation criteria and an approval trail — minimum shadow-mode duration, observed false-positive rate, and board/ACB sign-off — before a rail moves from shadow to enforced. Closes the narrower question OD-03 left open: not <i>whether</i> to enforce, but what a tenant must observe and who must approve before it does. Built as a gate on a new <code>decision_policy</code> config kind: any rail a version marks enforced needs its own graduation record (≥30 days observed, false-positive rate, board/ACB approval) before the version may even be proposed for activation — same maker-checker and board-attestation mechanisms as BR-715/BR-104, applied per rail. This also closed a bigger gap it surfaced: <code>decision_policy</code> was never actually wired to config-service before — every tenant ran the hardcoded starter policy permanently, with no path to change it</td><td><span class="pri should">SHOULD</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-317</td><td>Accept ISO 8583 authorisation messages from a card/EFT switch that has no practical way to originate JSON, translated onto the same inline decision contract as BR-312 rather than asking every such vendor to build their own translation layer. Built as a new <code>iso8583_gateway</code> component: a TCP listener that decodes the standard public data elements (DE2/3/4/7/11/32/37/39/41/42/49), maps them to a <code>/decide</code> request, and calls it exactly as any JSON Lane A integrator would — same rule catalogue, same policy, same decision log, one brain behind two front doors. Core codec, field mapper and connection handling are built and unit-tested (45 tests: message round-trip, DE7's year-less date resolved against an explicit configured offset, PAN masked at the point it first arrives and never logged or persisted raw, and every failure path — malformed message, unreachable <code>/decide</code>, an unrecognised <code>/decide</code> response — produces an explicit refusal rather than a guessed approval). <b>Not yet deployed for any tenant.</b> Every switch vendor's private-field usage and exact response-code table differs (DE48/62/120-127), so the field mapping here covers only the standard 1987 data elements until a pilot vendor's own spec is confirmed against it; whether Fraud360 terminating raw PAN brings it into PCI-DSS cardholder-data scope is a compliance decision still pending, not an engineering one. See <code>docs/ISO8583_LANE_A_SCOPING.md</code></td><td><span class="pri should">SHOULD</span></td><td><span class="chip partial">Partial</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <h5>Current coverage, stated plainly</h5>
+    <p>Eleven indicators are computed from the payment stream today, giving 96% coverage of
+    the configured quantitative catalogue in the reference tenant. Eight further indicators
+    are inert pending the feeds in BR-211 and BR-212 and are reported as such. Coverage
+    should be quoted to prospects with that qualification attached, not as a headline
+    percentage.</p>
+  </div>
+</section>
+
+<section id="s8">
+  <h2>Requirements — alert triage and the RFA lifecycle</h2>
+  <p class="lede">BR-4xx. What happens after an indicator trips — the part the Directions
+  are mostly about.</p>
+
+  <div class="diagram">
+<pre class="mermaid">
+flowchart TB
+    OPEN(["EWS signal raises a case"])
+    UR["under_review<br/>Triage"]
+    RFA["rfa_flagged<br/>Triage"]
+    NJ["natural_justice<br/>Hearing"]
+    RE["response_evaluation<br/>Hearing"]
+    FD["fraud_declared<br/>Decision"]
+    EX["exonerated<br/>Decision — terminal"]
+    FMR["fmr_reported<br/>Reporting"]
+    CF["closed_fraud<br/>Reporting — terminal"]
+
+    OPEN --> UR
+    UR -- "flag RFA<br/>investigator · risk manager" --> RFA
+    RFA -- "issue show-cause<br/>starts the board-approved window" --> NJ
+    NJ -- "borrower replies<br/>accepted at any time" --> RE
+    NJ -- "window elapsed<br/>may not be cut short" --> RE
+    RE -- "declare fraud<br/>reasoned order on file<br/>+ separate approver" --> FD
+    FD -- "file FMR" --> FMR
+    FMR -- "close" --> CF
+
+    RE -- "exonerate" --> EX
+    UR -- "close — not fraud" --> EX
+
+    RFA -. "revoke RFA" .-> UR
+    EX -. "reopen on new evidence" .-> UR
+
+    classDef triage fill:#E5EEF4,stroke:#3E6E85,color:#1D3D4D;
+    classDef hearing fill:#E3EFEF,stroke:#16565C,color:#0E3B40;
+    classDef adverse fill:#F8E3E1,stroke:#A32218,color:#7E1A13;
+    classDef cleared fill:#E4F1E9,stroke:#17683F,color:#0F4A2C;
+    classDef entry fill:#FFFFFF,stroke:#64777A,color:#35474B;
+    class UR,RFA triage
+    class NJ,RE hearing
+    class FD,FMR adverse
+    class EX,CF cleared
+    class OPEN entry
+</pre>
+    <p class="cap">The RFA lifecycle as enforced. The spine runs top to bottom through the
+    four stages — <strong>triage</strong>, <strong>hearing</strong>,
+    <strong>decision</strong>, <strong>reporting</strong> — shaded by stage. Solid edges
+    advance a case; dotted edges are the two permitted reversals. Every transition is
+    gated by role, required evidence and elapsed time. <code>closed_fraud</code> is
+    terminal and cannot be reopened: it has been reported to the regulator.</p>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Priority</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td class="id">BR-401</td><td>Case state may change only through the defined lifecycle; no other path may write it</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-402</td><td>Each transition is permitted only to specified roles</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-403</td><td>Issuing a show-cause notice starts the borrower's response window at the entity's board-approved length</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-404</td><td>The response window may not be cut short by any user at any seniority (REG-02)</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-405</td><td>A borrower's reply may be recorded at any time and moves the case forward</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-406</td><td>Fraud may not be declared without a reasoned order attached to the case (REG-02)</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-407</td><td>Declaring fraud requires a maker and a separate checker; self-approval is refused</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-408</td><td>An action taken outside its policy window is permitted but permanently recorded as a breach</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-409</td><td>Every attempt, including refused ones, is written to an append-only case history</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-410</td><td>Unavailable actions are shown disabled with the reason, never hidden</td><td><span class="pri should">SHOULD</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-411</td><td>Cases may be assigned to a named investigator; assignment is audited</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-412</td><td>Attach evidence documents to a case with a content hash; documents cannot be deleted</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-413</td><td>Notify the assignee, and escalate on approaching or breached clocks, by email and in-app</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-414</td><td>Record staff accountability examination outcomes against a declared fraud (REG-01)</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-415</td><td>Record LEA referral and recovery progress against a closed fraud</td><td><span class="pri should">SHOULD</span></td><td><span class="chip built">Built</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s9">
+  <h2>Requirements — regulatory reporting</h2>
+  <p class="lede">BR-5xx. The filings the lifecycle exists to produce.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Priority</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td class="id">BR-501</td><td>Track FMR and STR due dates from the decision date, using the entity's configured filing windows</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-502</td><td>Classify every fraud against an FMR category</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-503</td><td>Report filings due, filed and overdue, per period, reconciled to case detail</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-504</td><td>Generate the FMR submission artefact in the prescribed format, ready for upload</td><td><span class="pri">MUST</span></td><td><span class="chip partial">Partial</span></td></tr>
+        <tr><td class="id">BR-505</td><td>Generate the STR artefact for FIU-IND in the prescribed format</td><td><span class="pri">MUST</span></td><td><span class="chip partial">Partial</span></td></tr>
+        <tr><td class="id">BR-506</td><td>Retain every submitted artefact with its generation timestamp and the data version behind it</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-507</td><td>Produce a board / ACB pack on a schedule, distributed to named recipients</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-508</td><td>Support CTR aggregation and threshold reporting. PMLA Rule 3: cash transactions, deposits and withdrawals both, aggregated per account per calendar month against a Rs 10,00,000 threshold — individually or in connected smaller transactions. Cash does not traverse UPI/NEFT/RTGS/CARD, so a new <code>cash_transaction</code> CBS event kind carries it in on BR-211's existing intake path; account-and-month centric, not case-centric, so it is its own filing lifecycle (generate/download/acknowledge) rather than a variant of the FMR/STR one</td><td><span class="pri should">SHOULD</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-509</td><td>Screen against RBI's Central Fraud Registry (CFR). Verified against the Directions' own text (Chapter VI-B, para 47): CFR is <i>not</i> a second return a bank files — it is populated automatically from FMR submissions (already built), and the bank's obligation is to <i>use</i> CFR data for credit/fraud risk decisions. Access is per-user RBI portal credentials, not a bulk feed the way sanctions lists are published, so CFR is now a reference-data source (feeding CPT-02 alongside sanctions/PEP/negative-list) that a tenant's compliance team loads from its own portal lookups — honestly unloaded, not silently clean, until then</td><td><span class="pri should">SHOULD</span></td><td><span class="chip built">Built</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s10">
+  <h2>Requirements — analytics and assurance</h2>
+  <p class="lede">BR-6xx. Thirteen role-scoped dashboards over one metric definition.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Priority</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td class="id">BR-601</td><td>Define every metric exactly once; all dashboards read that definition</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-602</td><td>Run reconciliation invariants at query time and show the result beside the figures</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-603</td><td>Provide role-scoped dashboards for each persona in section 4</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-604</td><td>Filter on 24 dimensions including rail, family, severity, state, product, segment, region, FMR and STR status</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-605</td><td>Drill from any figure through to the individual transaction and its evidence trail</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-606</td><td>Show the rule-evaluation trace: why this fired, on what observation, under which config version</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-607</td><td>Visualise the counterparty network with hub identification</td><td><span class="pri should">SHOULD</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-608</td><td>Trend every headline metric over daily, weekly and monthly buckets</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-609</td><td>Save, share and schedule views; distribute exports to named recipients. Scheduled exports now deliver: the <code>email</code> driver sends the artefact as an attachment through the recipient tenant's own configured SMTP relay (notification-service's <code>/internal/channels/send</code>) rather than only reporting itself unconfigured</td><td><span class="pri should">SHOULD</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-610</td><td>Export to CSV with a watermark and a row ceiling, audited</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-611</td><td>Distinguish live traffic from demonstration data in every view</td><td><span class="pri should">SHOULD</span></td><td><span class="chip built">Built</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s11">
+  <h2>Requirements — identity, access and privacy</h2>
+  <p class="lede">BR-7xx. The largest concentration of unmet requirements, and the
+  hardest blocker to a bank IS sign-off.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Priority</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td class="id">BR-701</td><td>Enforce role-based access across modules and dashboards. <strong>Found and fixed this cycle</strong>: cp_common.rbac has always granted the <code>audit</code> module to six tenant-scoped roles (tenant_admin, risk_manager, principal_officer, supervisor, cro, rbi_inspector), and the console has always shown all six an "Audit" nav item — but <code>GET /audit</code> was gated <code>require_role("platform_admin")</code> only, so every one of those roles 403'd the moment they used it. The grant existed; the enforcement of it did not. Fixed: the endpoint now checks the caller's audit-module access dynamically (also recognising a BR-113 custom role granted the module), scoped to the caller's own tenant only — platform staff keep the unscoped, cross-tenant view. Verified end-to-end through the running console, not only by test, since this is exactly the kind of gap a unit test written against the same wrong assumption would not have caught</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-702</td><td>Mask customer identifiers by default; unmasking requires capability plus a recorded justification</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-703</td><td>Audit every view of customer-level evidence, not only every change</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-704</td><td>No tenant may read another tenant's data under any role or query path</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-705</td><td>Maintain an immutable platform audit trail of every action, actor, role and outcome</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-706</td><td>Force password change at first login; enforce password complexity</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-707</td><td><strong>Multi-factor authentication for all users</strong></td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-708</td><td><strong>Federated sign-on against the bank's own IdP (SAML / OIDC), with group-to-role mapping</strong></td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-709</td><td>Session timeout, refresh tokens, revocation and concurrent-session control</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-710</td><td>Account lockout and credential-stuffing protection on authentication</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-711</td><td>Per-caller rate limiting at the platform edge</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-712</td><td>Encryption at rest with tenant-scoped key management; TLS in transit</td><td><span class="pri">MUST</span></td><td><span class="chip partial">Partial</span></td></tr>
+        <tr><td class="id">BR-713</td><td>Retention schedule and automated purge, aligned to fraud-record retention and DPDP minimisation (REG-05)</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-714</td><td>All payment data stored within India (REG-07)</td><td><span class="pri">MUST</span></td><td><span class="chip partial">Partial</span></td></tr>
+        <tr><td class="id">BR-715</td><td>Maker-checker on privileged configuration changes, not only on fraud declaration. Activating a rule or policy version now passes through <code>pending_activation</code>: a second, different tenant_admin/risk_manager/platform_admin must confirm before it reaches live decisioning, and the proposer may not be the confirmer</td><td><span class="pri should">SHOULD</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-716</td><td>A downloadable audit report, filterable by action — e.g. a role-management-only export for a compliance review or an RBI inspection request. <code>GET /audit/export</code> reuses BR-701/BR-705's own access rule and filters rather than standing up a parallel reporting path: platform staff export any tenant (or every tenant), everyone else their own only. Streams CSV with a sanitised filename — a filter value is never reflected into the response header unescaped, closing a header-injection surface before it could exist. A console control ("Role changes only" + Download CSV) sits on the existing Audit panel</td><td><span class="pri should">SHOULD</span></td><td><span class="chip built">Built</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s12">
+  <h2>Requirements — model and detection governance</h2>
+  <p class="lede">BR-8xx. FREE-AI expectations, applied to a rules engine today and to
+  models when they arrive.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Priority</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td class="id">BR-801</td><td>Maintain an inventory of every detection version that has scored live traffic</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-802</td><td>Flag any configuration version scoring live traffic that is not currently approved</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-803</td><td>Monitor population drift (PSI, KS) against a reference window and band the result</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-804</td><td>Log every human override of a detection outcome with its rationale</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-805</td><td>Every alert must be explainable to a non-technical reviewer without reference to source code</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-806</td><td>Backtesting harness: replay a candidate configuration against history and compare outcomes</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-807</td><td>Champion/challenger evaluation before a configuration is promoted. Gated on the new <code>model</code> config kind: activation may not even be proposed without a recorded evaluation (metrics, method, comparison to the version it would replace)</td><td><span class="pri should">SHOULD</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-808</td><td>Record model approval by the responsible committee before activation. Extends BR-104's board-attestation mechanism to the <code>model</code> kind, with a new Model Risk Management Committee approving body</td><td><span class="pri should">SHOULD</span></td><td><span class="chip built">Built</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s13">
+  <h2>Requirements — platform operations</h2>
+  <p class="lede">BR-9xx. What the vendor must be able to evidence under REG-06 and REG-08.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Priority</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td class="id">BR-901</td><td>Each service owns its data; no service may read another's tables</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-902</td><td>Run multiple replicas of every service behind a load balancer without inconsistent results</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-903</td><td>A failing component must not take down healthy ones</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-904</td><td>Client retries must not duplicate an action</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-905</td><td>Distinguish liveness from readiness so a dependency blip does not restart the fleet</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-906</td><td>Correlate a request across every service it touches</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-907</td><td>Metrics, tracing and log shipping to a central observability stack</td><td><span class="pri">MUST</span></td><td><span class="chip partial">Partial</span></td></tr>
+        <tr><td class="id">BR-908</td><td>Documented and tested backup, restore and disaster recovery, with stated RPO and RTO</td><td><span class="pri">MUST</span></td><td><span class="chip pending">Pending</span></td></tr>
+        <tr><td class="id">BR-909</td><td>Capacity and load testing evidence at each tenant's contracted peak rate</td><td><span class="pri">MUST</span></td><td><span class="chip pending">Pending</span></td></tr>
+        <tr><td class="id">BR-910</td><td>Right-to-audit support: evidence pack, control descriptions, sub-processor register (REG-06)</td><td><span class="pri">MUST</span></td><td><span class="chip pending">Pending</span></td></tr>
+        <tr><td class="id">BR-911</td><td>Documented exit plan with data return in a usable format and agreed deletion</td><td><span class="pri">MUST</span></td><td><span class="chip partial">Partial</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s14">
+  <h2>Non-functional requirements</h2>
+  <p class="lede">Targets to be contracted per tenant. Those marked unvalidated have not
+  been measured and must not be quoted commercially until they are.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>ID</th><th>Attribute</th><th>Target</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td class="id">NFR-01</td><td>Detection latency</td><td>Under 5 seconds from receipt to alert at peak</td><td><span class="chip pending">Unvalidated</span></td></tr>
+        <tr><td class="id">NFR-02</td><td>Ingestion throughput</td><td>Sustained peak TPS per tenant, contracted individually</td><td><span class="chip pending">Unvalidated</span></td></tr>
+        <tr><td class="id">NFR-03</td><td>Dashboard response</td><td>95th percentile under 3 seconds on 12 months of data</td><td><span class="chip pending">Unvalidated</span></td></tr>
+        <tr><td class="id">NFR-04</td><td>Availability</td><td>99.5% monthly for the console; 99.9% for ingestion</td><td><span class="chip partial">Design supports</span></td></tr>
+        <tr><td class="id">NFR-05</td><td>Recovery</td><td>RPO 15 minutes, RTO 4 hours</td><td><span class="chip pending">Pending</span></td></tr>
+        <tr><td class="id">NFR-06</td><td>Data residency</td><td>All data in Indian regions (REG-07)</td><td><span class="chip partial">Deployment-dependent</span></td></tr>
+        <tr><td class="id">NFR-07</td><td>Retention</td><td>Fraud records for the statutory period; operational data minimised (REG-05)</td><td><span class="chip pending">Pending</span></td></tr>
+        <tr><td class="id">NFR-08</td><td>Auditability</td><td>Every figure reproducible as at any past date, against the config then in force</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">NFR-09</td><td>Accessibility</td><td>WCAG 2.1 AA for the console</td><td><span class="chip pending">Not assessed</span></td></tr>
+        <tr><td class="id">NFR-10</td><td>Browser support</td><td>Current Chrome, Edge, Firefox, Safari; no external CDN dependency (air-gapped deployments)</td><td><span class="chip built">Built</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s15">
+  <h2>Obligation traceability</h2>
+  <p class="lede">Each regulatory obligation to the requirements that discharge it, and
+  the honest state of each.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Obligation</th><th>Source</th><th>Requirements</th><th>State</th></tr></thead>
+      <tbody>
+        <tr><td>Board-approved fraud risk policy governs thresholds</td><td>REG-01</td><td>BR-103, BR-104, BR-105</td><td><span class="chip built">Met — activation records the approving body, date and minute reference</span></td></tr>
+        <tr><td>EWS framework with defined indicators</td><td>REG-01</td><td>BR-301, BR-307</td><td><span class="chip built">Met</span></td></tr>
+        <tr><td>EWS operates on actual transaction data</td><td>REG-01</td><td>BR-201 – BR-208, BR-302</td><td><span class="chip built">Met — rails, CBS events and reference feeds</span></td></tr>
+        <tr><td>Red Flagged Account classification and review</td><td>REG-01</td><td>BR-401, BR-402</td><td><span class="chip built">Met</span></td></tr>
+        <tr><td>Hearing before adverse classification</td><td>REG-02</td><td>BR-403, BR-404, BR-405</td><td><span class="chip built">Met</span></td></tr>
+        <tr><td>Reasoned (speaking) order for a fraud finding</td><td>REG-02</td><td>BR-406, BR-412</td><td><span class="chip built">Met</span></td></tr>
+        <tr><td>Fraud declaration under dual control</td><td>REG-01</td><td>BR-407</td><td><span class="chip built">Met</span></td></tr>
+        <tr><td>FMR reporting within the prescribed window</td><td>REG-01</td><td>BR-501, BR-502, BR-503, BR-504</td><td><span class="chip partial">Clocks tracked; artefact assembled, validated and retained — prescribed format pending OD-04</span></td></tr>
+        <tr><td>STR reporting to FIU-IND</td><td>REG-03</td><td>BR-505</td><td><span class="chip partial">Assembled and retained; prescribed format pending OD-04</span></td></tr>
+        <tr><td>Staff accountability examination</td><td>REG-01</td><td>BR-414</td><td><span class="chip built">Met</span></td></tr>
+        <tr><td>Board and ACB oversight reporting</td><td>REG-01</td><td>BR-507, BR-603</td><td><span class="chip built">Met — dashboards and scheduled pack with recorded delivery</span></td></tr>
+        <tr><td>Model governance, explainability, human oversight</td><td>REG-04</td><td>BR-801 – BR-805</td><td><span class="chip built">Met for a rules engine</span></td></tr>
+        <tr><td>Model validation before deployment</td><td>REG-04</td><td>BR-806, BR-807, BR-808</td><td><span class="chip partial">Backtesting built; champion/challenger and committee approval pending</span></td></tr>
+        <tr><td>Access control, MFA, privileged access management</td><td>REG-08</td><td>BR-701, BR-707 – BR-710</td><td><span class="chip built">Met — RBAC, MFA, OIDC/SAML, sessions, lockout</span></td></tr>
+        <tr><td>Purpose limitation and data minimisation</td><td>REG-05</td><td>BR-702, BR-703, BR-713</td><td><span class="chip built">Met — masking, retention floors, automated purge</span></td></tr>
+        <tr><td>Payment data localisation</td><td>REG-07</td><td>BR-714</td><td><span class="chip partial">Deployment-dependent</span></td></tr>
+        <tr><td>Service-provider audit, exit and concentration risk</td><td>REG-06</td><td>BR-107, BR-910, BR-911</td><td><span class="chip partial">Exit export returns the full fraud record and declares its own completeness; right-to-audit pack pending</span></td></tr>
+        <tr><td>Change management and audit logging</td><td>REG-08</td><td>BR-105, BR-705, BR-409</td><td><span class="chip built">Met</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s16">
+  <h2>Assumptions, constraints and exclusions</h2>
+
+  <h3>Assumptions</h3>
+  <ul>
+    <li>Each tenant can expose transaction data by API or file within minutes of settlement</li>
+    <li>Each tenant's board approves its own thresholds; the vendor supplies defaults, never advice</li>
+    <li>Banks will federate identity from an existing IdP rather than manage users in the platform long-term</li>
+    <li>Reference data (sanctions, CERSAI, CBS extracts) can be licensed or supplied by the tenant</li>
+  </ul>
+
+  <h3>Constraints</h3>
+  <ul>
+    <li>Payment data must remain in India, constraining hosting and any sub-processor</li>
+    <li>Some tenants require air-gapped or private-cloud deployment; no runtime dependency on an external CDN</li>
+    <li>Money is integer paise throughout; no floating-point representation is permitted anywhere in the stack</li>
+    <li>Reported figures must reconcile exactly, which rules out eventually-consistent read models for reported metrics</li>
+  </ul>
+
+  <h3>Exclusions</h3>
+  <ul>
+    <li>The platform is not a system of record for customers, accounts or the general ledger</li>
+    <li>It does not authorise, block or reverse payments</li>
+    <li>It does not provide legal advice on classification; it enforces the process around the decision</li>
+  </ul>
+</section>
+
+<section id="s17">
+  <h2>Release plan</h2>
+  <p class="lede">Sequenced by what blocks a signed contract, not by engineering
+  convenience.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Release</th><th>Theme</th><th>Contents</th><th>Exit criterion</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="id">R1</td><td>Bankable</td>
+          <td>BR-707 – BR-710 (MFA, SSO, sessions, lockout); BR-413 (notifications); BR-712, BR-713 (encryption, retention)</td>
+          <td>A bank's IS and security review can be passed</td>
+        <td><span class="chip partial">Nearly met</span><div class="gate-note">MFA, SSO (OIDC + SAML), sessions, lockout, notifications and retention are built, and the secrets a database reader could abuse are sealed. The one remaining item is the infrastructure half of <b>BR-712</b>: full-disk or tablespace encryption, which the application cannot provide.</div></td></tr>
+        <tr>
+          <td class="id">R2</td><td>Filable</td>
+          <td>BR-504 – BR-506 (FMR and STR artefacts); BR-414 (staff accountability); BR-507 (scheduled board pack)</td>
+          <td>A full fraud can be taken from signal to submitted return inside the platform</td>
+        <td><span class="chip partial">Not met</span><div class="gate-note">Staff accountability, artefact retention and board-pack production and delivery are all built. It is <b>not</b> met for one reason: <b>BR-504</b> and <b>BR-505</b> require the <i>prescribed</i> RBI and FIU-IND formats, and the platform declares both bindings <code>not_bound</code> pending <b>OD-04</b>. That is a compliance decision, not engineering work.</div></td></tr>
+        <tr>
+          <td class="id">R3</td><td>Complete detection</td>
+          <td>BR-209 – BR-212 (files, backfill, CBS, reference feeds); BR-310 (graph typologies); BR-309 (streaming latency)</td>
+          <td>EWS coverage no longer qualified by missing feeds</td>
+        <td><span class="chip partial">Nearly met</span><div class="gate-note">File intake now covers ISO 20022 as well as CSV, and backfill and replay, graph typologies, CBS events and scheduled reference feeds are all built. Only <b>BR-309</b> remains - sub-second detection at contracted peak is asserted rather than measured, and closing it needs the load-test evidence of <b>BR-909</b>.</div></td></tr>
+        <tr>
+          <td class="id">R4</td><td>Operable at scale</td>
+          <td>BR-907 – BR-909 (observability, DR, load testing); BR-910, BR-911 (audit and exit); NFR validation</td>
+          <td>NFR targets measured and contractable</td>
+        <td><span class="chip partial">Partly met</span><div class="gate-note">Metrics, request correlation and pipeline-freshness gauges are in place. Tracing and log shipping, DR (<b>BR-908</b>), load-test evidence (<b>BR-909</b>) and the right-to-audit pack (<b>BR-910</b>) are not.</div></td></tr>
+        <tr>
+          <td class="id">R5</td><td>Commercial</td>
+          <td>BR-109, BR-110 (self-service, metering); BR-806 – BR-808 (backtesting, champion/challenger)</td>
+          <td>Onboarding a tenant needs no vendor engineering</td>
+        <td><span class="chip partial">Nearly met</span><div class="gate-note">Backtesting (<b>BR-806</b>) and per-tenant usage metering (<b>BR-110</b>) are built. A tenant administrator can now configure their own identity providers from the console — create, edit and remove OIDC/SAML sources, with role-mapping validated against the tenant's own assignable roles — closing the specific gap that previously forced vendor engineering for IdP setup. The console can also now create and activate a tenant's FRM policy version directly — <code>ConfigCreate.kind</code> was refusing <code>policy</code> at the schema; that is fixed, and <b>BR-104</b>'s threshold override and the Principal Officer designation (<b>BR-504/505</b>) are reachable end-to-end rather than only by writing to the database. Self-service tenant onboarding (<b>BR-109</b>) is now built — a prospective bank provisions its own sandbox with no <b>platform_admin</b> action at all, satisfying this gate's own wording for the onboarding step itself. Growing an existing tenant's own user base is also self-service and always has been: <code>POST /tenants/{id}/users</code> is gated on the dynamic <code>can_admin_tenant</code> capability, which <b>tenant_admin</b> (or any custom role a bank has granted it to) already carries — no <b>platform_admin</b> action is or was required for this step; an earlier version of this note said otherwise and was wrong. What was a real, separate gap — the invited user received no email, only a one-time password shown on the inviting admin's own screen to relay by hand — is now closed: invitation sends the credential directly through the tenant's own configured email channel (the same direct-send path <b>BR-609</b>'s scheduled report export uses) when one exists, falling back to the on-screen password, honestly labelled, only when it does not.</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+
+<section id="s17b">
+  <h2>What still blocks a commercial release</h2>
+  <p class="lede">The honest list, ordered by what stops a signature soonest. Everything
+  here is a MUST that a bank, its IS reviewer or its regulator asks about directly.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Ref</th><th>Gap</th><th>Why it blocks</th><th>Gate</th></tr></thead>
+      <tbody>
+        <tr><td class="id">BR-504/505</td>
+          <td>FMR and STR artefacts in the <i>prescribed</i> submission format</td>
+          <td>The single blocker on R2. The platform assembles, validates, hashes and
+              retains the return and refuses to generate one with gaps, but the format
+              bindings are declared <code>not_bound</code>. A named officer can submit
+              from the pack; the platform cannot claim the return is in RBI's or
+              FIU-IND's own format until <b>OD-04</b> is decided. This needs the
+              published schemas, not engineering. Separately: a defect that left the STR
+              path permanently unfileable — the Principal Officer field had no source
+              anywhere in the platform, so every STR was refused regardless of format —
+              is fixed and verified end-to-end against a live case, and a tenant admin
+              can now set that field themselves through the console (below), with the
+              designation gated by the same board-attestation mechanism as every other
+              policy fact.</td><td>R2</td></tr>
+        <tr><td class="id">BR-712</td>
+          <td>Full-disk / tablespace encryption</td>
+          <td>Application-layer sealing of MFA seeds, IdP secrets and feed credentials is
+              done. Encrypting the volume itself protects a stolen disk or a discarded
+              backup and is a deployment control &mdash; Postgres TDE, LUKS or the cloud
+              provider's volume encryption. An IS review asks for both.</td><td>R1</td></tr>
+        <tr><td class="id">BR-909</td>
+          <td>Capacity evidence beyond a single worker</td>
+          <td>Detection latency is now measured — 200 tps per worker at p99 2.65 s, with
+              the run refusing to call itself sustained if the backlog climbs. What is
+              still unevidenced is multi-worker scaling and the managed-database
+              deployment. The machine-to-machine credential that previously blocked
+              driving the intake path under load is now built (BR-201), so this is a
+              matter of running the test at scale rather than a missing capability.</td><td>R4</td></tr>
+        <tr><td class="id">BR-908</td>
+          <td>Tested backup, restore and disaster recovery with stated RPO/RTO</td>
+          <td>Contractual. An untested restore is an assumption, and the outsourcing
+              directions expect the numbers to be evidenced.</td><td>R4</td></tr>
+        <tr><td class="id">BR-910</td>
+          <td>Right-to-audit evidence pack and sub-processor register</td>
+          <td>RBI's outsourcing directions give the regulated entity and the RBI a right
+              to audit the service provider. It has to be answerable on request.</td>
+          <td>R4</td></tr>
+        <tr><td class="id">BR-907</td>
+          <td>Distributed tracing and log shipping</td>
+          <td>Metrics, structured logs and a request id that crosses every service are in
+              place. Nothing ships them to a central stack, so an incident is investigated
+              by reading files on each host.</td><td>R4</td></tr>
+        <tr><td class="id">BR-211 (residual)</td>
+          <td>Invoice, geolocation and trade-finance records</td>
+          <td>Five indicators &mdash; SME-03, CHN-02 and TBM-01/02/03 &mdash; still cannot
+              be measured. They are reported as unmeasurable with the reason rather than
+              scored, which is correct, but it is EWS coverage a bank is paying for and
+              not receiving.</td><td>R3</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s18">
+  <h2>Open decisions</h2>
+  <p class="lede">Items requiring a business decision before the corresponding
+  engineering can be specified.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Ref</th><th>Decision</th><th>Why it matters</th><th>Owner</th></tr></thead>
+      <tbody>
+        <tr><td class="id">OD-01</td><td>Deployment model: shared multi-tenant, dedicated schema, or single-tenant install per bank</td><td>Larger banks may refuse shared infrastructure; changes cost model and DR design</td><td>Commercial</td></tr>
+        <tr><td class="id">OD-02</td><td>Whether case management becomes a separately deployed service</td><td>Correct bounded context, but requires event sync that trades exact reconciliation for eventual consistency</td><td>Product + Engineering</td></tr>
+        <tr><td class="id">OD-03</td><td><s>Whether to sit in the authorisation path for interdiction</s> &mdash; <b>decided: yes</b>, per-tenant and per-rail. Built as Lane A in shadow mode. The <i>how</i> of graduating to enforcement is now built (<b>BR-316</b>): a per-rail graduation record, gated the same way a board-approved policy or a promoted model is. What remains open here is narrower still &mdash; which tenant is commercially first to actually graduate a rail, now that the mechanism exists to do it</td><td>Settled the latency budget (50&ndash;150&nbsp;ms by rail), the availability class and the liability profile. Competitive necessity: Clari5, Signzy and Servosys all answer in the payment window</td><td>Commercial &mdash; <b>open</b></td></tr>
+        <tr><td class="id">OD-04</td><td>Which FMR and STR submission formats to target first</td><td>Formats differ by entity type and channel; determines R2 scope</td><td>Compliance</td></tr>
+        <tr><td class="id">OD-05</td><td>Reference data: licensed centrally by the platform, or supplied per tenant</td><td>Sanctions and CERSAI licensing cost and liability</td><td>Commercial</td></tr>
+        <tr><td class="id">OD-06</td><td><s>Whether ML-based detection is in roadmap scope</s> &mdash; <b>decided: yes</b>, committed as the four-phase programme in <a href="#s19">AI/ML roadmap</a> (device &amp; behavioural biometrics; transaction velocity &amp; anomaly models; GNN fraud-ring detection &amp; federated learning; explainable-AI dashboards &amp; regulator-ready reporting) &mdash; the first two phases are now Built and genuinely scoring traffic (VEL-04, LAY-05), not just gated ahead of a model existing. What remains open: Phase 4 has no committed delivery date. The governance floor BR-807/BR-808 (champion/challenger evaluation, committee approval before activation) gate a new <code>model</code> config kind, refusing to even propose activation without both on record</td><td>Triggers the full FREE-AI model-governance obligation set. BR-801&ndash;806 (inventory, drift monitoring, human-override logging, explainability, backtesting) are already built against the rules engine and extend to every phase's models; BR-807/808 are built as the activation gate itself and apply the moment a model version is proposed</td><td>Executive &mdash; <b>decided, timeline open</b></td></tr>
+        <tr><td class="id">OD-07</td><td><s>Federated learning's data-sharing basis (Phase 3): aggregating model updates within one tenant's own data only, or across tenants/banks</s> &mdash; <b>decided: not within one tenant.</b> Federated learning across a single tenant's own data is not federated learning at all &mdash; it is ordinary centralised training with an extra network hop, since there is only one data holder. The whole premise requires multiple independent holders, which for this platform means multiple banks. That is a materially different data-sharing posture from anything the platform does today (AD-03: schema-per-service, no cross-tenant queries, enforced at the database role), and the platform will not build it speculatively: it is not commercially triggered by any engagement in front of it. GNN fraud-ring detection does not wait on this &mdash; it proceeds within one tenant's own account graph, which needs no new data-sharing basis at all, and is no longer coupled to Phase 3 in the roadmap</td><td>Settles that Phase 3 is buildable now for GNN alone. Cross-bank fraud-signal sharing has a regulatory precedent this platform already integrates &mdash; RBI's own Central Fraud Registry (BR-509) &mdash; but CFR is RBI-operated reference data the platform <i>screens against</i>, not a federation the platform would itself run. A future consortium engagement that wants genuine federated training gets its own OD when it exists, with its own consent basis named by the banks actually party to it</td><td>Executive &mdash; <b>decided</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s19">
+  <h2>AI/ML roadmap</h2>
+  <p class="lede">Referenced from <a href="#s18">OD-06</a> as the committed scope;
+  Phase 4 has no committed delivery date. Sequenced by dependency, not by ambition —
+  each phase produces the input the next one needs, which is why Phases 2 and 3 are
+  both Built in order: Phase 3 reuses Phase 2's scoring pipeline and the account
+  graph the platform already exposed, needing only a GNN encoder on top, not a new
+  architecture. Federated learning was originally bundled into Phase 3;
+  <a href="#s18">OD-07</a> has since split it out as Phase 3b, deferred and
+  commercially triggered rather than engineering-scheduled — see its own row below
+  for why.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Phase</th><th>Theme</th><th>Contents</th><th>Governance &amp; dependencies</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td class="id">Phase 1</td><td>Device &amp; behavioural biometrics</td>
+          <td>Extend the channel (CHN) signal family with device-posture and
+              behavioural-biometric features &mdash; typing cadence, touch pressure,
+              session/gesture patterns &mdash; alongside the device id already captured
+              per transaction.</td>
+          <td>Additive signal ingestion into the existing rules engine, not a scored
+              model, so the BR-801&ndash;808 model-governance gate does not yet apply.
+              Capture and matching itself is not built here: it is VideoPD's and the
+              Human Fraud Detection Framework's domain (liveness, face-match,
+              voice-biometric, persona signals). Fraud360 consumes their signal output
+              as a new feature class; it does not duplicate biometric capture
+              engineering.</td>
+          <td><span class="chip pending">Pending</span></td></tr>
+        <tr><td class="id">Phase 2</td><td>Transaction velocity &amp; anomaly-detection models</td>
+          <td>The first genuine scored-model phase, now live: adds a learned
+              velocity/anomaly indicator (<b>VEL-04</b>) alongside the threshold-based
+              VEL family, over the same transaction stream. <b>Scoring runtime built
+              per <a href="hld.html#h14">AD-14</a></b> &mdash; runs in-process inside the
+              existing detection worker (analytics-service, Python/FastAPI), not a new
+              service: an <code>IsolationForest</code> over five tabular features
+              already computed for the rules engine (no second feature pipeline),
+              calibrated against the training set's own score distribution rather than
+              a fixed formula. See
+              <code>services/analytics_service/app/detection/model_scoring.py</code>
+              and <code>scripts/train_velocity_anomaly_model.py</code>.</td>
+          <td>BR-807/808 gate activation &mdash; cannot go live without a
+              champion/challenger evaluation on record and committee approval per
+              config version &mdash; and a third gate now sits beside them:
+              <code>model_artifact</code> (format, object-storage URI, SHA-256),
+              verified before the trained binary is even loaded, refusing a mutated or
+              truncated file rather than silently scoring with something nobody
+              approved. BR-801&ndash;806 apply from the first scored alert. <b>First
+              working fit, not a validated one</b> &mdash; trained against whatever
+              history a tenant already has; detection quality against real fraud
+              outcomes is unmeasured until BR-806's backtesting harness runs against
+              live traffic, a separate, later exercise this phase does not claim to
+              have done.</td>
+          <td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">Phase 3</td><td>GNN-based fraud-ring detection</td>
+          <td><b>Built</b> &mdash; see <a href="hld.html#h16">HLD §16</a> for the
+              architecture. A 2-layer GraphSAGE (inductive: scores an account it has
+              never seen at training time, which a constantly-changing account graph
+              needs) produces a node embedding per account; the same
+              <a href="hld.html#h14">AD-14</a>/AD-15 scoring pipeline Phase 2 already
+              built (calibrated anomaly score, not a new formula) scores those
+              embeddings for anomalousness. New indicator <b>LAY-05</b> (fraud-ring
+              membership), extending the layering/mule family &mdash; not VEL, since
+              this is topology, not velocity. Training input is the account graph
+              <code>GET /analytics/{tid}/graph</code> already exposes for
+              visualisation, extended to the tenant's whole graph rather than one
+              case's neighbourhood
+              (<code>services/analytics_service/app/detection/graph_model.py</code>),
+              within one tenant's own data per <a href="#s18">OD-07</a>'s resolution.
+              No new data-sharing basis was needed for this. Unlike VEL-04, LAY-05 is
+              not scored inline per transaction &mdash; a GraphSAGE forward pass over
+              the whole graph runs on its own schedule
+              (<code>scripts/refresh_ring_scores.py</code>, the same shape as
+              <code>run_subscriptions.py</code>/<code>run_retention.py</code>),
+              writing <code>analytics.account_ring_score</code>, which the detection
+              worker only reads.</td>
+          <td>Same BR-807/808 activation gate, plus the explainability standard
+              BR-801&ndash;806 already hold the rules engine to: a fraud-ring flag
+              must stay traceable to why it fired, same as every alert's
+              rule-evaluation trace today. <b>The prerequisite this phase exposed is
+              fixed, not merely noted</b>: <code>/internal/model/{tid}/{name}</code>
+              and <code>rules.active_model(tenant_id, name)</code> are now keyed by
+              the config's own <code>name</code>, not the tenant alone &mdash; the
+              config data model already supported two same-kind, differently-named
+              active versions (<code>ConfigRepository.activate()</code> archives by
+              tenant+kind+<i>name</i>); only the query layer needed to ask for the
+              right one, and now does. <code>velocity-anomaly</code> (VEL-04) and
+              <code>graph-ring-score</code> (LAY-05) are active independently, each
+              reachable only by its own name. <b>First working fit, not a validated
+              one</b> &mdash; same caveat as Phase 2: trained unsupervised (no ring
+              labels exist to train against) against whatever history a tenant
+              already has; detection quality against real fraud-ring outcomes is
+              unmeasured until BR-806's backtesting harness runs against live traffic.</td>
+          <td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">Phase 3b</td><td>Federated learning <span class="chip pending">Deferred</span></td>
+          <td>Decoupled from Phase 3 by <a href="#s18">OD-07</a>: aggregating model
+              updates across tenants/banks is a materially different data-sharing
+              posture than anything this platform does today, and is not commercially
+              triggered by any engagement in front of it. Not on this roadmap's
+              critical path &mdash; taken up only if and when a specific multi-bank
+              engagement creates both the demand and the consent basis for it.</td>
+          <td>N/A until OD-07 is revisited by a real engagement.</td>
+          <td><span class="chip pending">Not scheduled</span></td></tr>
+        <tr><td class="id">Phase 4</td><td>Explainable-AI dashboards &amp; regulator-ready reporting</td>
+          <td>Extends the Model Risk dashboard's model-inventory and override-log
+              endpoints (<a href="#s12">§12, model and detection governance</a>) into
+              a regulator-facing explainability report, delivered through the
+              scheduled-distribution machinery already built for board packs (BR-507,
+              <code>scripts/run_subscriptions.py</code>).</td>
+          <td>Reporting on governance data Phases 2 and 3 must already be producing —
+              there is nothing to explain or report on until a model exists. Not
+              independently startable.</td>
+          <td><span class="chip pending">Pending</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <p><strong>Status summary.</strong> 106 business requirements: <strong>91 built, 7 partial, 8 pending</strong>. Statuses reflect verified behaviour in the current build — every item marked Built is covered by an automated test in a suite of 809. Partial always means the requirement is not yet met as written; the reason is stated in section 17b.</p>
+  <p>This document describes a product under development. It is not legal or regulatory
+  advice; each regulated entity remains responsible for its own compliance and for the
+  threshold values it approves.</p>
+</footer>
+
+</main>
+</div>
+</div>
+
+<!-- mermaid-boot: replaced by an inlined bundle when make_pdf.py builds the print copy -->
+<script src="mermaid.min.js"></script>
+<script>
+  mermaid.initialize({
+    startOnLoad: true, theme: 'base', securityLevel: 'loose',
+    fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+    themeVariables: {
+      primaryColor: '#E3EFEF', primaryTextColor: '#101820',
+      primaryBorderColor: '#16565C', lineColor: '#5C7376',
+      secondaryColor: '#F7F9F9', tertiaryColor: '#FFFFFF',
+      fontSize: '14px'
+    },
+    flowchart: { curve: 'basis', useMaxWidth: true, nodeSpacing: 34, rankSpacing: 40 },
+    sequence: { useMaxWidth: true, wrap: true },
+    state: { useMaxWidth: true }
+  });
+</script>
+<!-- /mermaid-boot -->

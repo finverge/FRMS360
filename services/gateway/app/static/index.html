@@ -1,0 +1,1178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Control Plane Console</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <!-- Login -->
+  <section id="login-view" class="view">
+    <div class="login-card">
+      <img class="brand-logo" src="/logo.png" alt="Fraud360" />
+      <h1>Control Plane</h1>
+      <p class="muted">Multi-tenant fraud &amp; risk administration</p>
+      <form id="login-form">
+        <label>Email <input id="login-email" type="email" value="admin@finverge.local" required /></label>
+        <label>Password <input id="login-password" type="password" value="ChangeMe123!" required /></label>
+        <button type="submit">Sign in</button>
+        <p id="login-error" class="error" hidden></p>
+      </form>
+
+      <div id="sso-block" hidden>
+        <div class="or-rule"><span>or</span></div>
+        <div id="sso-buttons"></div>
+      </div>
+      <div class="sso-lookup">
+        <input id="sso-org" placeholder="your organisation's short name"
+               aria-label="Organisation short name" />
+        <button id="sso-find" type="button" class="small-btn ghost">Find sign-in</button>
+      </div>
+
+      <!-- BR-109: self-service - no login needed to reach this. -->
+      <div class="or-rule"><span>or</span></div>
+      <button id="sandbox-toggle" type="button" class="small-btn ghost">
+        New bank? Request a free sandbox
+      </button>
+      <form id="sandbox-form" hidden>
+        <p class="muted">
+          A sandbox is fully functional for integration testing. It can never submit
+          traffic labelled as live; your Fraud360 contact promotes it to production
+          when you're ready.
+        </p>
+        <label>Organisation short name
+          <input id="sandbox-slug" pattern="[a-z][a-z0-9-]{1,62}"
+                 placeholder="acme-bank" required /></label>
+        <label>Legal name <input id="sandbox-legal-name" required /></label>
+        <label>Display name <input id="sandbox-display-name" required /></label>
+        <label>Entity type
+          <select id="sandbox-entity-type">
+            <option value="commercial_bank">Commercial Bank</option>
+            <option value="aifi">All India Financial Institution (AIFI)</option>
+            <option value="urban_cooperative">Urban Co-operative Bank (UCB)</option>
+            <option value="state_cooperative">State Co-operative Bank (StCB)</option>
+            <option value="central_cooperative">Central / District Co-operative Bank (CCB)</option>
+            <option value="rrb">Regional Rural Bank</option>
+            <option value="local_area_bank">Local Area Bank (LAB)</option>
+            <option value="small_finance_bank">Small Finance Bank (SFB)</option>
+            <option value="payments_bank">Payments Bank (PB)</option>
+            <option value="nbfc">NBFC</option>
+            <option value="hfc">Housing Finance Company</option>
+          </select></label>
+        <label>Your work email <input id="sandbox-email" type="email" required /></label>
+        <label>Choose a password
+          <input id="sandbox-password" type="password" minlength="8" required /></label>
+        <button type="submit">Create sandbox</button>
+        <button id="sandbox-cancel" type="button" class="small-btn ghost">Cancel</button>
+        <p id="sandbox-error" class="error" hidden></p>
+        <p id="sandbox-success" class="muted" hidden></p>
+      </form>
+    </div>
+  </section>
+
+
+  <!-- Second factor: challenge at sign-in -->
+  <section id="mfa-view" class="view" hidden>
+    <div class="login-card">
+      <img class="brand-logo" src="/logo.png" alt="Fraud360" />
+      <h1>Verification code</h1>
+      <p class="muted">Open your authenticator app and enter the current 6-digit code
+        for <span id="mfa-account" class="mono"></span>.</p>
+      <form id="mfa-form">
+        <label>Code
+          <input id="mfa-code" inputmode="numeric" autocomplete="one-time-code"
+                 maxlength="14" placeholder="123456" required />
+        </label>
+        <button type="submit">Verify</button>
+        <p class="muted hint">Lost your device? Enter one of your recovery codes
+          instead — each works once.</p>
+        <p id="mfa-error" class="error" hidden></p>
+      </form>
+      <button id="mfa-cancel" type="button" class="linkish">Back to sign in</button>
+    </div>
+  </section>
+
+  <!-- Second factor: first-time enrolment -->
+  <section id="enrol-view" class="view" hidden>
+    <div class="login-card wide">
+      <img class="brand-logo" src="/logo.png" alt="Fraud360" />
+      <h1>Set up two-factor authentication</h1>
+      <p class="muted" id="enrol-why">Your organisation requires a second factor for
+        your role.</p>
+      <ol class="enrol-steps">
+        <li>Scan this with Google Authenticator, Microsoft Authenticator or Authy.</li>
+        <li>Enter the 6-digit code it shows to confirm the device works.</li>
+      </ol>
+      <div id="enrol-qr" class="enrol-qr"></div>
+      <p class="muted small">Can't scan? Enter this key manually:
+        <code id="enrol-secret" class="mono"></code></p>
+      <form id="enrol-form">
+        <label>Code from your app
+          <input id="enrol-code" inputmode="numeric" autocomplete="one-time-code"
+                 maxlength="6" placeholder="123456" required />
+        </label>
+        <button type="submit">Confirm and enable</button>
+        <p id="enrol-error" class="error" hidden></p>
+      </form>
+    </div>
+  </section>
+
+  <!-- Recovery codes, shown exactly once -->
+  <section id="codes-view" class="view" hidden>
+    <div class="login-card wide">
+      <img class="brand-logo" src="/logo.png" alt="Fraud360" />
+      <h1>Save your recovery codes</h1>
+      <p class="muted">These are the only way back in if you lose your device. Each works
+        once, and <strong>they cannot be shown again</strong>.</p>
+      <ul id="codes-list" class="codes-list"></ul>
+      <div class="codes-actions">
+        <button id="codes-copy" type="button" class="small-btn ghost">Copy</button>
+        <button id="codes-download" type="button" class="small-btn ghost">Download</button>
+      </div>
+      <label class="check-label"><input type="checkbox" id="codes-ack" />
+        I have saved these somewhere safe</label>
+      <button id="codes-continue" type="button" disabled>Continue</button>
+    </div>
+  </section>
+
+  <!-- Forced password reset -->
+  <section id="reset-view" class="view" hidden>
+    <div class="login-card">
+      <img class="brand-logo" src="/logo.png" alt="Fraud360" />
+      <h1>Set a new password</h1>
+      <p class="muted" id="reset-reason">Your temporary password must be changed before you continue.</p>
+      <form id="reset-form">
+        <label>Current password <input id="r-current" type="password" required /></label>
+        <label>New password <input id="r-new" type="password" required /></label>
+        <label>Confirm new password <input id="r-confirm" type="password" required /></label>
+        <p id="reset-policy" class="muted policy-hint"></p>
+        <button type="submit">Update password</button>
+        <button type="button" id="reset-cancel" class="ghost" hidden>Cancel</button>
+        <p id="reset-error" class="error" hidden></p>
+      </form>
+    </div>
+  </section>
+
+  <!-- App -->
+  <section id="app-view" class="view" hidden>
+    <div id="busy-bar" class="busy-bar" hidden></div>
+    <header class="topbar">
+      <div class="topbar-row">
+        <div class="topbar-left">
+          <img class="brand-logo small" src="/logo-mark.png" alt="" /> <strong id="platform-name">Fraud360</strong>
+          <nav id="module-nav" class="module-nav"></nav>
+        </div>
+        <div class="topbar-right"><span id="who" class="muted"></span>
+          <button id="bell" class="ghost bell" title="Notifications" aria-label="Notifications">
+            <svg class="bell-icon" viewBox="0 0 24 24" width="17" height="17"
+                 fill="none" stroke="currentColor" stroke-width="1.7"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+                 focusable="false">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg><span id="bell-count" class="bell-count" hidden>0</span>
+          </button>
+          <button id="change-pw" class="ghost">Change password</button>
+          <button id="logout" class="ghost">Sign out</button></div>
+      </div>
+
+      <!-- Persona row: only shown inside the Monitoring module -->
+      <div class="persona-bar" id="persona-bar" hidden>
+        <nav id="dash-tabs" class="dash-rail" role="tablist" aria-label="Persona dashboards">
+          <button class="rail-tab active" data-dash="analyst">Analyst</button>
+          <button class="rail-tab" data-dash="ews">EWS&nbsp;Signals</button>
+          <button class="rail-tab" data-dash="rfa">RFA&nbsp;Lifecycle</button>
+          <button class="rail-tab" data-dash="board">Board</button>
+          <button class="rail-tab" data-dash="supervisor">Compliance</button>
+          <button class="rail-tab" data-dash="realtime">Real-Time</button>
+          <button class="rail-tab" data-dash="aml">AML&nbsp;/&nbsp;STR</button>
+          <button class="rail-tab" data-dash="account360">Account&nbsp;360</button>
+          <button class="rail-tab" data-dash="investigator">Investigator</button>
+          <button class="rail-tab" data-dash="risk_manager">Operations</button>
+          <button class="rail-tab" data-dash="model">Model&nbsp;Risk</button>
+          <button class="rail-tab" data-dash="inspection">Inspection</button>
+          <button class="rail-tab" data-dash="tenant_health">Tenant&nbsp;Health</button>
+        </nav>
+        <span id="dash-persona" class="persona-chip"></span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <div class="sidebar-head">
+          <h2>Tenants</h2>
+          <button id="new-tenant-btn" class="small-btn">+ New</button>
+        </div>
+        <ul id="tenant-list" class="tenant-list"></ul>
+      </aside>
+
+      <div class="content">
+        <!-- New tenant form -->
+        <div id="new-tenant-panel" class="panel" data-module="control_plane" hidden>
+          <h3>Onboard a tenant</h3>
+          <form id="tenant-form" class="grid2">
+            <label>Slug <input id="t-slug" placeholder="hdfc-demo" required /></label>
+            <label>Plan <input id="t-plan" value="standard" /></label>
+            <label>Legal name <input id="t-legal" placeholder="HDFC Bank Ltd." required /></label>
+            <label>Display name <input id="t-display" placeholder="HDFC Bank" required /></label>
+            <!-- Determines which RBI Master Direction governs this tenant (see
+                 config_service/app/policy.py:ENTITY_TYPES) - drives the FRM policy
+                 seeded at onboarding, so it must be set here, not fixed up later. -->
+            <label>Entity type
+              <select id="t-entity-type">
+                <option value="commercial_bank" selected>Commercial Bank</option>
+                <option value="aifi">All India Financial Institution (AIFI)</option>
+                <option value="urban_cooperative">Urban Co-operative Bank (UCB)</option>
+                <option value="state_cooperative">State Co-operative Bank (StCB)</option>
+                <option value="central_cooperative">Central / District Co-operative Bank (CCB)</option>
+                <option value="rrb">Regional Rural Bank</option>
+                <option value="local_area_bank">Local Area Bank (LAB)</option>
+                <option value="small_finance_bank">Small Finance Bank (SFB)</option>
+                <option value="payments_bank">Payments Bank (PB)</option>
+                <option value="nbfc">NBFC</option>
+                <option value="hfc">Housing Finance Company</option>
+              </select>
+              <!-- Mirrors config_service/app/ews_catalogue.py's CREDIT_LINKED_RULES /
+                   policy.py's can_extend_credit, by hand, same as the entity_type list
+                   itself - this is display-only and never posted to the API. -->
+              <small id="t-entity-hint" class="muted"></small>
+            </label>
+            <label id="t-ucb-tier-wrap" hidden>UCB tier
+              <select id="t-ucb-tier">
+                <option value="1">Tier 1</option>
+                <option value="2">Tier 2</option>
+                <option value="3">Tier 3</option>
+                <option value="4">Tier 4</option>
+              </select>
+            </label>
+            <label>Admin email <input id="t-email" type="email" placeholder="ciso@bank.example" required /></label>
+            <label>Admin password <input id="t-pass" type="password" placeholder="min 8 chars" required /></label>
+            <label>Primary color <input id="t-primary" type="color" value="#004C8F" /></label>
+            <label>Accent color <input id="t-accent" type="color" value="#ED232A" /></label>
+            <div class="form-actions">
+              <button type="submit">Provision tenant</button>
+              <button type="button" id="cancel-tenant" class="ghost">Cancel</button>
+            </div>
+            <p id="tenant-error" class="error" hidden></p>
+          </form>
+        </div>
+
+        <!-- Tenant detail -->
+        <div id="detail-panel" data-module="control_plane" hidden>
+          <div class="detail-head">
+            <div>
+              <h3 id="d-name">—</h3>
+              <span id="d-meta" class="muted"></span>
+            </div>
+            <div class="detail-actions">
+              <span id="d-status" class="status-chip"></span>
+              <span id="d-sandbox" class="status-chip s-sandbox" hidden>sandbox</span>
+              <button id="act-promote" class="small-btn ghost" hidden
+                      title="BR-109: end this tenant's self-service sandbox status - it becomes billable and may submit live traffic">Promote to production</button>
+              <button id="act-suspend" class="small-btn ghost" hidden>Suspend</button>
+              <button id="act-resume" class="small-btn" hidden>Resume</button>
+              <button id="act-export" class="small-btn ghost">Export</button>
+              <button id="act-offboard" class="small-btn danger" hidden>Offboard</button>
+            </div>
+          </div>
+
+          <div class="two-col">
+            <div class="panel">
+              <h4>Branding</h4>
+              <form id="branding-form">
+                <label>Display name <input id="b-display" /></label>
+                <label>Logo URL <input id="b-logo" placeholder="https://…/logo.svg" /></label>
+                <div class="grid2">
+                  <label>Primary <input id="b-primary" type="color" /></label>
+                  <label>Accent <input id="b-accent" type="color" /></label>
+                  <label>Neutral <input id="b-neutral" type="color" /></label>
+                  <label>Default theme
+                    <select id="b-theme"><option value="light">light</option><option value="dark">dark</option></select>
+                  </label>
+                </div>
+                <label>Custom domain <input id="b-domain" placeholder="fraud.bank.example" /></label>
+                <div class="form-actions">
+                  <button type="submit">Save branding</button>
+                  <span id="branding-saved" class="ok" hidden>Saved ✓</span>
+                </div>
+              </form>
+            </div>
+
+            <div class="panel preview" id="brand-preview">
+              <div class="preview-label muted">Live preview</div>
+              <div class="preview-card">
+                <div class="preview-logo" id="pv-logo">◆</div>
+                <div class="preview-name" id="pv-name">Tenant</div>
+                <button class="pv-primary">Primary action</button>
+                <button class="pv-accent">Accent</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head-row">
+              <h4>Users <span class="muted">(tenant administrators)</span></h4>
+              <button id="invite-user-btn" class="small-btn">+ Invite</button>
+            </div>
+            <table class="cfg-table">
+              <thead><tr><th>Email</th><th>Role</th><th>Added</th><th></th></tr></thead>
+              <tbody id="user-rows"><tr><td colspan="4" class="muted">—</td></tr></tbody>
+            </table>
+
+            <form id="invite-form" hidden>
+              <div class="grid2">
+                <label>Email <input id="u-email" placeholder="ops@bank.example" required /></label>
+                <label>Role
+                  <select id="u-role">
+                    <option value="analyst">Fraud Analyst (L1) — alert triage</option>
+                    <option value="investigator">Senior Investigator (L2) — case deep-dive</option>
+                    <option value="risk_manager">Fraud Risk Manager — queue &amp; SLA</option>
+                    <option value="principal_officer">Principal Officer (PMLA) — AML / STR</option>
+                    <option value="supervisor">Compliance Supervisor — regulatory clocks</option>
+                    <option value="board">Board / Executive — board pack</option>
+                    <option value="cro">CRO / ACB / Special Committee — governance</option>
+                    <option value="data_scientist">Model Risk / Data Science — model fitness</option>
+                    <option value="rbi_inspector">Internal Audit / RBI Inspection — read-only</option>
+                    <option value="tenant_admin">Tenant Administrator — full access</option>
+                  </select>
+                </label>
+              </div>
+              <div class="form-actions">
+                <button type="submit">Send invite</button>
+                <button type="button" id="cancel-invite" class="ghost">Cancel</button>
+              </div>
+              <p id="invite-error" class="error" hidden></p>
+              <p id="invite-result" class="ok" hidden></p>
+            </form>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head-row">
+              <h4>Roles <span class="muted">(who can do what)</span></h4>
+              <button id="new-role-btn" class="small-btn">+ New role</button>
+            </div>
+            <p class="muted small" style="margin-top:0">The ten platform roles, plus
+              any your own administrators have defined. A role granting admin access
+              or PII reveal for the first time needs a second administrator to
+              confirm it before it takes effect.</p>
+            <table class="cfg-table">
+              <thead><tr><th>Role</th><th>Modules</th><th>Admin</th><th>PII</th><th>Activate</th><th>Users</th><th></th></tr></thead>
+              <tbody id="role-rows"><tr><td colspan="7" class="muted">—</td></tr></tbody>
+            </table>
+
+            <form id="new-role-form" hidden>
+              <div class="grid2">
+                <label>Name <input id="r-name" placeholder="regional_fraud_lead"
+                  pattern="[a-z][a-z0-9_]{1,31}" required /></label>
+                <label>Label <input id="r-label" placeholder="Regional Fraud Lead" required /></label>
+              </div>
+              <div class="grid2">
+                <label>Modules
+                  <select id="r-modules" multiple size="3">
+                    <option value="control_plane">Control Plane</option>
+                    <option value="monitoring" selected>Monitoring</option>
+                    <option value="audit">Audit</option>
+                  </select>
+                </label>
+                <label>Dashboards
+                  <select id="r-dashboards" multiple size="3">
+                    <option value="analyst" selected>Analyst</option>
+                    <option value="ews">EWS Signals</option>
+                    <option value="realtime">Real-Time</option>
+                    <option value="rfa">RFA Lifecycle</option>
+                    <option value="board">Board</option>
+                    <option value="supervisor">Compliance</option>
+                    <option value="aml">AML / STR</option>
+                    <option value="account360">Account 360</option>
+                    <option value="investigator">Investigator</option>
+                    <option value="model">Model Risk</option>
+                    <option value="risk_manager">Operations</option>
+                    <option value="inspection">Inspection</option>
+                  </select>
+                </label>
+              </div>
+              <label class="check-label"><input type="checkbox" id="r-admin" /> Can administer this tenant</label>
+              <label class="check-label"><input type="checkbox" id="r-pii" /> Can reveal customer PII</label>
+              <label class="check-label"><input type="checkbox" id="r-activate" /> Can activate configuration (maker-checker)</label>
+              <div class="form-actions">
+                <button type="submit">Create role</button>
+                <button type="button" id="cancel-new-role" class="ghost">Cancel</button>
+              </div>
+              <p id="role-error" class="error" hidden></p>
+            </form>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head-row">
+              <h4>Identity providers <span class="muted">(federated sign-in)</span></h4>
+              <button id="add-idp-btn" class="small-btn">+ Add provider</button>
+            </div>
+            <p class="muted small" style="margin-top:0">Staff still have a platform
+              password regardless of what is configured here. Adding a provider gives
+              them a second way in through your own directory; it never replaces the
+              first.</p>
+            <table class="cfg-table">
+              <thead><tr><th>Slug</th><th>Name</th><th>Protocol</th><th>Status</th><th></th></tr></thead>
+              <tbody id="idp-rows"><tr><td colspan="5" class="muted">—</td></tr></tbody>
+            </table>
+
+            <form id="idp-form" hidden>
+              <input type="hidden" id="idp-id" />
+              <div class="grid2">
+                <label>Slug <input id="idp-slug" placeholder="corp-entra" required /></label>
+                <label>Display name <input id="idp-display" placeholder="Corporate Entra ID" required /></label>
+              </div>
+              <div class="grid2">
+                <label>Protocol
+                  <select id="idp-protocol">
+                    <option value="oidc">OIDC</option>
+                    <option value="saml">SAML 2.0</option>
+                  </select>
+                </label>
+                <label class="check-label" style="align-self:end">
+                  <input type="checkbox" id="idp-enabled" checked /> Enabled</label>
+              </div>
+              <label>Issuer <input id="idp-issuer" placeholder="https://login.example/tenant" /></label>
+
+              <div id="idp-oidc-fields">
+                <div class="grid2">
+                  <label>Client ID <input id="idp-client-id" /></label>
+                  <label>Client secret <input id="idp-client-secret" type="password"
+                          autocomplete="new-password" placeholder="unchanged" /></label>
+                </div>
+                <label>Discovery URL
+                  <input id="idp-discovery" placeholder="https://…/.well-known/openid-configuration" /></label>
+                <details>
+                  <summary class="muted small">Advanced: explicit endpoints (only if this
+                    provider does not publish discovery)</summary>
+                  <div class="grid2">
+                    <label>Authorize URL <input id="idp-authorize-url" /></label>
+                    <label>Token URL <input id="idp-token-url" /></label>
+                  </div>
+                  <label>JWKS URL <input id="idp-jwks-url" /></label>
+                </details>
+                <div class="grid2">
+                  <label>Scopes <input id="idp-scopes" value="openid email profile" /></label>
+                  <label>Email claim <input id="idp-email-claim" value="email" /></label>
+                </div>
+                <label>Groups claim <input id="idp-groups-claim" value="groups" /></label>
+              </div>
+
+              <div id="idp-saml-fields" hidden>
+                <label>SSO URL <input id="idp-saml-sso-url" placeholder="https://…/sso/saml" /></label>
+                <label>Signing certificate (PEM)
+                  <textarea id="idp-saml-cert" rows="4" placeholder="unchanged"
+                            style="font-family:monospace;font-size:12px"></textarea></label>
+                <div class="grid2">
+                  <label>Email attribute <input id="idp-saml-email-attr"
+                          placeholder="http://schemas.xmlsoap.org/…/emailaddress" /></label>
+                  <label>Groups attribute <input id="idp-saml-groups-attr" placeholder="groups" /></label>
+                </div>
+              </div>
+
+              <div class="editor-section">
+                <h5>Role mapping <span class="muted small">directory group → platform role</span></h5>
+                <div id="idp-role-rows"></div>
+                <button type="button" class="add-btn" onclick="addIdpRoleRow()">+ Group mapping</button>
+              </div>
+              <div class="grid2">
+                <label>Default role <span class="muted small">(no group matches)</span>
+                  <select id="idp-default-role"></select>
+                </label>
+                <label class="check-label" style="align-self:end">
+                  <input type="checkbox" id="idp-jit" checked />
+                  Create accounts on first sign-in (JIT)</label>
+              </div>
+
+              <div class="form-actions">
+                <button type="submit">Save provider</button>
+                <button type="button" id="idp-cancel" class="ghost">Cancel</button>
+              </div>
+              <p id="idp-error" class="error" hidden></p>
+            </form>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head-row">
+              <h4>Notification delivery <span class="muted">(where alerts and clocks are sent)</span></h4>
+              <span id="nd-status" class="muted small"></span>
+            </div>
+            <p class="muted small" style="margin-top:0">The in-app inbox always receives
+              everything. These settings control what additionally leaves the platform.
+              Mail relays usually sit inside your own network.</p>
+
+            <div class="two-col">
+              <form id="nd-email-form" class="nd-card">
+                <label class="check-label"><input type="checkbox" id="nd-email-on" />
+                  <b>Email</b></label>
+                <div class="grid2">
+                  <label>SMTP host <input id="nd-email-host" placeholder="smtp.bank.internal" /></label>
+                  <label>Port <input id="nd-email-port" type="number" value="25" /></label>
+                </div>
+                <label>From address <input id="nd-email-from" placeholder="frms-alerts@bank.co.in" /></label>
+                <div class="grid2">
+                  <label>Username <input id="nd-email-user" autocomplete="off" /></label>
+                  <label>Password <input id="nd-email-pass" type="password"
+                          autocomplete="new-password" placeholder="unchanged" /></label>
+                </div>
+                <label class="check-label"><input type="checkbox" id="nd-email-tls" checked />
+                  Use STARTTLS</label>
+                <label>Send email for
+                  <select id="nd-email-sev">
+                    <option value="info">everything</option>
+                    <option value="warn" selected>warnings and above</option>
+                    <option value="urgent">urgent only</option>
+                  </select>
+                </label>
+                <div class="grid2">
+                  <label>Retry attempts <input id="nd-email-tries" type="number"
+                          min="1" max="20" value="5" /></label>
+                  <label>Backoff (minutes) <input id="nd-email-backoff"
+                          placeholder="1, 5, 15, 60" /></label>
+                </div>
+                <div class="form-actions">
+                  <button type="submit">Save email settings</button>
+                  <button type="button" id="nd-email-test" class="ghost">Send test</button>
+                </div>
+                <p id="nd-email-result" class="small" hidden></p>
+              </form>
+
+              <form id="nd-hook-form" class="nd-card">
+                <label class="check-label"><input type="checkbox" id="nd-hook-on" />
+                  <b>Webhook</b></label>
+                <p class="muted small" style="margin-top:0">Post each notification to your
+                  own system — an incident queue, a chat channel, a SIEM.</p>
+                <label>Endpoint URL <input id="nd-hook-url" placeholder="https://…/frms-hook" /></label>
+                <label>Send for
+                  <select id="nd-hook-sev">
+                    <option value="info">everything</option>
+                    <option value="warn" selected>warnings and above</option>
+                    <option value="urgent">urgent only</option>
+                  </select>
+                </label>
+                <div class="grid2">
+                  <label>Retry attempts <input id="nd-hook-tries" type="number"
+                          min="1" max="20" value="5" /></label>
+                  <label>Backoff (minutes) <input id="nd-hook-backoff"
+                          placeholder="1, 5, 15, 60" /></label>
+                </div>
+                <div class="form-actions">
+                  <button type="submit">Save webhook settings</button>
+                  <button type="button" id="nd-hook-test" class="ghost">Send test</button>
+                </div>
+                <p id="nd-hook-result" class="small" hidden></p>
+              </form>
+            </div>
+            <div class="panel-head-row" style="margin-top:18px">
+              <h4>Delivery problems <span id="nd-prob-count" class="muted"></span></h4>
+              <button id="nd-retry-all" class="small-btn ghost" hidden>Retry all</button>
+            </div>
+            <div id="nd-problems"></div>
+
+            <p id="nd-error" class="error" hidden></p>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head-row">
+              <h4>Detection configs <span class="muted">(Tazama rule / typology / network-map versions)</span></h4>
+              <button id="add-config-btn" class="small-btn">+ New version</button>
+            </div>
+
+            <!-- Lane grouping: which decisioning lane a rule belongs to. Lane A is the
+                 inline set decision-service actually evaluates in the payment window
+                 (services/decision_service/app/inline_rules.py); Lane B is everything
+                 else the near-real-time engine scores. Lane C ("Periodic Borrower
+                 Assessment") has no dedicated engine yet - the QUAL-* rules shown here
+                 are its closest built analogue (qualitative, credit-monitoring-entered,
+                 scored by the same near-real-time engine as Lane B today). typology /
+                 network_map / policy configs are not rule-family-specific, so they only
+                 appear under "All". -->
+            <div id="lane-tabs" class="editor-toggle" role="tablist" aria-label="Lane">
+              <button type="button" class="seg active" data-lane="all">All</button>
+              <button type="button" class="seg" data-lane="a">Lane A — Real-Time</button>
+              <button type="button" class="seg" data-lane="b">Lane B — Near-Real-Time</button>
+              <button type="button" class="seg" data-lane="c">Lane C — Periodic</button>
+            </div>
+            <p id="lane-note" class="muted" hidden></p>
+
+            <table class="cfg-table">
+              <thead><tr><th>Kind</th><th>Name</th><th>Version</th><th>Status</th><th></th></tr></thead>
+              <tbody id="config-rows"><tr><td colspan="5" class="muted">—</td></tr></tbody>
+            </table>
+
+            <form id="config-form" hidden>
+              <div class="grid2">
+                <label>Kind
+                  <select id="c-kind">
+                    <option value="typology">typology</option>
+                    <option value="rule">rule</option>
+                    <option value="network_map">network_map</option>
+                    <option value="policy">policy</option>
+                  </select>
+                </label>
+                <label>Name <input id="c-name" placeholder="mule-layering" /></label>
+                <label>Version <input id="c-version" placeholder="1.0.0" /></label>
+                <label class="label-btn">Starter
+                  <button type="button" id="c-template" class="ghost">Load template</button>
+                </label>
+              </div>
+
+              <div class="editor-toggle">
+                <button type="button" id="mode-structured" class="seg active">Structured</button>
+                <button type="button" id="mode-json" class="seg">JSON</button>
+              </div>
+
+              <div id="structured-editor"></div>
+
+              <label id="json-wrap" hidden>Body (JSON)
+                <textarea id="c-body" rows="14" spellcheck="false" placeholder='{ "id": "…" }'></textarea>
+              </label>
+              <div class="form-actions">
+                <button type="submit">Create version</button>
+                <button type="button" id="c-simulate" class="ghost">Try against history</button>
+                <label class="inline-window">over
+                  <select id="c-sim-window" class="inline-select">
+                    <option value="30">last 30 days</option>
+                    <option value="60">last 60 days</option>
+                    <option value="90" selected>last 90 days</option>
+                  </select>
+                </label>
+                <button type="button" id="c-cancel" class="ghost">Cancel</button>
+                <span id="config-msg" class="error" hidden></span>
+              </div>
+              <div id="c-sim-result" class="sim-result" hidden></div>
+            </form>
+
+            <pre id="config-view" class="json-view" hidden></pre>
+          </div>
+        </div>
+
+        <div id="empty-state" class="empty muted">Select a tenant, or onboard a new one.</div>
+
+        <!-- ===== Analytics ===== -->
+        <div id="analytics-panel" data-module="monitoring" hidden>
+          <div class="panel">
+            <div class="panel-head-row">
+              <h4>Monitoring <span class="muted" id="an-tenant"></span></h4>
+            </div>
+
+            <div class="filter-bar">
+              <label>Period <select id="f-preset">
+                <option value="">Custom</option><option value="today">Today</option>
+                <option value="7d">Last 7 days</option><option value="30d">Last 30 days</option>
+                <option value="mtd">Month to date</option><option value="qtd">Quarter to date</option>
+                <option value="ytd">Year to date</option></select></label>
+              <label>From <input type="date" id="f-from" /></label>
+              <label>To <input type="date" id="f-to" /></label>
+              <label>Rail <select id="f-rail" multiple size="5">
+                <option>UPI</option><option>IMPS</option><option>NEFT</option>
+                <option>RTGS</option><option>CARD</option></select></label>
+              <label>EWS family <select id="f-family" multiple size="5">
+                <option>VEL</option><option>SME</option><option>BEH</option><option>LAY</option>
+                <option>CPT</option><option>CHN</option><option>TBM</option><option>CBS</option>
+                <option>QUAL</option></select></label>
+              <label>Severity <select id="f-severity" multiple size="4">
+                <option>critical</option><option>high</option><option>medium</option>
+                <option>low</option></select></label>
+              <label>Region <select id="f-region" multiple size="5">
+                <option>north</option><option>south</option><option>east</option>
+                <option>west</option><option>central</option></select></label>
+              <label>Data source <select id="f-source" multiple size="3">
+                <option value="live">Live traffic</option>
+                <option value="synthetic">Demonstration data</option>
+                <option value="replay">Replay / backfill</option></select></label>
+              <div class="filter-actions">
+                <button id="apply-filters">Apply</button>
+                <button id="more-filters" type="button" class="ghost">More filters</button>
+                <button id="clear-filters" class="ghost">Clear</button>
+              </div>
+            </div>
+
+            <div id="source-banner" class="source-banner" hidden></div>
+
+            <div class="filter-bar filter-more" id="filter-more" hidden>
+              <label>Product <select id="f-product" multiple size="5">
+                <option>savings</option><option>current</option><option>loan</option>
+                <option>credit_card</option><option>trade_finance</option></select></label>
+              <label>Customer segment <select id="f-segment" multiple size="5">
+                <option>retail</option><option>msme</option><option>corporate</option>
+                <option>hni</option><option>nri</option></select></label>
+              <label>Case state <select id="f-state" multiple size="5">
+                <option>under_review</option><option>rfa_flagged</option>
+                <option>natural_justice</option><option>response_evaluation</option>
+                <option>fraud_declared</option><option>fmr_reported</option>
+                <option>closed_fraud</option><option>exonerated</option></select></label>
+              <label>Disposition <select id="f-disposition" multiple size="3">
+                <option>pending</option><option>true_positive</option>
+                <option>false_positive</option></select></label>
+              <label>FMR category <select id="f-fmrcat" multiple size="5">
+                <option>misappropriation_breach_of_trust</option><option>fraudulent_encashment</option>
+                <option>manipulation_of_books</option><option>unauthorised_credit_facility</option>
+                <option>cash_shortage</option><option>cheating_and_forgery</option>
+                <option>forex_transactions</option><option>advances_related</option>
+                <option>others</option></select></label>
+              <label>Rule <select id="f-rule" multiple size="5"></select></label>
+              <label>Typology <select id="f-typology" multiple size="5"></select></label>
+              <label>Assignee <select id="f-assignee" multiple size="4"></select></label>
+              <label>Amount from (INR) <input id="f-amtmin" type="number" min="0" placeholder="0" /></label>
+              <label>Amount to (INR) <input id="f-amtmax" type="number" min="0" placeholder="any" /></label>
+              <label>Account <input id="f-account" placeholder="AC1234567890" /></label>
+              <label>Branch <input id="f-branch" placeholder="BR0042" /></label>
+              <label>FMR status <select id="f-fmrstatus">
+                <option value="">any</option><option value="filed">filed</option>
+                <option value="due">due, not filed</option><option value="overdue">overdue</option>
+              </select></label>
+              <label>STR status <select id="f-strstatus">
+                <option value="">any</option><option value="filed">filed</option>
+                <option value="due">due, not filed</option><option value="overdue">overdue</option>
+              </select></label>
+              <label class="check-label"><input type="checkbox" id="f-rfa" /> RFA only</label>
+              <label class="check-label"><input type="checkbox" id="f-njbreach" /> Natural-justice breach only</label>
+              <label class="check-label"><input type="checkbox" id="f-compare" /> Compare to previous period</label>
+            </div>
+            <div class="views-bar">
+              <label class="views-label" for="saved-views">Views</label>
+              <select id="saved-views" title="Your saved views and any shared with you">
+                <option value="">Saved views…</option>
+              </select>
+              <button id="save-view" type="button" class="small-btn">Save current view</button>
+              <button id="delete-view" type="button" class="small-btn ghost" hidden>Delete</button>
+              <button id="share-toggle" type="button" class="small-btn ghost" hidden>Share</button>
+              <span id="view-scope" class="view-scope"></span>
+              <span class="views-spacer"></span>
+              <button id="copy-link" type="button" class="small-btn ghost">Copy link</button>
+            </div>
+            <p id="active-filters" class="muted filter-echo"></p>
+          </div>
+
+          <!-- 6-stage drill breadcrumb -->
+          <div class="panel stage-panel">
+            <ol id="stage-bar" class="stage-bar"></ol>
+            <p id="stage-hint" class="muted stage-hint"></p>
+          </div>
+
+          <div id="kpi-row" class="kpi-row"></div>
+
+          <div id="recon-panel" class="panel" hidden>
+            <div class="panel-head-row">
+              <h4>Reconciliation <span class="muted">(figures proven to tie)</span></h4>
+              <span id="recon-status" class="status-chip"></span>
+            </div>
+            <table class="cfg-table">
+              <thead><tr><th>Check</th><th>Invariant</th><th>Expected</th><th>Actual</th><th>Delta</th><th></th></tr></thead>
+              <tbody id="recon-rows"></tbody>
+            </table>
+          </div>
+
+          <div class="panel" id="trend-panel">
+            <div class="panel-head-row">
+              <h4>Trend <span class="muted" id="trend-label"></span></h4>
+              <select id="trend-bucket" class="inline-select">
+                <option value="day">Daily</option><option value="week" selected>Weekly</option>
+                <option value="month">Monthly</option>
+              </select>
+            </div>
+            <div class="chart-canvas" id="trend-canvas"></div>
+          </div>
+
+          <div class="panel" id="drift-panel" hidden>
+            <div class="panel-head-row">
+              <h4>Model drift <span class="muted" id="drift-windows"></span></h4>
+              <span id="drift-status" class="status-chip"></span>
+            </div>
+            <p class="muted row-hint">Precision alone cannot show that the population the
+              model scores has moved underneath it.</p>
+            <div id="drift-body"></div>
+          </div>
+
+          <div class="panel" id="dormant-panel" hidden>
+            <div class="panel-head-row">
+              <h4>Indicator coverage <span class="muted">(configured vs firing)</span></h4>
+              <span id="dormant-status" class="status-chip"></span>
+            </div>
+            <p class="muted row-hint">A configured EWS indicator that never fires is
+              invisible in every alert chart — and is what an inspection asks about.</p>
+            <div id="dormant-body"></div>
+          </div>
+
+          <div class="panel" id="bp-panel" hidden>
+            <div class="panel-head-row">
+              <h4>Board / ACB packs <span class="muted" id="bp-cadence"></span></h4>
+              <button id="bp-generate" class="small-btn">Prepare pack</button>
+            </div>
+            <p class="muted row-hint">A pack is a frozen record of what the committee was
+              told, not a saved filter — reopening one shows the position as it stood, not
+              as it stands now. Preparing is mechanical; issuing is a person's act.</p>
+            <div id="bp-body"></div>
+          </div>
+
+          <div class="panel" id="lane-panel" hidden>
+            <div class="panel-head-row">
+              <h4>Inline decisions <span class="muted" id="lane-mode"></span></h4>
+              <label class="inline-window">over
+                <select id="lane-window" class="inline-select">
+                  <option value="1">last 24 hours</option>
+                  <option value="7" selected>last 7 days</option>
+                  <option value="30">last 30 days</option>
+                  <option value="90">last 90 days</option>
+                </select>
+              </label>
+            </div>
+            <p class="muted row-hint">What enforcing the inline lane would cost, measured
+              on your own traffic. While a rail is in shadow these payments all completed —
+              the figure is what <em>would</em> have been stopped, at the thresholds in
+              force. This is the number to settle before enforcement is switched on.</p>
+            <div id="lane-body"></div>
+          </div>
+
+          <div class="panel" id="graph-panel" hidden>
+            <div class="panel-head-row">
+              <h4>Network <span class="muted" id="graph-label"></span></h4>
+              <div class="graph-actions">
+                <select id="graph-scope" class="inline-select">
+                  <option value="top">Top layering structure</option>
+                  <option value="case">Selected case</option>
+                </select>
+                <button id="graph-refresh" type="button" class="small-btn ghost">Refresh</button>
+              </div>
+            </div>
+            <p class="muted row-hint">Node size = number of counterparties. Red = hub
+              (collects and disburses). Click a node to pin Account 360 to it.</p>
+            <div class="chart-canvas" id="graph-canvas"></div>
+          </div>
+
+          <div id="chart-grid" class="chart-grid"></div>
+
+          <div class="panel" id="drill-panel">
+            <div class="panel-head-row">
+              <h4>Records <span class="muted" id="drill-label">alerts</span></h4>
+              <div class="dash-tabs">
+                <button class="seg active" data-drill="alert">Alerts</button>
+                <button class="seg" data-drill="case">Cases</button>
+                <button class="seg" data-drill="transaction">Transactions</button>
+              </div>
+            </div>
+            <div class="row-hint-bar">
+              <p class="muted row-hint">Click any row to open its evidence trail (stage 6).</p>
+              <span id="pii-state" class="pii-chip">PII masked</span>
+              <button id="reveal-pii" type="button" class="small-btn ghost">Reveal PII…</button>
+              <button id="export-rows" type="button" class="small-btn ghost">Export CSV</button>
+            </div>
+            <div class="table-scroll">
+              <table class="cfg-table" id="drill-table">
+                <thead id="drill-head"></thead>
+                <tbody id="drill-rows"><tr><td class="muted">—</td></tr></tbody>
+              </table>
+            </div>
+
+            <div class="pager">
+              <span id="page-info" class="muted"></span>
+              <div class="pager-controls">
+                <label class="pager-size">Rows
+                  <select id="page-size">
+                    <option>25</option><option selected>50</option>
+                    <option>100</option><option>250</option>
+                  </select>
+                </label>
+                <button id="page-first" class="small-btn ghost" type="button">&laquo; First</button>
+                <button id="page-prev" class="small-btn ghost" type="button">&lsaquo; Prev</button>
+                <button id="page-next" class="small-btn ghost" type="button">Next &rsaquo;</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stage 6: evidence -->
+          <div class="panel" id="evidence-panel" hidden>
+            <div class="panel-head-row">
+              <h4>Evidence <span class="muted" id="ev-title"></span></h4>
+              <button id="ev-close" class="small-btn ghost">Close</button>
+            </div>
+            <div id="wf-host"></div>
+            <div id="filing-host"></div>
+            <div id="acc-host"></div>
+            <div id="rec-host"></div>
+            <div id="ev-body"></div>
+          </div>
+        </div>
+
+        <div class="panel" id="activity-panel" data-module="audit">
+          <div class="panel-head-row">
+            <h4>Activity <span class="muted">(audit trail)</span></h4>
+            <div class="detail-actions">
+              <label class="check-label" style="display:inline-flex"><input type="checkbox" id="audit-roles-only" /> Role changes only</label>
+              <button id="audit-download" class="small-btn ghost">Download CSV</button>
+            </div>
+          </div>
+          <table class="cfg-table">
+            <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Status</th></tr></thead>
+            <tbody id="audit-rows"><tr><td colspan="5" class="muted">—</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </section>
+
+    <div id="toasts" class="toast-stack" aria-live="polite" aria-atomic="false"></div>
+
+    <div id="inbox" class="inbox" hidden>
+      <div class="inbox-head">
+        <h4>Notifications</h4>
+        <button id="inbox-read-all" class="small-btn ghost">Mark all read</button>
+      </div>
+      <div id="inbox-list" class="inbox-list"></div>
+      <div class="inbox-foot">
+        <button id="inbox-prefs" type="button" class="linkish">Notification settings</button>
+      </div>
+    </div>
+
+    <dialog id="ack-dialog" class="share-dialog">
+      <h3>Record the submission</h3>
+      <p class="share-note" style="margin-top:0">Enter the reference the regulator returned.
+        This is what stops the filing clock — and the first thing an inspection asks to
+        see. The platform does not submit on your behalf.</p>
+      <label class="field">Regulator reference
+        <input id="ack-ref" maxlength="120" placeholder="e.g. RBI/FMR/2026/00123" />
+      </label>
+      <label class="field">Note (optional)
+        <textarea id="ack-note" rows="2" maxlength="2000"></textarea>
+      </label>
+      <p id="ack-error" class="share-error" hidden></p>
+      <div class="dialog-actions">
+        <button id="ack-cancel" type="button" class="small-btn ghost">Cancel</button>
+        <button id="ack-save" type="button" class="small-btn">Record submission</button>
+      </div>
+    </dialog>
+
+    <dialog id="polish-dialog" class="share-dialog polish-dialog">
+      <h3>Polish narrative</h3>
+      <p class="share-note" style="margin-top:0">Rewrites the narrative below into
+        natural prose using an on-premise model — it can only rephrase what is already
+        here, never add a fact. Every rewrite is checked automatically before you ever
+        see it; a rewrite that adds anything not already evidenced is refused and you
+        get the original text instead. Nothing is saved until you choose to prepare the
+        return with the text below.</p>
+      <p id="polish-error" class="share-error" hidden></p>
+      <div id="polish-loading" class="polish-loading">Rewriting…</div>
+      <div id="polish-fields"></div>
+      <div class="dialog-actions">
+        <button id="polish-cancel" type="button" class="small-btn ghost">Cancel</button>
+        <button id="polish-save" type="button" class="small-btn" hidden>Prepare return with this text</button>
+      </div>
+    </dialog>
+
+    <dialog id="rec-refer-dialog" class="share-dialog">
+      <h3>Record a law-enforcement referral</h3>
+      <p class="share-note" style="margin-top:0">The complaint the bank lodged. Once the
+        agency registers an FIR, come back and record its number — that is the reference
+        every later enquiry will be made against.</p>
+      <form id="rec-refer-form" onsubmit="return false">
+        <label class="field">Agency <select id="rec-agency"></select></label>
+        <label class="field">Office
+          <input id="rec-office" maxlength="200" placeholder="e.g. Mumbai EOW" />
+        </label>
+        <label class="field">Complaint reference
+          <input id="rec-complaint" maxlength="120" />
+        </label>
+        <label class="field">Referred on <input type="date" id="rec-referred-on" /></label>
+        <label class="field">Note
+          <textarea id="rec-refer-note" rows="2" maxlength="4000"></textarea>
+        </label>
+      </form>
+      <p id="rec-refer-error" class="share-error" hidden></p>
+      <div class="dialog-actions">
+        <button id="rec-refer-cancel" type="button" class="small-btn ghost">Cancel</button>
+        <button id="rec-refer-save" type="button" class="small-btn">Record referral</button>
+      </div>
+    </dialog>
+
+    <dialog id="rec-update-dialog" class="share-dialog">
+      <h3>Update the referral</h3>
+      <form id="rec-update-form" onsubmit="return false">
+        <label class="field">Status <select id="rec-state"></select></label>
+        <label class="field">FIR number
+          <input id="rec-fir" maxlength="120" placeholder="required to record an FIR" />
+        </label>
+        <label class="field">FIR date <input type="date" id="rec-fir-date" /></label>
+        <label class="field">Note
+          <textarea id="rec-update-note" rows="2" maxlength="4000"></textarea>
+        </label>
+      </form>
+      <p id="rec-update-error" class="share-error" hidden></p>
+      <div class="dialog-actions">
+        <button id="rec-update-cancel" type="button" class="small-btn ghost">Cancel</button>
+        <button id="rec-update-save" type="button" class="small-btn">Save</button>
+      </div>
+    </dialog>
+
+    <dialog id="rec-entry-dialog" class="share-dialog">
+      <h3>Record a recovery</h3>
+      <p class="share-note" style="margin-top:0">Every recovery needs a reference behind
+        it — a credit advice, claim number or court order. The case's recovered total is
+        the sum of these entries, and it is what the board pack reports.</p>
+      <form id="rec-entry-form" onsubmit="return false">
+        <label class="field">Amount (₹)
+          <input id="rec-amount" type="number" min="0.01" step="0.01" />
+        </label>
+        <label class="field">Mode <select id="rec-mode"></select></label>
+        <label class="field">Reference
+          <input id="rec-reference" maxlength="200" />
+        </label>
+        <label class="field">Recovered on <input type="date" id="rec-on" /></label>
+        <label class="field">Note
+          <textarea id="rec-entry-note" rows="2" maxlength="4000"></textarea>
+        </label>
+      </form>
+      <p id="rec-entry-error" class="share-error" hidden></p>
+      <div class="dialog-actions">
+        <button id="rec-entry-cancel" type="button" class="small-btn ghost">Cancel</button>
+        <button id="rec-entry-save" type="button" class="small-btn">Record recovery</button>
+      </div>
+    </dialog>
+
+    <dialog id="bp-issue-dialog" class="share-dialog">
+      <h3>Issue the pack to the committee</h3>
+      <p class="share-note" style="margin-top:0">Issuing freezes this pack and records who
+        received it. It cannot be regenerated afterwards, because the minutes will refer
+        to it. Name the recipients — one per line.</p>
+      <label class="field">Recipients
+        <textarea id="bp-recipients" rows="4"
+          placeholder="chair.acb@bank.example.com&#10;cro@bank.example.com"></textarea>
+      </label>
+      <label class="field">Note for the record (optional)
+        <textarea id="bp-note" rows="3" maxlength="8000"></textarea>
+      </label>
+      <p id="bp-issue-error" class="share-error" hidden></p>
+      <div class="dialog-actions">
+        <button id="bp-issue-cancel" type="button" class="small-btn ghost">Cancel</button>
+        <button id="bp-issue-save" type="button" class="small-btn">Issue pack</button>
+      </div>
+    </dialog>
+
+    <dialog id="accf-dialog" class="share-dialog">
+      <h3>Record an accountability finding</h3>
+      <p class="share-note" style="margin-top:0">Name the person examined and what was
+        concluded about them. "No lapse established" is a finding — record it rather than
+        leaving the person out, so the examination shows who was actually looked at.</p>
+      <form id="accf-form" onsubmit="return false">
+        <label class="field">Employee reference
+          <input id="accf-ref" maxlength="64" placeholder="e.g. EMP-10428" />
+        </label>
+        <label class="field">Name
+          <input id="accf-name" maxlength="255" />
+        </label>
+        <label class="field">Role at the time
+          <input id="accf-role" maxlength="120" placeholder="e.g. Branch Manager" />
+        </label>
+        <label class="field">Branch
+          <input id="accf-branch" maxlength="120" />
+        </label>
+        <label class="field">Finding
+          <select id="accf-vocab"></select>
+        </label>
+        <label class="field">Action taken
+          <select id="accf-action"></select>
+        </label>
+        <label class="field">Note
+          <textarea id="accf-note" rows="3" maxlength="4000"></textarea>
+        </label>
+      </form>
+      <p id="accf-error" class="share-error" hidden></p>
+      <div class="dialog-actions">
+        <button id="accf-cancel" type="button" class="small-btn ghost">Cancel</button>
+        <button id="accf-save" type="button" class="small-btn">Record finding</button>
+      </div>
+    </dialog>
+
+    <dialog id="accc-dialog" class="share-dialog">
+      <h3>Conclude the examination</h3>
+      <p class="share-note" style="margin-top:0">Once concluded, the findings are final —
+        there is no edit or delete path to them. This is what the bank answers with when
+        asked how it examined its own staff.</p>
+      <form id="accc-form" onsubmit="return false">
+        <label class="field">Conclusion
+          <textarea id="accc-text" rows="4" maxlength="8000"></textarea>
+        </label>
+        <label class="check-row">
+          <input type="checkbox" id="accc-systemic" />
+          A systemic control gap contributed, independently of any individual
+        </label>
+        <label class="field">Systemic gap — what was missing
+          <textarea id="accc-systemic-note" rows="2" maxlength="4000"></textarea>
+        </label>
+      </form>
+      <p id="accc-error" class="share-error" hidden></p>
+      <div class="dialog-actions">
+        <button id="accc-cancel" type="button" class="small-btn ghost">Cancel</button>
+        <button id="accc-save" type="button" class="small-btn">Conclude</button>
+      </div>
+    </dialog>
+
+    <dialog id="prefs-dialog" class="share-dialog">
+      <h3>Your notification settings</h3>
+      <p class="share-note" style="margin-top:0">The inbox always shows everything. These
+        choices control what is also emailed to you, and which routine notices you would
+        rather not see at all.</p>
+      <label class="check-label"><input type="checkbox" id="pref-email" />
+        Email me as well as showing it here</label>
+      <h4 style="margin:16px 0 6px">Notification types</h4>
+      <div id="pref-kinds" class="pref-kinds"></div>
+      <p id="prefs-error" class="share-error" hidden></p>
+      <div class="dialog-actions">
+        <button id="prefs-cancel" type="button" class="small-btn ghost">Cancel</button>
+        <button id="prefs-save" type="button" class="small-btn">Save</button>
+      </div>
+    </dialog>
+
+    <dialog id="share-dialog" class="share-dialog">
+      <h3 id="share-dialog-title">Save view</h3>
+      <label class="field">Name
+        <input id="share-name" type="text" maxlength="120" placeholder="e.g. UPI mule queue - morning check" />
+      </label>
+      <fieldset class="share-scope">
+        <legend>Who can see it</legend>
+        <label class="radio-row">
+          <input type="radio" name="share-mode" value="private" checked />
+          <span><strong>Only me</strong><em>Private to your account.</em></span>
+        </label>
+        <label class="radio-row">
+          <input type="radio" name="share-mode" value="tenant" />
+          <span><strong>Everyone at <span id="share-tenant-name">this bank</span></strong>
+          <em>Any user in this tenant. Never visible to another bank.</em></span>
+        </label>
+        <label class="radio-row">
+          <input type="radio" name="share-mode" value="roles" />
+          <span><strong>Specific roles</strong><em>Only the roles you pick below.</em></span>
+        </label>
+        <div id="share-roles" class="share-roles" hidden></div>
+      </fieldset>
+      <p class="share-note">Sharing a view shares the <strong>filters</strong>, not the data.
+        Each person still sees only the dashboards their role allows, and customer
+        identifiers stay masked unless they are permitted to reveal them.</p>
+      <p id="share-error" class="share-error" hidden></p>
+      <div class="dialog-actions">
+        <button id="share-cancel" type="button" class="small-btn ghost">Cancel</button>
+        <button id="share-save" type="button" class="small-btn">Save view</button>
+      </div>
+    </dialog>
+
+    <dialog id="wf-dialog" class="share-dialog wf-dialog">
+      <h3 id="wf-dialog-title">Confirm</h3>
+      <p id="wf-dialog-effect" class="wf-effect"></p>
+      <label class="field" id="wf-reason-field">Reason
+        <textarea id="wf-reason" rows="3" maxlength="4000"
+                  placeholder="Why is this the right decision? This is recorded on the case."></textarea>
+      </label>
+      <p id="wf-dialog-note" class="share-note" hidden></p>
+      <p id="wf-dialog-error" class="share-error" hidden></p>
+      <div class="dialog-actions">
+        <button id="wf-cancel" type="button" class="small-btn ghost">Cancel</button>
+        <button id="wf-confirm" type="button" class="small-btn">Confirm</button>
+      </div>
+    </dialog>
+
+  <script src="/vendor/echarts.min.js"></script>
+  <script src="/app.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,92 @@
+# Load-balanced overlay for docker-compose.yml.
+#
+#   docker compose -f docker-compose.yml -f deploy/docker-compose.scaled.yml up -d
+#
+# What changes versus the single-instance file:
+#   * every service runs multiple replicas, so the code actually meets concurrency
+#     rather than being assumed to tolerate it;
+#   * nginx becomes the only published port - replicas cannot each bind 8080;
+#   * each service connects as its own database role (see scripts/provision_db_roles.py);
+#   * CACHE_BACKEND=database, without which the startup guard refuses to boot with
+#     APP_REPLICAS > 1 - deliberately, because per-replica caches would let two replicas
+#     report different figures for the same query;
+#   * health checks use /health/ready, so a replica that cannot reach its schema is taken
+#     out of rotation instead of returning errors.
+#
+# Replicas need their fixed host port bindings removed, which is what the empty `ports`
+# below does. Reach individual services through the gateway, or via `docker compose exec`.
+
+services:
+  postgres:
+    ports:
+      - "5433:5432"
+
+  tenant-service:
+    deploy:
+      replicas: 2
+    ports: []
+    environment:
+      DATABASE_URL: postgresql+psycopg2://svc_tenant:cp_password@postgres:5432/controlplane
+      DB_SEARCH_PATH: tenant,platform
+      CACHE_BACKEND: database
+      APP_REPLICAS: "2"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8081/health/ready').status==200 else 1)\""]
+      interval: 10s
+      timeout: 4s
+      retries: 3
+      start_period: 15s
+
+  branding-service:
+    deploy:
+      replicas: 2
+    ports: []
+    environment:
+      DATABASE_URL: postgresql+psycopg2://svc_branding:cp_password@postgres:5432/controlplane
+      DB_SEARCH_PATH: branding,platform
+      CACHE_BACKEND: database
+      APP_REPLICAS: "2"
+
+  config-service:
+    deploy:
+      replicas: 2
+    ports: []
+    environment:
+      DATABASE_URL: postgresql+psycopg2://svc_config:cp_password@postgres:5432/controlplane
+      DB_SEARCH_PATH: config,platform
+      CACHE_BACKEND: database
+      APP_REPLICAS: "2"
+
+  analytics-service:
+    deploy:
+      replicas: 3
+    ports: []
+    environment:
+      DATABASE_URL: postgresql+psycopg2://svc_analytics:cp_password@postgres:5432/controlplane
+      DB_SEARCH_PATH: analytics,cases,platform
+      CACHE_BACKEND: database
+      APP_REPLICAS: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8084/health/ready').status==200 else 1)\""]
+      interval: 10s
+      timeout: 4s
+      retries: 3
+      start_period: 15s
+
+  gateway:
+    deploy:
+      replicas: 2
+    ports: []
+    environment:
+      APP_REPLICAS: "2"
+      CACHE_BACKEND: database
+
+  lb:
+    image: nginx:1.27-alpine
+    depends_on:
+      - gateway
+    volumes:
+      - ../deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "8080:80"
+    restart: unless-stopped
