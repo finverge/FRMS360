@@ -1,6 +1,7 @@
 import { useState } from "react"
 import {
-  Activity, Fingerprint, LayoutDashboard, Palette, Search, Settings2, ShieldCheck, Users as UsersIcon,
+  Activity, Fingerprint, Landmark, LayoutDashboard, Palette, Search, Settings2, ShieldCheck,
+  Users as UsersIcon,
 } from "lucide-react"
 
 import type { TenantOut } from "@/api/tenants"
@@ -13,9 +14,10 @@ import { IdentityProvidersPanel } from "./idp/IdentityProvidersPanel"
 import { NotificationsPanel } from "./notifications/NotificationsPanel"
 import { MonitoringPanel } from "./monitoring/MonitoringPanel"
 import { SanctionsScreeningPanel } from "./monitoring/SanctionsScreeningPanel"
+import { LaneCPanel } from "./monitoring/LaneCPanel"
 
 export type TenantSection =
-  | "monitoring" | "sanctions" | "branding" | "users" | "roles" | "idp" | "notifications" | "configs"
+  | "monitoring" | "sanctions" | "lanec" | "branding" | "users" | "roles" | "idp" | "notifications" | "configs"
 
 // Single source of truth the sidebar builds its "Tenant Admin" section from - the same
 // shape Mandate360's WORKSPACE_SECTIONS/MANDATE360_SECTIONS export, so App-level nav and
@@ -28,6 +30,7 @@ export const TENANT_SECTIONS: {
 }[] = [
   { value: "monitoring", label: "Monitoring", icon: LayoutDashboard, group: "monitoring" },
   { value: "sanctions", label: "Sanctions Screening", icon: Search, group: "monitoring" },
+  { value: "lanec", label: "Borrower Credit Health", icon: Landmark, group: "monitoring" },
   { value: "branding", label: "Branding", icon: Palette, group: "admin" },
   { value: "users", label: "Users", icon: UsersIcon, group: "admin" },
   { value: "roles", label: "Roles", icon: ShieldCheck, group: "admin" },
@@ -57,6 +60,7 @@ export function TenantDetail({
       <TenantHeader tenant={tenant} onChanged={handleChanged} />
       {section === "monitoring" && <MonitoringPanel tenantId={tenant.id} />}
       {section === "sanctions" && <SanctionsScreeningPanel tenantId={tenant.id} />}
+      {section === "lanec" && <LaneCPanel tenantId={tenant.id} />}
       {section === "branding" && <BrandingPanel tenantId={tenant.id} />}
       {section === "users" && <UsersPanel tenantId={tenant.id} />}
       {section === "roles" && <RolesPanel tenantId={tenant.id} />}

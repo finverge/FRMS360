@@ -13,7 +13,7 @@ if (-not (Test-Path $py)) { throw "Create the venv first (see header of this scr
 # Idempotent restart: stop anything already listening on our ports before starting fresh
 # copies. Matched by port, not by process name - a stray unrelated python.exe must never
 # be killed because it happened to also be named python.exe.
-$knownPorts = 8080, 8081, 8082, 8083, 8084, 8085, 8086, 8087
+$knownPorts = 8080, 8081, 8082, 8083, 8084, 8085, 8086, 8087, 8088
 $stopped = @()
 foreach ($port in $knownPorts) {
   $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
@@ -76,6 +76,8 @@ $svcs = @(
      role = "svc_decision"; path = "decision,platform" },
   @{ n = "analytics-service"; app = "services.analytics_service.app.main:app"; port = 8084
      role = "svc_analytics"; path = "analytics,cases,ingestion,platform" },
+  @{ n = "lane-c-service";   app = "services.lane_c_service.app.main:app";   port = 8088
+     role = "svc_lanec";     path = "lane_c,platform" },
   # The gateway proxies and serves static assets; it holds no database role of its own.
   @{ n = "gateway";          app = "services.gateway.app.main:app";          port = 8080
      role = ""; path = "" }

@@ -57,6 +57,7 @@ TABLE_IN = {
     "notify": "notify.notifications",
     "decision": "decision.decision_log",
     "platform": "platform.audit_logs",
+    "lane_c": "lane_c.financial_statements",
 }
 
 

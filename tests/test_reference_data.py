@@ -238,7 +238,7 @@ def test_lay03_and_chn03_are_no_longer_declared_as_needing_external_data():
     assert "LAY-03" not in NEEDS_EXTERNAL_DATA
     assert "CHN-03" not in NEEDS_EXTERNAL_DATA
     # What genuinely still needs source-system records the platform cannot yet take.
-    # The five loan-conduct indicators moved to NEEDS_CBS_FEED when BR-211 gave them an
+    # The loan-conduct indicators moved to NEEDS_CBS_FEED when BR-211 gave them an
     # intake path - they are no longer "cannot be measured", but "waiting for a feed",
     # and the difference is what a bank can act on.
     from services.analytics_service.app.detection.features import NEEDS_CBS_FEED
@@ -249,7 +249,12 @@ def test_lay03_and_chn03_are_no_longer_declared_as_needing_external_data():
     # provider integration wired up yet, the same honest gap CHN-02 is already in.
     assert set(NEEDS_EXTERNAL_DATA) == {
         "SME-03", "CHN-02", "CHN-04", "CHN-05", "TBM-01", "TBM-02", "TBM-03"}
-    assert set(NEEDS_CBS_FEED) == {"BEH-02", "BEH-03", "CBS-01", "CBS-02", "CBS-03"}
+    # CBS-04 (cheque returns) and CBS-05 (overdraft/cash-credit breach) joined this set
+    # the same way BEH-02/03 and CBS-01/02/03 did: neither is visible on a payment rail,
+    # both close a real gap against RBI's own 2016 EWS annexure (item 2, cheque bouncing,
+    # for CBS-04 - see docs/rbi_ews_mapping.py).
+    assert set(NEEDS_CBS_FEED) == {
+        "BEH-02", "BEH-03", "CBS-01", "CBS-02", "CBS-03", "CBS-04", "CBS-05"}
     assert all(NEEDS_EXTERNAL_DATA.values()), "an indicator is unmeasurable with no reason"
     assert all(NEEDS_CBS_FEED.values()), "a feed-backed indicator names no feed"
 

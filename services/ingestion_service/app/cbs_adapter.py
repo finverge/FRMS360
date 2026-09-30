@@ -102,6 +102,21 @@ def adapt_cbs(payload: dict) -> dict:
                 f"{', '.join(CASH_DIRECTIONS)}, got {direction!r}")
         out["attributes"]["direction"] = direction
 
+    if kind == "od_position":
+        # The single fact CBS-05 exists to carry: what the limit was, so the amount above
+        # (the balance drawn) can be turned into a ratio. Without it the event cannot say
+        # whether the draw was a breach or an unremarkable working-capital swing.
+        # Same rupees-in, paise-out convention as the top-level "amount" field above -
+        # the stored attribute is named "_paise" because that is what it holds, not
+        # because that is what the CBS extract is expected to send.
+        limit_paise = to_paise(_pick(payload, "sanctioned_limit", "sanctionedLimit",
+                                     "odLimit", "limit", required=False, default=0))
+        if limit_paise <= 0:
+            raise AdapterError(
+                "od_position requires a positive sanctioned_limit; without it "
+                "CBS-05 cannot compute a breach ratio")
+        out["attributes"]["sanctioned_limit_paise"] = limit_paise
+
     if kind == "collateral_valuation":
         # The two facts LOS-02 exists to carry: what kind of asset, and who valued it.
         # Neither can be recovered later - a valuation with no valuer attributed can

@@ -30,9 +30,10 @@ CASES = "cases"
 INGESTION = "ingestion"
 NOTIFY = "notify"
 DECISION = "decision"
+LANE_C = "lane_c"
 
 ALL = (PLATFORM, TENANT, BRANDING, CONFIG, ANALYTICS, CASES, INGESTION, NOTIFY,
-       DECISION)
+       DECISION, LANE_C)
 
 #: schema -> the service that owns it (and may migrate it).
 OWNER = {
@@ -45,6 +46,7 @@ OWNER = {
     INGESTION: "ingestion-service",
     NOTIFY: "notification-service",
     DECISION: "decision-service",
+    LANE_C: "lane-c-service",
 }
 
 #: Every service needs the platform schema; beyond that, only its own.
@@ -58,6 +60,11 @@ GRANTS = {
     # else. Keeping it off the analytics schemas is deliberate: a service in the
     # payment path must not be able to run an expensive query by accident.
     "decision-service": (DECISION, PLATFORM),
+    # Lane C is a batch/scoring service like decision-service is an inline one: its own
+    # schema, nothing else. It resolves a tenant's entity type over HTTP (config-service's
+    # /internal/entity-types/{entity_type}), the same cross-service pattern rules.py's
+    # active_rules() already uses, rather than a DB grant into config's schema.
+    "lane-c-service": (LANE_C, PLATFORM),
     # Analytics reads the inbound queue to project it into facts. This is the one
     # deliberate cross-service grant, and it is the seam a message bus would replace:
     # ingestion writes, analytics consumes, and nothing else touches either side.

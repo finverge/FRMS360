@@ -37,6 +37,12 @@ are drifting. The two overlap far less than the shared phrase "early warning sig
 suggests, and a bank scoring an RFP line by line against the RBI annexure will find that
 out before we do.
 
+**Lane C, a second and separate catalogue, now answers eight of these.** Rows marked
+``LNC-xx`` below are read from a borrower's own filed financial statements on a quarterly
+review cadence, not from a transaction — see ``services/lane_c_service``. LNC-02 is built
+but always reports unmeasurable (a project-appraisal baseline this platform does not
+ingest), so it is marked ``partial`` here rather than counted as covered.
+
 Running this file prints the coverage table and the gap analysis.
 """
 from __future__ import annotations
@@ -46,11 +52,13 @@ from __future__ import annotations
 #   partial = an indicator touches it but does not measure the stated signal
 MAP: list[tuple[int, str, str, str]] = [
     (1, "Default in undisputed payment to statutory bodies per the annual report",
-     "", "Needs annual-report / statutory-dues data"),
+     "LNC-01", "Lane C - text-pattern read of the notes/auditor-report text"),
     (2, "Bouncing of high value cheques",
-     "", "Needs cheque-return data from the CBS"),
+     "CBS-04", "cheque_return_count, threshold 3 - closed via the CBS cheque_return "
+     "event kind"),
     (3, "Frequent change in the scope of the project",
-     "", "Qualitative, from credit monitoring"),
+     "partial:LNC-02", "Lane C - built, but always reports unmeasurable: needs a "
+     "project-appraisal baseline this platform does not ingest yet"),
     (4, "Foreign bills outstanding with the bank for a long time / overdue",
      "TBM-03", "days_outstanding, threshold 270"),
     (5, "Delay in payment of outstanding dues",
@@ -96,25 +104,27 @@ MAP: list[tuple[int, str, str, str]] = [
     (25, "Non-production of original bills for verification",
      "", "Qualitative, from credit monitoring"),
     (26, "Inventory movements disproportionate to turnover",
-     "", "Needs financial statements"),
+     "LNC-03", "Lane C - ratio vs. the prior filed period"),
     (27, "Receivables movements disproportionate to turnover / ageing",
-     "", "Needs financial statements"),
+     "LNC-04", "Lane C - ratio, incl. days-sales-outstanding"),
     (28, "Disproportionate change in other current assets",
-     "", "Needs financial statements"),
+     "LNC-05", "Lane C - ratio"),
     (29, "Working capital borrowing rising as a percentage of turnover",
-     "", "Needs financial statements"),
+     "LNC-06", "Lane C - ratio, degrades gracefully when EBITDA is not reported"),
     (30, "Fixed assets increasing without corresponding long-term sources",
-     "", "Needs financial statements"),
+     "LNC-07", "Lane C - capex vs. new long-term debt/equity raised"),
     (31, "Borrowings increasing despite large cash balances",
-     "", "Needs financial statements"),
+     "", "Lane C parses a CASH figure but no signal cross-checks it against "
+     "borrowing yet"),
     (32, "Frequent change in accounting period or accounting policies",
-     "", "Needs annual report"),
+     "LNC-08", "Lane C - fiscal year-end and depreciation-method language, "
+     "compared across filings"),
     (33, "Project cost at wide variance with the standard cost",
      "", "Needs project appraisal data"),
     (34, "Claims not acknowledged as debt are high",
-     "", "Needs annual report"),
+     "", "Lane C parses a contingent-liabilities figure but no signal reads it"),
     (35, "Substantial increase in unbilled revenue year after year",
-     "", "Needs financial statements"),
+     "", "Lane C parses an unbilled-revenue figure but no signal reads it"),
     (36, "Many transactions with inter-connected companies, large outstandings",
      "CBS-03", "group_exposure_pct, threshold 0.35"),
     (37, "Substantial related party transactions",
@@ -136,7 +146,7 @@ DECLARED = [
     "VEL-01", "VEL-02", "VEL-03", "SME-01", "SME-02", "SME-03",
     "BEH-01", "BEH-02", "BEH-03", "LAY-01", "LAY-02", "LAY-03", "LAY-04",
     "CPT-01", "CPT-02", "CPT-03", "CHN-01", "CHN-02", "CHN-03",
-    "TBM-01", "TBM-02", "TBM-03", "CBS-01", "CBS-02", "CBS-03",
+    "TBM-01", "TBM-02", "TBM-03", "CBS-01", "CBS-02", "CBS-03", "CBS-04", "CBS-05",
     # BR-214, added after this file's own 2016-list cross-check confirmed none of the 42
     # signals below are about the pre-sanction / application stage - they are corporate-
     # borrower monitoring signals, and a falsified application or a straw borrower
@@ -145,6 +155,13 @@ DECLARED = [
     "LOS-01", "LOS-02", "LOS-03",
 ]
 CATALOGUE_ONLY = ["QUAL-01", "QUAL-02", "QUAL-03"]
+
+#: Lane C's own catalogue (services/lane_c_service/app/signal_catalogue.py) - a periodic
+#: credit-file read, not a payment-transaction rule, so it is kept out of DECLARED rather
+#: than blurring the two catalogues together. LNC-02 is built but always reports
+#: unmeasurable (see MAP row 3); the other seven compute a real result.
+LANE_C_DECLARED = ["LNC-01", "LNC-02", "LNC-03", "LNC-04", "LNC-05", "LNC-06", "LNC-07",
+                   "LNC-08"]
 
 
 def _ids(cell: str) -> list[str]:

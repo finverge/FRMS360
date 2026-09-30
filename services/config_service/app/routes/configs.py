@@ -327,6 +327,27 @@ def internal_active_rules(
     return {"tenant_id": tenant_id, "count": len(rules), "rules": rules}
 
 
+@router.get("/internal/entity-types/{entity_type}")
+def internal_entity_type(
+    entity_type: str,
+    _: None = Depends(require_internal_key),
+) -> dict:
+    """Whether an entity type can extend credit, and the Direction that governs it.
+
+    ``ENTITY_TYPES`` (policy.py) is the single source of truth for this RBI-Direction
+    fact - checked against each Direction's own Chapter III text, not assumed. A service
+    outside config-service (Lane C's credit-monitoring gate is the first caller) reads it
+    here rather than holding its own copy, the same reason ``/internal/rules`` exists
+    instead of every service keeping its own rule list.
+    """
+    from ..policy import ENTITY_TYPES
+    info = ENTITY_TYPES.get(entity_type)
+    if info is None:
+        raise AppError(f"Unknown entity type '{entity_type}'", 404, "unknown_entity_type")
+    return {"entity_type": entity_type, "label": info["label"],
+            "can_extend_credit": info["can_extend_credit"]}
+
+
 # --- internal: called by tenant-service (onboarding + export) ---
 @router.get("/internal/configs/{tenant_id}", response_model=list[ConfigOut])
 def internal_list_configs(

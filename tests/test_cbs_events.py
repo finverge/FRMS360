@@ -94,6 +94,37 @@ def test_a_negative_amount_is_refused(tid):
                    "ts": "2026-08-01T00:00:00Z", "account": ACC, "amount": "-5.00"})
 
 
+def test_an_od_position_with_no_sanctioned_limit_is_refused(tid):
+    """The single fact CBS-05 exists to carry - without it the draw cannot be turned
+    into a breach ratio at all."""
+    with pytest.raises(AdapterError) as exc:
+        adapt_cbs({"event_id": "1", "kind": "od_position",
+                   "ts": "2026-08-01T00:00:00Z", "account": ACC, "amount": "500000.00"})
+    assert "sanctioned_limit" in str(exc.value)
+
+
+def test_an_od_position_with_a_zero_limit_is_also_refused(tid):
+    with pytest.raises(AdapterError):
+        adapt_cbs({"event_id": "1", "kind": "od_position",
+                   "ts": "2026-08-01T00:00:00Z", "account": ACC, "amount": "500000.00",
+                   "sanctioned_limit": "0"})
+
+
+def test_an_od_position_with_a_limit_is_accepted(tid):
+    out = adapt_cbs({"event_id": "1", "kind": "od_position",
+                     "ts": "2026-08-01T00:00:00Z", "account": ACC, "amount": "500000.00",
+                     "sanctioned_limit": "1000000"})
+    assert out["attributes"]["sanctioned_limit_paise"] == 100_000_000
+
+
+def test_a_cheque_return_needs_no_extra_field(tid):
+    """Unlike od_position, CBS-04 is a plain count - no fact beyond the event's own
+    existence is required."""
+    out = adapt_cbs({"event_id": "1", "kind": "cheque_return",
+                     "ts": "2026-08-01T00:00:00Z", "account": ACC, "amount": "75000.00"})
+    assert out["kind"] == "cheque_return"
+
+
 # ------------------------------------------------------------------ intake
 def test_events_are_accepted_and_deduplicated(ingestion_client, token_for, tid):
     events = [_ev("loan_disbursement", "10000.00", n=1),
@@ -166,6 +197,56 @@ def test_group_exposure_ratio():
     assert cf.observe_loan(c)["CBS-03"] == 0.35
 
 
+def test_cheque_return_count_is_omitted_when_the_kind_was_never_seen():
+    """No cheque_return events for this account is not the same as zero returns being
+    confirmed - it may simply be that the feed never covered this account."""
+    c = cf.LoanContext(disbursed_paise=1_000_000)  # active account, other CBS activity
+    assert "CBS-04" not in cf.observe_loan(c)
+
+
+def test_cheque_return_count_reports_zero_as_a_real_clean_value():
+    """Once the kind has actually been seen for this account, zero returns is a
+    genuine, measured fact - unlike the ratios above, there is no denominator to be
+    missing."""
+    c = cf.LoanContext(cheque_return_count=0, kinds={"cheque_return"})
+    assert cf.observe_loan(c)["CBS-04"] == 0.0
+
+
+def test_cheque_return_count_above_zero():
+    c = cf.LoanContext(cheque_return_count=4, kinds={"cheque_return"})
+    assert cf.observe_loan(c)["CBS-04"] == 4.0
+
+
+def test_od_breach_ratio_needs_a_reported_limit_to_divide_by():
+    """A peak-utilised figure with no od_position event carrying a limit is not
+    'ratio 0' - the account may not even have an overdraft facility."""
+    no_limit = cf.LoanContext(od_breach_ratio=0.9, od_limit_paise=0)
+    assert "CBS-05" not in cf.observe_loan(no_limit)
+
+    with_limit = cf.LoanContext(od_breach_ratio=1.35, od_limit_paise=1_000_000)
+    assert cf.observe_loan(with_limit)["CBS-05"] == 1.35
+
+
+def test_od_breach_ratio_pairs_utilisation_with_its_own_event_limit(
+        ingestion_client, token_for, tid):
+    """A modest draw against a small limit must not be diluted by an unrelated, much
+    larger limit reported on another day - each event's ratio is computed against its
+    own reported limit, and the peak across events is what CBS-05 reports. Taking
+    max(utilised) / max(limit) instead would report this account as clean (300k against
+    a 2,000k limit = 0.15) when the true peak breach was 0.9 (450k against a 500k
+    limit)."""
+    _post(ingestion_client, token_for, tid, [
+        _ev("od_position", "4500.00", n=1, sanctioned_limit="5000.00"),
+        _ev("od_position", "3000.00", n=2, sanctioned_limit="20000.00"),
+    ])
+    db = SessionLocal()
+    try:
+        ctx = cf.load_loan_context(db, tid, [ACC], datetime.now(timezone.utc))
+    finally:
+        db.close()
+    assert cf.observe_loan(ctx[ACC])["CBS-05"] == pytest.approx(0.9)
+
+
 # ------------------------------------------------------------------ end to end
 def test_events_land_and_produce_the_ratios(ingestion_client, token_for, tid):
     _post(ingestion_client, token_for, tid, [
@@ -220,6 +301,14 @@ def test_group_exposure_needs_the_register_even_with_events():
     why = cf.unmeasurable({"loan_utilisation"}, has_group_register=False)
     assert "CBS-03" in why and "register" in why["CBS-03"]
     assert "CBS-03" not in cf.unmeasurable({"loan_utilisation"}, has_group_register=True)
+
+
+def test_cheque_return_and_od_position_feeds_are_named_when_missing():
+    why = cf.unmeasurable(set(), has_group_register=False)
+    assert "cheque_return" in why["CBS-04"]
+    assert "od_position" in why["CBS-05"]
+    assert "CBS-04" not in cf.unmeasurable({"cheque_return"}, has_group_register=False)
+    assert "CBS-05" not in cf.unmeasurable({"od_position"}, has_group_register=False)
 
 
 def test_every_indicator_is_still_declared_exactly_once():

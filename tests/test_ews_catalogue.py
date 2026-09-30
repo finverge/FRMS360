@@ -38,7 +38,7 @@ def test_can_extend_credit_false_drops_exactly_the_credit_linked_rules():
 def test_credit_linked_rules_cover_the_loan_and_borrowal_families():
     """Sanity check on the set's contents, not just its mechanics - these are the
     families whose rule text explicitly names a borrower, a loan or a lender."""
-    assert {"CBS-01", "CBS-02", "CBS-03"} <= CREDIT_LINKED_RULES  # loan-account misuse
+    assert {"CBS-01", "CBS-02", "CBS-03", "CBS-04", "CBS-05"} <= CREDIT_LINKED_RULES  # loan-account misuse
     assert {"BEH-02", "BEH-03"} <= CREDIT_LINKED_RULES            # borrowal-account conduct
     assert "CPT-03" in CREDIT_LINKED_RULES                        # collateral, multiple lenders
     assert {"QUAL-01", "QUAL-02", "QUAL-03"} <= CREDIT_LINKED_RULES  # banker/loan-request conduct

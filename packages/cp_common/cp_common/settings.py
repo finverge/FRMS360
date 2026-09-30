@@ -48,6 +48,12 @@ class Settings(BaseSettings):
     # Lane A. Empty disables counter publishing entirely, which is a valid
     # deployment: a tenant with no inline rails needs no counters.
     decision_service_url: str = "http://127.0.0.1:8086"
+    lane_c_service_url: str = "http://127.0.0.1:8088"
+    #: Where uploaded financial-statement PDFs are archived, named by SHA-256 so a
+    #: resubmission overwrites nothing and is trivially recognised. Disk, not a Postgres
+    #: blob - the same reason ingestion's own batch files (file_model.py) live on disk
+    #: with only metadata in the database.
+    lane_c_storage_dir: str = "./data/lane_c_statements"
     # Where a browser reaches the console. Federated sign-in has to send the user back
     # to this origin, not to whichever internal address happened to serve the request:
     # request.url_for() resolves to the service's own host, so behind the gateway the

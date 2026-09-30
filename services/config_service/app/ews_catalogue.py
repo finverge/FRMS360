@@ -105,6 +105,18 @@ _RULES = [
      "cash_ratio", 0.3, ".02", "Heavy cash withdrawal in a loan account"),
     ("CBS-03", "CBS", "Large transactions with inter-connected group companies",
      "group_exposure_pct", 0.35, ".02", "Large transactions with inter-connected group companies"),
+    # RBI's 2016 EWS annexure item 2 ("Bouncing of high value cheques") - previously
+    # mapped to nothing in docs/rbi_ews_mapping.py, with the note "Needs cheque-return
+    # data from the CBS". A count, not a ratio, so it has none of CBS-01/02/03's
+    # undefined-denominator trap: zero returns is a real, measured "clean", not an
+    # absent fact - see cbs_features.py's observe_loan.
+    ("CBS-04", "CBS", "Repeated dishonour of cheques presented against the account",
+     "cheque_return_count", 3, ".02", "3+ cheques returned in the observation window"),
+    # A distinct facility-conduct signal from CBS-02's cash ratio: this is about
+    # drawing beyond what was ever sanctioned, not about how the money was drawn.
+    ("CBS-05", "CBS", "Drawings persistently exceeding the sanctioned overdraft "
+     "or cash-credit limit", "od_breach_ratio", 1.0, ".03",
+     "Peak utilisation exceeded the sanctioned overdraft/cash-credit limit"),
 
     ("QUAL-01", "QUAL", "Frequent change of primary banker",
      "banker_changes_24m", 2, ".01", "Frequent change of primary banker"),
@@ -206,6 +218,8 @@ CREDIT_LINKED_RULES = {
     "BEH-02", "BEH-03",            # borrowal account conduct
     "CPT-03",                       # collateral charged to multiple lenders
     "CBS-01", "CBS-02", "CBS-03",   # loan-account misuse
+    "CBS-04",                       # cheque returns - borrower-conduct EWS signal, RBI item 2
+    "CBS-05",                       # overdraft/cash-credit breach - a credit facility by definition
     "QUAL-01", "QUAL-02", "QUAL-03",  # banker changes, loan requests, post-disbursement concealment
     # LOS (BR-214): a loan application or a collateral valuation cannot exist without a
     # credit facility to originate. Same gate as the rest of this set, for the same

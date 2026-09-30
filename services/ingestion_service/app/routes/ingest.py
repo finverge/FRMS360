@@ -234,6 +234,8 @@ def cbs_coverage(
         "cash_transaction": ["BR-508 (CTR)"],
         "loan_application": ["LOS-01", "LOS-03"],
         "collateral_valuation": ["LOS-02"],
+        "cheque_return": ["CBS-04"],
+        "od_position": ["CBS-05"],
     }
     return {"kinds": [{
         "kind": k, "what": what, "feeds": feeds.get(k, []),

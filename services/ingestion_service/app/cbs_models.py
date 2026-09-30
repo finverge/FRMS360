@@ -41,6 +41,14 @@ reference, or the applicant's existing account if they have one), an amount (req
 valued), a time, and the differences - declared income, applicant identity, valuer,
 asset type - in ``attributes``, exactly like every kind before them.
 
+Two more still, ``cheque_return`` and ``od_position`` (CBS-04/05), for the same original
+reason: neither a dishonoured cheque nor an overdraft limit breach traverses UPI/NEFT/RTGS
+either, so both are as invisible to the payment stream as everything above. They score
+the same way BEH-02/03 and CBS-01/02/03 do - looked up per borrowal account and folded
+into that account's next payment-transaction alert, not evaluated in their own pass like
+the LOS pair - because unlike an application, an existing overdraft or cheque-issuing
+account already has payment transactions to attach the finding to.
+
 **Why these two cannot be scored the way the other five are.** BEH-02/03 and CBS-01/02/03
 are observed *per payment transaction* - the loan context is looked up for whichever
 account a payment transaction in the current batch happens to touch, and folded into that
@@ -77,6 +85,10 @@ EVENT_KINDS = {
                         "and declared income (BR-214)",
     "collateral_valuation": "A valuer's assessment of collateral offered against an "
                             "application (BR-214)",
+    "cheque_return": "A cheque presented against the account was dishonoured/returned "
+                     "(CBS-04)",
+    "od_position": "The balance drawn against an overdraft/cash-credit account, and the "
+                   "sanctioned limit it was drawn against, as of a point in time (CBS-05)",
 }
 
 #: Valid values for a cash_transaction event's direction. Deposits and withdrawals both

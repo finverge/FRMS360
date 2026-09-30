@@ -1,15 +1,20 @@
 """Observations computed from CBS and loan-system events (BR-211).
 
-Five ratios, each measured per borrowal account over the window. The rule owns the
+Seven indicators, each measured per borrowal account over the window. The rule owns the
 threshold; this owns the measurement, exactly as for the payment indicators.
 
-**The invariant that matters here is the denominator.** Every one of these is a
-proportion, and a proportion with no denominator is not zero - it is undefined. If no
-disbursement has been reported for an account, ``cash_ratio`` is not 0.0 (which reads as
-"no cash was taken", a clean bill of health); it is unmeasurable, and the indicator is
-left out of the result entirely. Getting this backwards would report perfect conduct on
-every account the CBS feed does not cover, which is the same failure mode as an unloaded
-sanctions list.
+**The invariant that matters here is the denominator.** Five of these are proportions, and
+a proportion with no denominator is not zero - it is undefined. If no disbursement has
+been reported for an account, ``cash_ratio`` is not 0.0 (which reads as "no cash was
+taken", a clean bill of health); it is unmeasurable, and the indicator is left out of the
+result entirely. Getting this backwards would report perfect conduct on every account the
+CBS feed does not cover, which is the same failure mode as an unloaded sanctions list.
+
+The sixth, ``cheque_return_count`` (CBS-04), is a straight count rather than a ratio and
+so has no such denominator - but it keeps the same "omit unless this account's feed
+coverage is known" discipline for consistency (see observe_loan). The seventh,
+``od_breach_ratio`` (CBS-05), is a proportion again (peak utilisation over the sanctioned
+limit) and follows the same denominator rule as the first five.
 """
 from __future__ import annotations
 
@@ -27,6 +32,8 @@ FEEDS = {
     "CBS-01": ("loan_disbursement", "loan_utilisation"),
     "CBS-02": ("loan_disbursement", "cash_withdrawal"),
     "CBS-03": ("loan_utilisation",),
+    "CBS-04": ("cheque_return",),
+    "CBS-05": ("od_position",),
 }
 
 #: How far back the ratios look. A loan behaves over quarters, not hours - the payment
@@ -45,6 +52,16 @@ class LoanContext:
     proceeds_paise: int = 0
     unrouted_paise: int = 0
     group_exposure_paise: int = 0
+    #: A straight count, not a ratio - unlike everything else on this dataclass, zero is
+    #: itself a real, measured value rather than an absent one. See observe_loan.
+    cheque_return_count: int = 0
+    #: Peak (utilised / sanctioned limit) seen across this account's od_position events.
+    #: Paired per event, not max-of-utilised over max-of-limit, so a high balance on one
+    #: day is never compared against a limit reported on a different day.
+    od_breach_ratio: float = 0.0
+    #: >0 once any od_position event has reported a positive sanctioned limit - the
+    #: presence gate for CBS-05, same role disbursed_paise plays for CBS-01/02.
+    od_limit_paise: int = 0
     #: Kinds actually seen for this account, so a missing feed is distinguishable from a
     #: feed that reported nothing of interest.
     kinds: set[str] = field(default_factory=set)
@@ -62,7 +79,7 @@ def load_loan_context(db: Session, tenant_id: str, accounts: list[str], now: dat
 
     rows = db.execute(text("""
         SELECT account, kind, amount_paise, funding_source, routed_through_lender,
-               within_sanctioned_purpose, counterparty_account
+               within_sanctioned_purpose, counterparty_account, attributes
           FROM ingestion.cbs_events
          WHERE tenant_id = :t AND account = ANY(:accts) AND ts >= :since
     """), {"t": tenant_id, "accts": accounts, "since": since}).mappings()
@@ -75,7 +92,18 @@ def load_loan_context(db: Session, tenant_id: str, accounts: list[str], now: dat
         amount = int(r["amount_paise"] or 0)
         kind = r["kind"]
 
-        if kind == "loan_disbursement":
+        if kind == "cheque_return":
+            c.cheque_return_count += 1
+        elif kind == "od_position":
+            # The adapter refuses an od_position event with no positive sanctioned
+            # limit (see cbs_adapter.py), so a limit here is always > 0 when present.
+            limit = int((r["attributes"] or {}).get("sanctioned_limit_paise") or 0)
+            if limit > 0:
+                c.od_limit_paise = limit
+                ratio = amount / limit
+                if ratio > c.od_breach_ratio:
+                    c.od_breach_ratio = ratio
+        elif kind == "loan_disbursement":
             c.disbursed_paise += amount
         elif kind == "cash_withdrawal":
             c.cash_paise += amount
@@ -118,6 +146,15 @@ def observe_loan(ctx: LoanContext) -> dict[str, float]:
         out["CBS-02"] = ctx.cash_paise / ctx.disbursed_paise
     if ctx.utilised_paise > 0:
         out["CBS-03"] = ctx.group_exposure_paise / ctx.utilised_paise
+    # A count, not a ratio, but the same "only if this account actually has the feed"
+    # gate as everything above: an account this window never saw a cheque_return event
+    # for stays out of `out` entirely, same as an account with no reported disbursement.
+    # (Zero returns *with* the feed present would be a real "clean" - it just cannot be
+    # told apart from "the feed never covered this account" from ctx alone.)
+    if "cheque_return" in ctx.kinds:
+        out["CBS-04"] = float(ctx.cheque_return_count)
+    if ctx.od_limit_paise > 0:
+        out["CBS-05"] = ctx.od_breach_ratio
     return out
 
 

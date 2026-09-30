@@ -68,6 +68,15 @@ def test_deferred_rules_carry_their_reason(store):
     assert ev.skipped[0]["lane"] == "near-real-time"
 
 
+def test_cheque_return_and_od_breach_are_deferred_not_inline():
+    """CBS-04/CBS-05 (added alongside this test) need the CBS's own post-settlement
+    extract, the same way CBS-01/02/03 already do - a payment authorisation cannot see
+    a cheque-clearing outcome or an overdraft position that has not been posted yet."""
+    assert not inline_rules.eligible("CBS-04")
+    assert not inline_rules.eligible("CBS-05")
+    assert "CBS-04" in inline_rules.NOT_INLINE and "CBS-05" in inline_rules.NOT_INLINE
+
+
 # ------------------------------------------------- absence is never a clean pass
 def test_a_missing_counter_is_reported_not_scored_clean(store):
     """The whole doctrine in one test: no counter means unmeasured, not compliant."""

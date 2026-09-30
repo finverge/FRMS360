@@ -64,6 +64,8 @@ NOT_INLINE: dict[str, str] = {
     "CBS-01": "needs the loan account's disbursal-to-withdrawal history from the CBS",
     "CBS-02": "needs security and stock records from the CBS",
     "CBS-03": "needs sale-proceeds routing, known only after the fact",
+    "CBS-04": "needs the CBS cheque-clearing outcome, known only after the fact",
+    "CBS-05": "needs the CBS's own overdraft/cash-credit position, posted after settlement",
     "TBM-01": "needs trade-finance records",
     "TBM-02": "needs trade-finance records",
     "TBM-03": "needs the foreign-bills register",

@@ -109,6 +109,8 @@ NEEDS_CBS_FEED = {
     "CBS-01": "loan_disbursement and loan_utilisation events",
     "CBS-02": "loan_disbursement and cash_withdrawal events",
     "CBS-03": "loan_utilisation events and a connected-group register",
+    "CBS-04": "cheque_return events",
+    "CBS-05": "od_position events with a sanctioned limit",
 }
 
 #: Loan-origination indicators (BR-214), fed by loan_application / collateral_valuation

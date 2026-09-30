@@ -30,3 +30,16 @@ joblib==1.4.2
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch==2.14.0+cpu
 torch_geometric==2.8.0.post1
+# Lane C: financial-statement extraction (services/lane_c_service). pdfplumber reads a
+# born-digital PDF's own table structure directly; PyMuPDF + pytesseract are the
+# rasterise-then-OCR fallback for a scanned page, the same two-stage pipeline (and the
+# same underlying Tesseract engine) VideoPD's bankStatement.ts already runs in
+# production - never a paid document/OCR API. The host still needs the tesseract-ocr
+# binary installed; pytesseract is only the Python binding to it.
+pdfplumber==0.11.4
+pymupdf==1.24.10
+pytesseract==0.3.13
+Pillow==10.4.0
+# Test-only: builds a synthetic financial-statement PDF fixture in
+# tests/test_lane_c_ingestion.py rather than committing a binary sample file.
+reportlab==4.2.2

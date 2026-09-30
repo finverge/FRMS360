@@ -25,6 +25,17 @@ export interface RequestOptions {
   token?: string | null
 }
 
+async function unwrap<T>(res: Response): Promise<T> {
+  const text = await res.text()
+  const data = text ? JSON.parse(text) : null
+
+  if (!res.ok) {
+    const err = data?.error ?? { code: "unknown_error", message: res.statusText }
+    throw new ApiError(err.message ?? "Something went wrong.", err.code ?? "unknown_error", res.status)
+  }
+  return data as T
+}
+
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = "GET", body, token } = options
   const headers: Record<string, string> = { "Content-Type": "application/json" }
@@ -35,13 +46,17 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
+  return unwrap<T>(res)
+}
 
-  const text = await res.text()
-  const data = text ? JSON.parse(text) : null
+// Multipart upload. Deliberately not folded into apiFetch: a FormData body must never
+// get a manually-set Content-Type (the browser has to generate the multipart boundary
+// itself) and must never be JSON.stringify'd. First caller is Lane C's statement upload
+// (frontend/src/api/lanec.ts) - the console's first file upload of any kind.
+export async function apiUpload<T>(path: string, formData: FormData, token?: string | null): Promise<T> {
+  const headers: Record<string, string> = {}
+  if (token) headers["Authorization"] = `Bearer ${token}`
 
-  if (!res.ok) {
-    const err = data?.error ?? { code: "unknown_error", message: res.statusText }
-    throw new ApiError(err.message ?? "Something went wrong.", err.code ?? "unknown_error", res.status)
-  }
-  return data as T
+  const res = await fetch(`${API_BASE}${path}`, { method: "POST", headers, body: formData })
+  return unwrap<T>(res)
 }

@@ -35,6 +35,7 @@ ROLE_FOR = {
     "ingestion-service": "svc_ingestion",
     "notification-service": "svc_notify",
     "decision-service": "svc_decision",
+    "lane-c-service": "svc_lanec",
 }
 
 

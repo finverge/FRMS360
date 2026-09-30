@@ -40,6 +40,7 @@ ROUTES = {
     # machine-authenticated call and must not inherit the console's hop.
     "decisions": (settings.decision_service_url, "/decisions"),
     "notifications": (settings.notification_service_url, "/notifications"),
+    "lane-c": (settings.lane_c_service_url, "/lane-c"),
 }
 
 HOP_BY_HOP = {"host", "content-length", "transfer-encoding", "connection", "keep-alive"}
@@ -71,7 +72,8 @@ def _timeout_for(path: str):
 
 #: One breaker per upstream, so a failing analytics-service cannot deny service to auth.
 BREAKERS = {name: CircuitBreaker(name) for name in
-            ("tenants", "auth", "machine", "audit", "branding", "configs", "analytics", "ingest", "notifications")}
+            ("tenants", "auth", "machine", "audit", "branding", "configs", "analytics", "ingest",
+             "notifications", "lane-c")}
 
 limiter = RateLimiter(rate_per_second=settings.rate_limit_per_second,
                       burst=settings.rate_limit_burst)
