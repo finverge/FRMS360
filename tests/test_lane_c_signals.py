@@ -1,9 +1,10 @@
-"""The eight LNC signal algorithms - pure math, no I/O, same style as
-test_cbs_events.py's ratio tests: known inputs, hand-checked expected outputs.
+"""The LNC signal algorithms - pure math, no I/O, same style as test_cbs_events.py's
+ratio tests: known inputs, hand-checked expected outputs.
 
 The recurring invariant here is the same one cbs_features.py's tests already establish
 for the payment side: a ratio with no prior period to compare against is unmeasurable,
-never a fabricated zero or a false "pass".
+never a fabricated zero or a false "pass". LNC-13 (contingent liabilities) is the one
+exception - a level judgment, not a trend, so it never needs a prior period at all.
 """
 import pytest
 
@@ -13,12 +14,14 @@ from services.lane_c_service.app.signals import signal_engine as se
 # ------------------------------------------------------------------ prior-period guard
 def test_every_ratio_signal_is_unmeasurable_with_no_prior_period():
     cur = {"INVENTORY": 100, "REVENUE": 100, "AR": 100, "OCA": 100,
-           "WC_BORROWING": 100, "FIXED_ASSETS": 100}
+           "WC_BORROWING": 100, "FIXED_ASSETS": 100, "CASH": 100, "UNBILLED_REVENUE": 100}
     assert se.compute_inventory_movement(cur, None).status == "unmeasurable"
     assert se.compute_receivables_movement(cur, None).status == "unmeasurable"
     assert se.compute_oca_change(cur, None).status == "unmeasurable"
     assert se.compute_working_capital_bloat(cur, None).status == "unmeasurable"
     assert se.compute_fixed_asset_funding(cur, None).status == "unmeasurable"
+    assert se.compute_borrowing_despite_cash(cur, None).status == "unmeasurable"
+    assert se.compute_unbilled_revenue_growth(cur, None).status == "unmeasurable"
 
 
 def test_a_zero_prior_denominator_is_unmeasurable_not_infinite():
@@ -172,17 +175,104 @@ def test_unchanged_accounting_passes():
 
 
 # ------------------------------------------------------------------ LNC-02 scope creep
-def test_scope_creep_is_always_unmeasurable_today():
-    r = se.compute_scope_creep()
-    assert r.status == "unmeasurable"
-    assert "project-appraisal" in r.evidence.lower()
+# LNC-02 moved to signals/project_appraisal_check.py once a real project-appraisal
+# baseline existed to compare against - see test_lane_c_project_appraisal_signal.py.
+
+
+# ------------------------------------------------------------------ LNC-12 borrowing vs cash
+def test_borrowing_up_with_large_cash_balance_is_critical():
+    prior = {"WC_BORROWING": 20_00_00000, "REVENUE": 100_00_00000, "CASH": 5_00_00000}
+    cur = {"WC_BORROWING": 30_00_00000, "REVENUE": 100_00_00000, "CASH": 20_00_00000}
+    r = se.compute_borrowing_despite_cash(cur, prior)
+    assert r.observed_value == pytest.approx(0.5)   # wc_growth
+    assert r.baseline_value == pytest.approx(0.20)  # cash / revenue
+    # wc_growth 0.5>0.2 (+25); cash_to_rev 0.20>0.15 (+25); both together (+15). Total 65.
+    assert r.severity == 65
+    assert r.status == "critical"
+
+
+def test_borrowing_up_with_low_cash_does_not_compound_to_critical():
+    prior = {"WC_BORROWING": 20_00_00000, "REVENUE": 100_00_00000, "CASH": 2_00_00000}
+    cur = {"WC_BORROWING": 30_00_00000, "REVENUE": 100_00_00000, "CASH": 3_00_00000}
+    r = se.compute_borrowing_despite_cash(cur, prior)
+    # wc_growth 0.5>0.2 (+25); cash_to_rev 0.03, not >0.15, so the compounding +15 never
+    # applies. Total 25 -> medium, not critical - borrowing up alone isn't the RBI signal,
+    # borrowing up *despite large cash* is.
+    assert r.severity == 25
+    assert r.status == "medium"
+
+
+def test_borrowing_vs_cash_is_unmeasurable_with_no_prior_period():
+    cur = {"WC_BORROWING": 100, "REVENUE": 100, "CASH": 100}
+    assert se.compute_borrowing_despite_cash(cur, None).status == "unmeasurable"
+
+
+# ------------------------------------------------------------------ LNC-13 contingent liabilities
+def test_high_contingent_liabilities_is_critical():
+    cur = {"CONTINGENT_LIABILITIES": 12_00_00000, "EQUITY": 10_00_00000}
+    r = se.compute_contingent_liabilities_high(cur)
+    assert r.observed_value == pytest.approx(1.2)
+    assert r.severity == 50
+    assert r.status == "critical"
+
+
+def test_moderate_contingent_liabilities_is_high():
+    cur = {"CONTINGENT_LIABILITIES": 6_00_00000, "EQUITY": 10_00_00000}
+    r = se.compute_contingent_liabilities_high(cur)
+    assert r.severity == 30
+    assert r.status == "high"
+
+
+def test_low_contingent_liabilities_passes():
+    cur = {"CONTINGENT_LIABILITIES": 1_00_00000, "EQUITY": 10_00_00000}
+    r = se.compute_contingent_liabilities_high(cur)
+    assert r.status == "pass"
+    assert r.severity == 0
+
+
+def test_contingent_liabilities_needs_no_prior_period():
+    """The one ratio signal that answers from a single filing - a level, not a trend."""
+    cur = {"CONTINGENT_LIABILITIES": 12_00_00000, "EQUITY": 10_00_00000}
+    r = se.compute_contingent_liabilities_high(cur)
+    assert r.status != "unmeasurable"
+
+
+def test_contingent_liabilities_unmeasurable_without_equity():
+    cur = {"CONTINGENT_LIABILITIES": 12_00_00000}
+    assert se.compute_contingent_liabilities_high(cur).status == "unmeasurable"
+
+
+# ------------------------------------------------------------------ LNC-14 unbilled revenue
+def test_unbilled_revenue_outpacing_turnover_is_critical():
+    prior = {"UNBILLED_REVENUE": 10_00_00000, "REVENUE": 100_00_00000}
+    cur = {"UNBILLED_REVENUE": 25_00_00000, "REVENUE": 103_00_00000}
+    r = se.compute_unbilled_revenue_growth(cur, prior)
+    assert r.observed_value == pytest.approx(1.5)
+    assert r.baseline_value == pytest.approx(0.03)
+    # ub_growth 1.5>0.5 (+30); ub_growth>0.5 & rev_growth 0.03<0.1 (+25);
+    # ub/rev = 25/103 = 0.243 > 0.2 (+15). Total 70 -> critical.
+    assert r.severity == 70
+    assert r.status == "critical"
+
+
+def test_unbilled_revenue_growing_with_turnover_is_clean():
+    prior = {"UNBILLED_REVENUE": 10_00_00000, "REVENUE": 100_00_00000}
+    cur = {"UNBILLED_REVENUE": 11_00_00000, "REVENUE": 112_00_00000}
+    r = se.compute_unbilled_revenue_growth(cur, prior)
+    assert r.status == "pass"
+    assert r.severity == 0
+
+
+def test_unbilled_revenue_is_unmeasurable_with_no_prior_period():
+    cur = {"UNBILLED_REVENUE": 100, "REVENUE": 100}
+    assert se.compute_unbilled_revenue_growth(cur, None).status == "unmeasurable"
 
 
 # ------------------------------------------------------------------ compute_all
-def test_compute_all_returns_exactly_the_eight_declared_signals():
+def test_compute_all_returns_exactly_the_declared_signals():
     from services.lane_c_service.app.signal_catalogue import ALL_SIGNAL_IDS
     results = se.compute_all({"REVENUE": 100}, None)
     assert set(results) == set(ALL_SIGNAL_IDS)
-    assert len(results) == 8
+    assert len(results) == len(ALL_SIGNAL_IDS)
 
 

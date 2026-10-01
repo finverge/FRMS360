@@ -125,6 +125,59 @@ def test_a_cheque_return_needs_no_extra_field(tid):
     assert out["kind"] == "cheque_return"
 
 
+def test_a_bg_lc_event_needs_no_extra_field(tid):
+    """Same plain-count shape as cheque_return - CBS-06 counts the invocation/
+    devolvement itself, not any attribute of it."""
+    out = adapt_cbs({"event_id": "1", "kind": "bg_lc_event",
+                     "ts": "2026-08-01T00:00:00Z", "account": ACC, "amount": "500000.00"})
+    assert out["kind"] == "bg_lc_event"
+
+
+def test_a_facility_sanction_with_no_funds_interest_flag_is_refused(tid):
+    """The single fact CBS-07 exists to carry - without it a sanction cannot be told
+    apart from an ordinary, unremarkable one."""
+    with pytest.raises(AdapterError) as exc:
+        adapt_cbs({"event_id": "1", "kind": "facility_sanction",
+                   "ts": "2026-08-01T00:00:00Z", "account": ACC, "amount": "500000.00"})
+    assert "funds_interest" in str(exc.value)
+
+
+def test_a_facility_sanction_flagged_funds_interest_is_accepted(tid):
+    out = adapt_cbs({"event_id": "1", "kind": "facility_sanction",
+                     "ts": "2026-08-01T00:00:00Z", "account": ACC, "amount": "500000.00",
+                     "funds_interest": "true"})
+    assert out["attributes"]["funds_interest"] is True
+
+
+def test_a_facility_sanction_flagged_not_funds_interest_is_accepted(tid):
+    out = adapt_cbs({"event_id": "1", "kind": "facility_sanction",
+                     "ts": "2026-08-01T00:00:00Z", "account": ACC, "amount": "500000.00",
+                     "funds_interest": "false"})
+    assert out["attributes"]["funds_interest"] is False
+
+
+def test_a_loan_repayment_with_no_due_date_carries_none(tid):
+    """due_date is optional - most CBS extracts today send only the repayment itself."""
+    out = adapt_cbs({"event_id": "1", "kind": "loan_repayment",
+                     "ts": "2026-08-01T00:00:00Z", "account": ACC, "amount": "5000.00"})
+    assert "due_date" not in out["attributes"]
+
+
+def test_a_loan_repayment_due_date_must_be_iso8601(tid):
+    with pytest.raises(AdapterError) as exc:
+        adapt_cbs({"event_id": "1", "kind": "loan_repayment",
+                   "ts": "2026-08-01T00:00:00Z", "account": ACC, "amount": "5000.00",
+                   "due_date": "01-Aug-2026"})
+    assert "due_date" in str(exc.value)
+
+
+def test_a_loan_repayment_with_a_valid_due_date_is_accepted(tid):
+    out = adapt_cbs({"event_id": "1", "kind": "loan_repayment",
+                     "ts": "2026-08-01T00:00:00Z", "account": ACC, "amount": "5000.00",
+                     "due_date": "2026-07-20"})
+    assert out["attributes"]["due_date"] == "2026-07-20"
+
+
 # ------------------------------------------------------------------ intake
 def test_events_are_accepted_and_deduplicated(ingestion_client, token_for, tid):
     events = [_ev("loan_disbursement", "10000.00", n=1),
@@ -215,6 +268,83 @@ def test_cheque_return_count_reports_zero_as_a_real_clean_value():
 def test_cheque_return_count_above_zero():
     c = cf.LoanContext(cheque_return_count=4, kinds={"cheque_return"})
     assert cf.observe_loan(c)["CBS-04"] == 4.0
+
+
+def test_bg_lc_event_count_is_omitted_when_the_kind_was_never_seen():
+    c = cf.LoanContext(disbursed_paise=1_000_000)
+    assert "CBS-06" not in cf.observe_loan(c)
+
+
+def test_bg_lc_event_count_reports_zero_as_a_real_clean_value():
+    c = cf.LoanContext(bg_lc_event_count=0, kinds={"bg_lc_event"})
+    assert cf.observe_loan(c)["CBS-06"] == 0.0
+
+
+def test_bg_lc_event_count_above_zero():
+    c = cf.LoanContext(bg_lc_event_count=2, kinds={"bg_lc_event"})
+    assert cf.observe_loan(c)["CBS-06"] == 2.0
+
+
+def test_interest_funding_count_is_omitted_when_the_kind_was_never_seen():
+    c = cf.LoanContext(disbursed_paise=1_000_000)
+    assert "CBS-07" not in cf.observe_loan(c)
+
+
+def test_interest_funding_count_only_counts_flagged_sanctions(
+        ingestion_client, token_for, tid):
+    """A facility_sanction event flagged funds_interest=False must not inflate CBS-07 -
+    only sanctions explicitly marked as funding interest count."""
+    _post(ingestion_client, token_for, tid, [
+        _ev("facility_sanction", "200000.00", n=1, funds_interest="true"),
+        _ev("facility_sanction", "300000.00", n=2, funds_interest="false"),
+    ])
+    db = SessionLocal()
+    try:
+        ctx = cf.load_loan_context(db, tid, [ACC], datetime.now(timezone.utc))
+    finally:
+        db.close()
+    assert cf.observe_loan(ctx[ACC])["CBS-07"] == 1.0
+
+
+def test_delayed_repayment_count_is_omitted_when_no_due_date_was_ever_seen():
+    """A loan_repayment event with no due_date must not make CBS-08 report a real
+    zero - the CBS simply never told us when anything was due."""
+    c = cf.LoanContext(repaid_paise=1_000_000, kinds={"loan_repayment"})
+    assert "CBS-08" not in cf.observe_loan(c)
+
+
+def test_delayed_repayment_count_reports_zero_as_a_real_clean_value():
+    c = cf.LoanContext(delayed_repayment_count=0, kinds={"loan_repayment_with_due_date"})
+    assert cf.observe_loan(c)["CBS-08"] == 0.0
+
+
+def test_a_repayment_within_the_grace_period_is_not_counted_as_delayed(
+        ingestion_client, token_for, tid):
+    now = datetime.now(timezone.utc)
+    p = _ev("loan_repayment", "5000.00", n=1,
+           due_date=(now - timedelta(days=10)).date().isoformat())
+    p["ts"] = (now - timedelta(days=5)).isoformat()  # paid 5 days after due - within grace
+    _post(ingestion_client, token_for, tid, [p])
+    db = SessionLocal()
+    try:
+        ctx = cf.load_loan_context(db, tid, [ACC], now)
+    finally:
+        db.close()
+    assert cf.observe_loan(ctx[ACC])["CBS-08"] == 0.0
+
+
+def test_a_repayment_past_the_grace_period_counts_as_delayed(
+        ingestion_client, token_for, tid):
+    now = datetime.now(timezone.utc)
+    p = _ev("loan_repayment", "5000.00", n=1, due_date=(now - timedelta(days=20)).date().isoformat())
+    p["ts"] = (now - timedelta(days=5)).isoformat()  # paid 15 days after due
+    _post(ingestion_client, token_for, tid, [p])
+    db = SessionLocal()
+    try:
+        ctx = cf.load_loan_context(db, tid, [ACC], now)
+    finally:
+        db.close()
+    assert cf.observe_loan(ctx[ACC])["CBS-08"] == 1.0
 
 
 def test_od_breach_ratio_needs_a_reported_limit_to_divide_by():
@@ -309,6 +439,20 @@ def test_cheque_return_and_od_position_feeds_are_named_when_missing():
     assert "od_position" in why["CBS-05"]
     assert "CBS-04" not in cf.unmeasurable({"cheque_return"}, has_group_register=False)
     assert "CBS-05" not in cf.unmeasurable({"od_position"}, has_group_register=False)
+
+
+def test_bg_lc_and_facility_sanction_feeds_are_named_when_missing():
+    why = cf.unmeasurable(set(), has_group_register=False)
+    assert "bg_lc_event" in why["CBS-06"]
+    assert "facility_sanction" in why["CBS-07"]
+    assert "CBS-06" not in cf.unmeasurable({"bg_lc_event"}, has_group_register=False)
+    assert "CBS-07" not in cf.unmeasurable({"facility_sanction"}, has_group_register=False)
+
+
+def test_cbs08_feed_is_named_when_missing():
+    why = cf.unmeasurable(set(), has_group_register=False)
+    assert "loan_repayment" in why["CBS-08"]
+    assert "CBS-08" not in cf.unmeasurable({"loan_repayment"}, has_group_register=False)
 
 
 def test_every_indicator_is_still_declared_exactly_once():

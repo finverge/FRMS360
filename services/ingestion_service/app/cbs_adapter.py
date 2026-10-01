@@ -7,6 +7,7 @@ repayment - it is an unknown one, and BEH-02 must not read it as clean.
 """
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
 from .adapters import AdapterError, to_paise, to_utc
@@ -83,6 +84,21 @@ def adapt_cbs(payload: dict) -> dict:
                 f"unknown funding source '{src}'. One of: {', '.join(FUNDING_SOURCES)}")
         out["funding_source"] = src
 
+        # Optional - most CBS extracts today send only the repayment itself, not the
+        # instalment schedule it was due against. Absent means CBS-08 stays exactly as
+        # unmeasurable as it already is; this never fabricates a due date to fill the
+        # gap. A calendar date, not a timestamp - "due" has no time-of-day meaning, and
+        # requiring one via to_utc() would force a fake time onto every CBS extract that
+        # (reasonably) only carries a due date.
+        due_raw = _pick(payload, "due_date", "dueDate", required=False, default="")
+        if due_raw:
+            try:
+                due = due_raw if isinstance(due_raw, date) else date.fromisoformat(str(due_raw))
+            except ValueError as exc:
+                raise AdapterError(f"due_date is not ISO-8601 (YYYY-MM-DD): "
+                                   f"{due_raw!r}") from exc
+            out["attributes"]["due_date"] = due.isoformat()
+
     if kind == "sale_proceeds" and out["routed_through_lender"] is None:
         # The single fact this event exists to carry. Without it the row says nothing,
         # and quarantining it is more useful than storing an unusable record.
@@ -135,5 +151,35 @@ def adapt_cbs(payload: dict) -> dict:
                 "never be attributed to the valuer who produced it")
         out["attributes"]["asset_type"] = asset_type
         out["attributes"]["valuer_id"] = valuer_id
+
+        # Optional - most CBS/LOS extracts won't send this yet, since it needs a
+        # specific, CERSAI-matchable asset identifier (a property/vehicle registration
+        # number, not a category like asset_type above), a fact most source systems
+        # don't carry per valuation today. Absent means CPT-03 stays exactly as
+        # unmeasurable as it already is - this never fabricates one to fill the gap.
+        # See docs/rbi_ews_mapping.py's note on CPT-03/CERSAI for why this alone does
+        # not guarantee a real bank's identifier will match a real CERSAI extract's key
+        # format - that alignment can only be confirmed against real pilot data.
+        collateral_id = str(_pick(payload, "collateral_id", "charge_reference",
+                                  "chargeReference", required=False, default="")).strip()
+        if collateral_id:
+            out["attributes"]["collateral_id"] = collateral_id
+
+    # bg_lc_event needs no extra field, the same shape as cheque_return (CBS-04): the
+    # event's own existence is the fact CBS-06 counts, not any attribute of it.
+
+    if kind == "facility_sanction":
+        # The single fact CBS-07 exists to carry: sanctioning a facility is routine
+        # business, only sanctioning one specifically to fund interest on an existing
+        # exposure is the red flag. Without this flag the event cannot say which kind of
+        # sanction it was, so - same reasoning as sale_proceeds's routed_through_lender -
+        # it is refused rather than silently counted as an ordinary sanction.
+        funds_interest = _bool_or_none(
+            _pick(payload, "funds_interest", "fundsInterest", required=False, default=None))
+        if funds_interest is None:
+            raise AdapterError(
+                "facility_sanction requires funds_interest; without it the event cannot "
+                "say whether this sanction was to fund interest on existing exposure")
+        out["attributes"]["funds_interest"] = funds_interest
 
     return out

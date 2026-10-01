@@ -49,6 +49,13 @@ into that account's next payment-transaction alert, not evaluated in their own p
 the LOS pair - because unlike an application, an existing overdraft or cheque-issuing
 account already has payment transactions to attach the finding to.
 
+Two more still, ``bg_lc_event`` and ``facility_sanction`` (CBS-06/07, RBI 2016 items 6 and
+13): a bank guarantee invocation, an LC devolvement, and a fresh credit sanction are all
+back-office/limits-desk events with no leg on a payment rail - the trade-finance and
+credit-committee systems that record them do not touch UPI/NEFT/RTGS either. Scored the
+same folded-into-the-next-transaction way as CBS-04/05, for the same reason: the account
+already has payment transactions to attach the finding to.
+
 **Why these two cannot be scored the way the other five are.** BEH-02/03 and CBS-01/02/03
 are observed *per payment transaction* - the loan context is looked up for whichever
 account a payment transaction in the current batch happens to touch, and folded into that
@@ -89,6 +96,11 @@ EVENT_KINDS = {
                      "(CBS-04)",
     "od_position": "The balance drawn against an overdraft/cash-credit account, and the "
                    "sanctioned limit it was drawn against, as of a point in time (CBS-05)",
+    "bg_lc_event": "A bank guarantee invoked, or a letter of credit devolved, against "
+                   "the account (CBS-06)",
+    "facility_sanction": "A credit facility sanctioned against the account, flagged "
+                         "whether its purpose is to fund interest on existing exposure "
+                         "(CBS-07)",
 }
 
 #: Valid values for a cash_transaction event's direction. Deposits and withdrawals both

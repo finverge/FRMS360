@@ -14,8 +14,12 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from . import reference_fetch as rf
 from .ingestion import document_parser as dp
-from .models import ComputedSignal, CreditHealthScore, FinancialStatement, LaneCAlert, ParsedFinancial
+from .models import (
+    ComputedSignal, CreditHealthScore, FinancialStatement, LaneCAlert, ManualFinding,
+    ParsedFinancial, ProjectAppraisal, ProjectProgress,
+)
 from .scoring import credit_health_scorer as scorer
 from .signals import signal_engine as se
 
@@ -59,6 +63,76 @@ def _prior_period(db: Session, tenant_id: str, account: str, before: date
     return metrics, prior_stmt.notes_text, prior_stmt.reporting_date.month
 
 
+def _prior_rank(db: Session, tenant_id: str, account: str, before: date) -> float | None:
+    """The rank LNC-11 recorded the last time this borrower was reviewed, so a downgrade
+    can be detected without a separate rating-history table - ComputedSignal already
+    persists observed_value per period, the same storage every other signal uses."""
+    prior = db.scalars(
+        select(ComputedSignal)
+        .where(ComputedSignal.tenant_id == tenant_id, ComputedSignal.account == account,
+               ComputedSignal.reporting_date < before, ComputedSignal.signal_code == "LNC-11")
+        .order_by(ComputedSignal.reporting_date.desc())
+        .limit(1)
+    ).first()
+    return prior.observed_value if prior else None
+
+
+def _manual_finding(db: Session, tenant_id: str, account: str, reporting_date: date,
+                    signal_code: str) -> dict | None:
+    """A human's own recorded fact for exactly this (borrower, period, signal) - not
+    "as of" or "most recent", an exact match, since a godown-inspection finding is tied
+    to one specific review cycle, not carried forward the way a rating stays active
+    until superseded."""
+    row = db.scalars(select(ManualFinding).where(
+        ManualFinding.tenant_id == tenant_id, ManualFinding.account == account,
+        ManualFinding.reporting_date == reporting_date,
+        ManualFinding.signal_code == signal_code)).first()
+    if row is None:
+        return None
+    return {"finding": row.finding, "notes": row.notes}
+
+
+def _prior_promoter_pct(db: Session, tenant_id: str, account: str, before: date
+                        ) -> float | None:
+    """Same storage reuse as _prior_rank(): LNC-19's own observed_value from the most
+    recent prior period it was actually measured, no separate shareholding-history table."""
+    prior = db.scalars(
+        select(ComputedSignal)
+        .where(ComputedSignal.tenant_id == tenant_id, ComputedSignal.account == account,
+               ComputedSignal.reporting_date < before, ComputedSignal.signal_code == "LNC-19")
+        .order_by(ComputedSignal.reporting_date.desc())
+        .limit(1)
+    ).first()
+    return prior.observed_value if prior else None
+
+
+def _project_baseline(db: Session, tenant_id: str, account: str) -> dict | None:
+    """The sanctioned project-appraisal baseline for this borrower, if one was ever
+    submitted - a single standing fact, not tied to any one review period, unlike
+    ProjectProgress below."""
+    row = db.scalars(select(ProjectAppraisal).where(
+        ProjectAppraisal.tenant_id == tenant_id, ProjectAppraisal.account == account)
+        ).first()
+    if row is None:
+        return None
+    return {"sanctioned_cost_paise": row.sanctioned_cost_paise,
+            "sanctioned_completion_date": row.sanctioned_completion_date}
+
+
+def _project_progress(db: Session, tenant_id: str, account: str, reporting_date: date
+                      ) -> dict | None:
+    """This exact period's progress submission - same exact-match shape as
+    _manual_finding(), since a cost-incurred figure is tied to one specific review
+    cycle, not carried forward."""
+    row = db.scalars(select(ProjectProgress).where(
+        ProjectProgress.tenant_id == tenant_id, ProjectProgress.account == account,
+        ProjectProgress.reporting_date == reporting_date)).first()
+    if row is None:
+        return None
+    return {"actual_cost_incurred_paise": row.actual_cost_incurred_paise,
+            "revised_completion_date": row.revised_completion_date}
+
+
 def _prior_score(db: Session, tenant_id: str, account: str, before: date) -> int | None:
     prior = db.scalars(
         select(CreditHealthScore)
@@ -91,11 +165,52 @@ def process_statement(db: Session, statement: FinancialStatement, rep: RunReport
     prior_metrics, prior_notes, prior_month = _prior_period(
         db, statement.tenant_id, statement.account, statement.reporting_date)
 
+    # LNC-10/LNC-11's reference-feed lookups, pre-fetched here rather than inside the
+    # signal functions - same "runner does the I/O, signal_engine.py stays pure" split
+    # prior_metrics/prior_notes already follow.
+    company_id = statement.company_identifier
+    roc_entry = rf.active_entry(db, statement.tenant_id, "mca_roc", company_id) \
+        if company_id else None
+    rating_entry = rf.active_entry(db, statement.tenant_id, "rating_action", company_id) \
+        if company_id else None
+    prior_rank = _prior_rank(db, statement.tenant_id, statement.account,
+                             statement.reporting_date)
+    godown_entry = _manual_finding(db, statement.tenant_id, statement.account,
+                                   statement.reporting_date, "LNC-15")
+    bills_entry = _manual_finding(db, statement.tenant_id, statement.account,
+                                  statement.reporting_date, "LNC-16")
+    insurance_entry = rf.active_entry(db, statement.tenant_id, "insurance_coverage", company_id) \
+        if company_id else None
+    stock_audit_entry = rf.active_entry(db, statement.tenant_id, "stock_audit", company_id) \
+        if company_id else None
+    shareholding_entry = rf.active_entry(db, statement.tenant_id, "shareholding", company_id) \
+        if company_id else None
+    prior_promoter_pct = _prior_promoter_pct(db, statement.tenant_id, statement.account,
+                                             statement.reporting_date)
+    enforcement_entry = rf.active_entry(db, statement.tenant_id, "enforcement_action", company_id) \
+        if company_id else None
+    enforcement_feed_loaded = rf.is_loaded(db, statement.tenant_id, "enforcement_action")
+    invoice_entry = _manual_finding(db, statement.tenant_id, statement.account,
+                                    statement.reporting_date, "LNC-21")
+    management_change_entry = rf.active_entry(db, statement.tenant_id, "management_changes",
+                                              company_id) if company_id else None
+    project_baseline = _project_baseline(db, statement.tenant_id, statement.account)
+    project_progress = _project_progress(db, statement.tenant_id, statement.account,
+                                         statement.reporting_date)
+
     signals = se.compute_all(
         cur_metrics, prior_metrics,
         cur_notes=result.notes_text, prior_notes=prior_notes,
         cur_reporting_month=statement.reporting_date.month,
         prior_reporting_month=prior_month,
+        company_identifier=company_id, roc_entry=roc_entry,
+        rating_entry=rating_entry, prior_rank=prior_rank,
+        godown_entry=godown_entry, bills_entry=bills_entry,
+        insurance_entry=insurance_entry, stock_audit_entry=stock_audit_entry,
+        shareholding_entry=shareholding_entry, prior_promoter_pct=prior_promoter_pct,
+        enforcement_entry=enforcement_entry, enforcement_feed_loaded=enforcement_feed_loaded,
+        invoice_entry=invoice_entry, management_change_entry=management_change_entry,
+        project_baseline=project_baseline, project_progress=project_progress,
     )
 
     signal_rows: dict[str, ComputedSignal] = {}

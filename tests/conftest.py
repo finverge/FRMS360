@@ -126,6 +126,14 @@ def analytics_client(seeded):
 
 
 @pytest.fixture(scope="session")
+def lane_c_client(seeded):
+    from fastapi.testclient import TestClient
+    from services.lane_c_service.app.main import app
+    with TestClient(app) as c:
+        yield c
+
+
+@pytest.fixture(scope="session")
 def token_for(tenant_client, seeded):
     """Return a bearer-header factory for any seeded role."""
     cache: dict[str, dict] = {}

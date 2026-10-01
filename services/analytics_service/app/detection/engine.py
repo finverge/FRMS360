@@ -234,6 +234,13 @@ def run_once(db: Session, tenant_id: str, *, limit: int = 500) -> RunReport:
     # ---- 3. score -----------------------------------------------------------------
     for t in scorable:
         ctx = ctxs.get(t["debtor_account"], features.AccountContext())
+        # Looked up before observe(), not after: CPT-03's screen_collateral() reads
+        # t["collateral_ref"] inside observe() itself (cp_common/observations.py), so
+        # the loan-context join that carries it has to happen first. Reused below for
+        # observe_loan() too - one lookup, not two.
+        loan = loan_ctx.get(t["debtor_account"])
+        if loan is not None and loan.collateral_id:
+            t["collateral_ref"] = loan.collateral_id
         observations = features.observe(
             t, ctx, clusters, now, cycles=cycles, screening=screening,
             hour_profile=profiles.get(t["debtor_account"]))
@@ -244,7 +251,6 @@ def run_once(db: Session, tenant_id: str, *, limit: int = 500) -> RunReport:
         # same rule, the riskier one stands.
         # Loan-conduct ratios describe the borrowal account, so they are observed once
         # per account rather than per side of the payment.
-        loan = loan_ctx.get(t["debtor_account"])
         if loan is not None:
             for rule_id, value in cbs_features.observe_loan(loan).items():
                 observations[rule_id] = max(observations.get(rule_id, 0.0), value)
@@ -344,7 +350,12 @@ def run_once(db: Session, tenant_id: str, *, limit: int = 500) -> RunReport:
             rep.unmeasurable[rule_id] = why
 
     for rule_id, kind in features.NEEDS_REFERENCE_DATA.items():
-        if rule_id not in catalogue:
+        if rule_id not in catalogue or rule_id in rep.unmeasurable:
+            # Already reported - e.g. CPT-03 can be dormant for either or both of two
+            # independent reasons (no collateral_valuation feed, no CERSAI list loaded);
+            # the first one found is reported rather than the second silently
+            # overwriting it, the same "don't clobber an existing reason" discipline
+            # CBS-03's own two-reason case already follows in cbs_features.unmeasurable.
             continue
         st = screening["availability"].get(kind)
         if st is not None and not st.loaded:

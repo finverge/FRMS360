@@ -117,6 +117,24 @@ _RULES = [
     ("CBS-05", "CBS", "Drawings persistently exceeding the sanctioned overdraft "
      "or cash-credit limit", "od_breach_ratio", 1.0, ".03",
      "Peak utilisation exceeded the sanctioned overdraft/cash-credit limit"),
+    # RBI 2016 EWS annexure item 6. A count, same shape as CBS-04 - the invocation or
+    # devolvement is the fact, however many times it happens.
+    ("CBS-06", "CBS", "Frequent invocation of bank guarantees and devolvement of "
+     "letters of credit", "bg_lc_event_count", 2, ".02",
+     "2+ BG invocations/LC devolvements in the observation window"),
+    # RBI 2016 EWS annexure item 13. Even one facility explicitly sanctioned to fund
+    # interest on an existing exposure is a serious red flag - it is how an account
+    # avoids NPA classification without actually improving, so the threshold is 1, not
+    # a "frequency" figure the way CBS-04/06 use.
+    ("CBS-07", "CBS", "Funding of interest by sanctioning an additional facility",
+     "interest_funding_count", 1, ".03",
+     "A fresh facility was sanctioned specifically to fund interest on existing exposure"),
+    # RBI 2016 EWS annexure item 5. A count of instalments paid materially late against
+    # their own due_date, same counting shape as CBS-04/06 - see cbs_features.py's
+    # DELAY_GRACE_DAYS for what "materially" means here.
+    ("CBS-08", "CBS", "Delay in payment of outstanding dues",
+     "delayed_repayment_count", 2, ".02",
+     "2+ instalments paid more than a week past their due date in the observation window"),
 
     ("QUAL-01", "QUAL", "Frequent change of primary banker",
      "banker_changes_24m", 2, ".01", "Frequent change of primary banker"),
@@ -220,6 +238,9 @@ CREDIT_LINKED_RULES = {
     "CBS-01", "CBS-02", "CBS-03",   # loan-account misuse
     "CBS-04",                       # cheque returns - borrower-conduct EWS signal, RBI item 2
     "CBS-05",                       # overdraft/cash-credit breach - a credit facility by definition
+    "CBS-06",                       # BG invocation / LC devolvement - trade-finance credit facilities
+    "CBS-07",                       # interest funded by a fresh sanction - a credit facility by definition
+    "CBS-08",                       # delayed instalments - a repayment schedule is a credit facility fact
     "QUAL-01", "QUAL-02", "QUAL-03",  # banker changes, loan requests, post-disbursement concealment
     # LOS (BR-214): a loan application or a collateral valuation cannot exist without a
     # credit facility to originate. Same gate as the rest of this set, for the same

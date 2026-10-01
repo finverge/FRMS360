@@ -124,5 +124,16 @@ class Settings(BaseSettings):
     narrative_llm_base_url: str = "http://localhost:11434/v1"
     narrative_llm_model: str = "oria-qwen2.5vl-12k"
 
+    # Optional, off-by-default LLM read of a Lane C statement's extracted text, looking
+    # for qualitative red flags (RBI #38/#39) no ratio or regex can catch - see
+    # lane_c_service/app/signals/qualitative_red_flags.py. Same local-model, no-vendor-key
+    # posture as narrative_polish above, and the same fact-verification discipline: a
+    # finding is kept only if its quoted source sentence is actually present in the
+    # statement text, never trusted on the model's word alone.
+    lane_c_llm_enabled: bool = False
+    lane_c_llm_base_url: str = "http://localhost:11434/v1"
+    lane_c_llm_model: str = "oria-qwen2.5vl-12k"
+    lane_c_llm_timeout_s: float = 60.0
+
 
 settings = Settings()

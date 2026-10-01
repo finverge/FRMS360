@@ -252,9 +252,18 @@ def test_lay03_and_chn03_are_no_longer_declared_as_needing_external_data():
     # CBS-04 (cheque returns) and CBS-05 (overdraft/cash-credit breach) joined this set
     # the same way BEH-02/03 and CBS-01/02/03 did: neither is visible on a payment rail,
     # both close a real gap against RBI's own 2016 EWS annexure (item 2, cheque bouncing,
-    # for CBS-04 - see docs/rbi_ews_mapping.py).
+    # for CBS-04 - see docs/rbi_ews_mapping.py). CPT-03 joined for a different reason: it
+    # has two independent dependencies (a CERSAI list, in NEEDS_REFERENCE_DATA below, AND
+    # a collateral_valuation event carrying a matchable identifier) - both are named so
+    # neither gap silently overwrites the other in the dormant-indicator register.
+    # CBS-06 (BG invocation/LC devolvement, RBI item 6) and CBS-07 (interest funded by a
+    # fresh sanction, RBI item 13) joined the same way CBS-04/05 did - neither invocation,
+    # devolvement, nor a limits-desk sanction touches a payment rail either. CBS-08
+    # (delayed repayment, RBI item 5) reuses loan_repayment itself rather than a new
+    # event kind - see cbs_features.py's DUE_DATE_SEEN for its own, finer-grained gate.
     assert set(NEEDS_CBS_FEED) == {
-        "BEH-02", "BEH-03", "CBS-01", "CBS-02", "CBS-03", "CBS-04", "CBS-05"}
+        "BEH-02", "BEH-03", "CBS-01", "CBS-02", "CBS-03", "CBS-04", "CBS-05", "CBS-06",
+        "CBS-07", "CBS-08", "CPT-03"}
     assert all(NEEDS_EXTERNAL_DATA.values()), "an indicator is unmeasurable with no reason"
     assert all(NEEDS_CBS_FEED.values()), "a feed-backed indicator names no feed"
 

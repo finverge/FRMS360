@@ -13,7 +13,7 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import (
-    BigInteger, Date, DateTime, Float, ForeignKey, Index, Integer, String, Text,
+    BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, String, Text,
     UniqueConstraint, func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -54,6 +54,11 @@ class FinancialStatement(Base):
     account: Mapped[str] = mapped_column(String(40), index=True)
     reporting_date: Mapped[date] = mapped_column(Date)
     filing_type: Mapped[str] = mapped_column(String(12), default="annual")
+    #: CIN/PAN, however the tenant identifies the borrower to external registries -
+    #: distinct from ``account`` (this platform's own identifier) since MCA/ROC and
+    #: rating feeds are keyed by the company's registry identity, not a bank-internal
+    #: one. Nullable: LNC-10/LNC-11 report unmeasurable rather than guess when absent.
+    company_identifier: Mapped[str | None] = mapped_column(String(24), nullable=True)
     #: Where the uploaded file was moved to, so an analyst or a re-parse can find it.
     document_path: Mapped[str] = mapped_column(String(600))
     #: Of the file's bytes - computable before parsing, so a resubmission is recognised
@@ -195,3 +200,90 @@ class LaneCAlert(Base):
                                                   server_default=func.now())
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True),
                                                         nullable=True)
+
+
+class ManualFinding(Base):
+    """A qualitative fact a credit or inspection officer records directly, for the two
+    RBI signals no document or feed can ever carry: a godown inspection postponed for
+    reasons that didn't hold up (LNC-15), and original bills the borrower could not
+    produce for verification (LNC-16). Same "the platform can score this once a human
+    enters it" shape Lane B's QUAL-01/02/03 are declared for - see
+    services/config_service/app/ews_catalogue.py - except QUAL has no actual entry point
+    built anywhere; this is that entry point, for Lane C's two.
+
+    One row per (borrower, period, signal) - a fresh submission for the same period
+    overwrites the prior one (see routes/lane_c.py), the same re-submission tolerance
+    every other Lane C intake already gives."""
+
+    __tablename__ = "manual_findings"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "account", "reporting_date", "signal_code",
+                         name="uq_manual_finding_period"),
+        {"schema": LANE_C},
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String(36), index=True)
+    account: Mapped[str] = mapped_column(String(40), index=True)
+    reporting_date: Mapped[date] = mapped_column(Date)
+    signal_code: Mapped[str] = mapped_column(String(12))
+    #: True = the red flag is present (inspection was postponed / bills were not
+    #: produced). False = the officer checked and found nothing wrong - a real,
+    #: recorded "clean", not the same as no finding having been submitted at all.
+    finding: Mapped[bool] = mapped_column(Boolean, default=False)
+    notes: Mapped[str] = mapped_column(Text, default="", server_default="")
+    #: The principal's own identity - who is vouching for this fact matters as much as
+    #: the fact itself for a manually-entered signal.
+    submitted_by: Mapped[str] = mapped_column(String(255))
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                    server_default=func.now())
+
+
+class ProjectAppraisal(Base):
+    """The sanctioned baseline for a project-finance loan - cost and completion date as
+    appraised at sanction. One per borrower, set once (and updated only if the sanction
+    itself is formally revised), unlike ProjectProgress below which is periodic. Neither
+    LNC-02 nor LNC-22 can measure anything without this: a variance needs two points,
+    and this is the fixed one."""
+
+    __tablename__ = "project_appraisals"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "account", name="uq_project_appraisal_account"),
+        {"schema": LANE_C},
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String(36), index=True)
+    account: Mapped[str] = mapped_column(String(40), index=True)
+    sanctioned_cost_paise: Mapped[int] = mapped_column(BigInteger)
+    sanctioned_completion_date: Mapped[date] = mapped_column(Date)
+    submitted_by: Mapped[str] = mapped_column(String(255))
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                    server_default=func.now())
+
+
+class ProjectProgress(Base):
+    """A periodic update against the appraised baseline above: cost incurred so far, and
+    a revised completion date if the project's timeline has moved. One per (borrower,
+    review period) - a fresh submission for the same period overwrites the prior one,
+    the same re-submission tolerance ManualFinding already gives."""
+
+    __tablename__ = "project_progress"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "account", "reporting_date",
+                         name="uq_project_progress_period"),
+        {"schema": LANE_C},
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String(36), index=True)
+    account: Mapped[str] = mapped_column(String(40), index=True)
+    reporting_date: Mapped[date] = mapped_column(Date)
+    actual_cost_incurred_paise: Mapped[int] = mapped_column(BigInteger)
+    #: Null means "no revision reported this period", not "revised to the same date" -
+    #: the same absent-vs-zero honesty every other nullable fact here keeps.
+    revised_completion_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    notes: Mapped[str] = mapped_column(Text, default="", server_default="")
+    submitted_by: Mapped[str] = mapped_column(String(255))
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                    server_default=func.now())

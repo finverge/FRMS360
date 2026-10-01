@@ -21,8 +21,11 @@ from cp_common import (
 )
 
 from ..entity_gate import can_extend_credit
-from ..models import FILING_TYPES, ComputedSignal, CreditHealthScore, FinancialStatement, LaneCAlert
-from ..signal_catalogue import signal_definitions
+from ..models import (
+    FILING_TYPES, ComputedSignal, CreditHealthScore, FinancialStatement, LaneCAlert,
+    ManualFinding, ProjectAppraisal, ProjectProgress,
+)
+from ..signal_catalogue import MANUAL_SIGNALS, signal_definitions
 
 router = APIRouter(prefix="/lane-c", tags=["lane-c"])
 
@@ -37,6 +40,10 @@ async def ingest_statement(
     account: str = Form(...),
     reporting_date: date = Form(...),
     filing_type: str = Form("annual"),
+    #: CIN/PAN, optional - unlocks LNC-10/LNC-11 once an mca_roc or rating_action feed
+    #: is configured for this tenant. Absent means those two signals report
+    #: unmeasurable, never a guess.
+    company_identifier: str | None = Form(None),
     file: UploadFile = File(...),
     db: Session = Depends(get_session),
     principal: Principal = Depends(get_current_principal),
@@ -76,6 +83,8 @@ async def ingest_statement(
         existing.size_bytes = len(data)
         existing.extraction_status = "pending"
         existing.extraction_error = ""
+        if company_identifier:
+            existing.company_identifier = company_identifier
         db.commit()
         return {"statement_id": existing.id, "extraction_status": "pending",
                 "resubmission": True}
@@ -83,7 +92,7 @@ async def ingest_statement(
     stmt = FinancialStatement(
         tenant_id=tenant_id, account=account, reporting_date=reporting_date,
         filing_type=filing_type, document_path=str(document_path), sha256=digest,
-        size_bytes=len(data),
+        size_bytes=len(data), company_identifier=company_identifier,
     )
     db.add(stmt)
     db.commit()
@@ -173,3 +182,127 @@ def review_alert(
         alert.closed_at = datetime.now(timezone.utc)
     db.commit()
     return {"alert_id": alert.id, "status": alert.status}
+
+
+@router.post("/{tenant_id}/borrowers/{account}/manual-finding")
+def submit_manual_finding(
+    tenant_id: str, account: str,
+    reporting_date: date = Form(...),
+    signal_code: str = Form(...),
+    finding: bool = Form(...),
+    notes: str = Form(""),
+    db: Session = Depends(get_session),
+    principal: Principal = Depends(get_current_principal),
+) -> dict:
+    """The entry point for LNC-15/LNC-16 - a physical, qualitative fact (a godown
+    inspection outcome, a bill-verification outcome) that no document or feed can ever
+    carry automatically. ``finding=true`` means the red flag is present; ``finding=false``
+    is a real, recorded "checked and clean", not the same as nobody having checked at all.
+
+    Tied to one exact review period, not a standing flag - resubmitting for the same
+    (account, reporting_date, signal_code) overwrites the prior entry, the same
+    re-delivery tolerance every other Lane C intake already gives."""
+    resolve_tenant_scope(principal, tenant_id)
+    if signal_code not in MANUAL_SIGNALS:
+        raise AppError(f"signal_code must be one of {', '.join(sorted(MANUAL_SIGNALS))}",
+                       422, "invalid_signal_code")
+
+    existing = db.scalars(select(ManualFinding).where(
+        ManualFinding.tenant_id == tenant_id, ManualFinding.account == account,
+        ManualFinding.reporting_date == reporting_date,
+        ManualFinding.signal_code == signal_code)).first()
+    if existing is not None:
+        existing.finding = finding
+        existing.notes = notes
+        existing.submitted_by = principal.subject
+        db.commit()
+        return {"id": existing.id, "signal_code": signal_code, "finding": finding,
+                "resubmission": True}
+
+    row = ManualFinding(
+        tenant_id=tenant_id, account=account, reporting_date=reporting_date,
+        signal_code=signal_code, finding=finding, notes=notes,
+        submitted_by=principal.subject,
+    )
+    db.add(row)
+    db.commit()
+    return {"id": row.id, "signal_code": signal_code, "finding": finding,
+            "resubmission": False}
+
+
+@router.post("/{tenant_id}/borrowers/{account}/project-appraisal")
+def submit_project_appraisal(
+    tenant_id: str, account: str,
+    sanctioned_cost: float = Form(...),
+    sanctioned_completion_date: date = Form(...),
+    db: Session = Depends(get_session),
+    principal: Principal = Depends(get_current_principal),
+) -> dict:
+    """The sanctioned baseline LNC-02/LNC-22 compare every period's progress against -
+    set once at sanction, not tied to a review period the way project-progress is.
+    Resubmitting for the same account overwrites the prior baseline (e.g. a formally
+    revised sanction), the same re-delivery tolerance every other Lane C intake gives."""
+    resolve_tenant_scope(principal, tenant_id)
+    cost_paise = round(sanctioned_cost * 100)
+    if cost_paise <= 0:
+        raise AppError("sanctioned_cost must be positive", 422, "invalid_sanctioned_cost")
+
+    existing = db.scalars(select(ProjectAppraisal).where(
+        ProjectAppraisal.tenant_id == tenant_id, ProjectAppraisal.account == account)
+        ).first()
+    if existing is not None:
+        existing.sanctioned_cost_paise = cost_paise
+        existing.sanctioned_completion_date = sanctioned_completion_date
+        existing.submitted_by = principal.subject
+        db.commit()
+        return {"id": existing.id, "resubmission": True}
+
+    row = ProjectAppraisal(
+        tenant_id=tenant_id, account=account, sanctioned_cost_paise=cost_paise,
+        sanctioned_completion_date=sanctioned_completion_date,
+        submitted_by=principal.subject,
+    )
+    db.add(row)
+    db.commit()
+    return {"id": row.id, "resubmission": False}
+
+
+@router.post("/{tenant_id}/borrowers/{account}/project-progress")
+def submit_project_progress(
+    tenant_id: str, account: str,
+    reporting_date: date = Form(...),
+    actual_cost_incurred: float = Form(...),
+    revised_completion_date: date | None = Form(None),
+    notes: str = Form(""),
+    db: Session = Depends(get_session),
+    principal: Principal = Depends(get_current_principal),
+) -> dict:
+    """This period's update against the sanctioned baseline above - cost incurred so
+    far, and a revised completion date only if the timeline has actually moved.
+    Resubmitting for the same (account, reporting_date) overwrites the prior entry."""
+    resolve_tenant_scope(principal, tenant_id)
+    cost_paise = round(actual_cost_incurred * 100)
+    if cost_paise < 0:
+        raise AppError("actual_cost_incurred cannot be negative",
+                       422, "invalid_actual_cost")
+
+    existing = db.scalars(select(ProjectProgress).where(
+        ProjectProgress.tenant_id == tenant_id, ProjectProgress.account == account,
+        ProjectProgress.reporting_date == reporting_date)).first()
+    if existing is not None:
+        existing.actual_cost_incurred_paise = cost_paise
+        existing.revised_completion_date = revised_completion_date
+        existing.notes = notes
+        existing.submitted_by = principal.subject
+        db.commit()
+        return {"id": existing.id, "resubmission": True}
+
+    row = ProjectProgress(
+        tenant_id=tenant_id, account=account, reporting_date=reporting_date,
+        actual_cost_incurred_paise=cost_paise,
+        revised_completion_date=revised_completion_date, notes=notes,
+        submitted_by=principal.subject,
+    )
+    db.add(row)
+    db.commit()
+    return {"id": row.id, "resubmission": False}

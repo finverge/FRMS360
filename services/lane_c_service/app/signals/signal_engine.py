@@ -201,6 +201,91 @@ def compute_fixed_asset_funding(cur: dict[str, int], prior: dict[str, int] | Non
     return SignalResult(code, funded_ratio, 1.0, status, severity, evidence)
 
 
+def compute_borrowing_despite_cash(cur: dict[str, int], prior: dict[str, int] | None
+                                    ) -> SignalResult:
+    """RBI #31 - the extraction pipeline has parsed CASH since day one (gl_mapper.py),
+    but until now nothing cross-checked it against WC_BORROWING. Two facts alone are
+    each unremarkable - rising borrowing happens, and sitting on cash happens - the red
+    flag is the two together: a borrower who doesn't need the extra debt taking it
+    anyway, the classic shape of diversion or window-dressing."""
+    code = "LNC-12"
+    if prior is None:
+        return _unmeasurable(code, "no prior-period statement to compare against")
+    wc_growth = _growth(cur.get("WC_BORROWING"), prior.get("WC_BORROWING"))
+    if wc_growth is None:
+        return _unmeasurable(code, "WC borrowing not found in one of the two statements")
+    cash_cur, rev_cur = cur.get("CASH"), cur.get("REVENUE")
+    if cash_cur is None or not rev_cur:
+        return _unmeasurable(code, "cash or revenue not found for this period")
+
+    cash_to_rev = cash_cur / rev_cur
+    severity = 0
+    if wc_growth > 0.2:
+        severity += 25
+    if cash_to_rev > 0.15:
+        severity += 25
+    if wc_growth > 0.2 and cash_to_rev > 0.15:
+        # Compounding, not just additive: this exact combination is the signal RBI
+        # names, not two independent observations that happen to co-occur.
+        severity += 15
+
+    status = band(severity)
+    evidence = (f"Working-capital borrowing grew {wc_growth:.1%} while cash on hand is "
+                f"{cash_to_rev:.1%} of revenue.")
+    return SignalResult(code, wc_growth, cash_to_rev, status, severity, evidence)
+
+
+def compute_contingent_liabilities_high(cur: dict[str, int]) -> SignalResult:
+    """RBI #34 - a level judgment, not a trend, so this is the one ratio signal here
+    that never needs a prior period: "claims not acknowledged as debt are high" is
+    answerable from a single filing, the same way LNC-01's text-pattern read is."""
+    code = "LNC-13"
+    cl, equity = cur.get("CONTINGENT_LIABILITIES"), cur.get("EQUITY")
+    if cl is None or not equity:
+        return _unmeasurable(code, "contingent liabilities or net worth not found in this statement")
+
+    ratio = cl / equity
+    severity = 0
+    if ratio > 1.0:
+        severity = 50
+    elif ratio > 0.5:
+        severity = 30
+    elif ratio > 0.25:
+        severity = 15
+
+    status = band(severity)
+    evidence = f"Contingent liabilities are {ratio:.1%} of net worth."
+    return SignalResult(code, ratio, None, status, severity, evidence)
+
+
+def compute_unbilled_revenue_growth(cur: dict[str, int], prior: dict[str, int] | None
+                                     ) -> SignalResult:
+    """RBI #35 - same shape as compute_inventory_movement (LNC-03): unbilled revenue
+    growing while real revenue does not is the same "the top line is being propped up"
+    pattern, just on a different balance-sheet line the extraction pipeline already
+    parses (UNBILLED_REVENUE, gl_mapper.py) and nothing read until now."""
+    code = "LNC-14"
+    if prior is None:
+        return _unmeasurable(code, "no prior-period statement to compare against")
+    ub_growth = _growth(cur.get("UNBILLED_REVENUE"), prior.get("UNBILLED_REVENUE"))
+    rev_growth = _growth(cur.get("REVENUE"), prior.get("REVENUE"))
+    if ub_growth is None or rev_growth is None:
+        return _unmeasurable(code, "unbilled revenue or revenue not found in one of the two statements")
+
+    severity = 0
+    if ub_growth > 0.5:
+        severity += 30
+    if ub_growth > 0.5 and rev_growth < 0.1:
+        severity += 25
+    ub_cur, rev_cur = cur.get("UNBILLED_REVENUE"), cur.get("REVENUE")
+    if ub_cur is not None and rev_cur and ub_cur / rev_cur > 0.2:
+        severity += 15
+
+    status = band(severity)
+    evidence = f"Unbilled revenue grew {ub_growth:.1%} while revenue grew {rev_growth:.1%}."
+    return SignalResult(code, ub_growth, rev_growth, status, severity, evidence)
+
+
 # ------------------------------------------------------------------ LNC-01, 08: text
 _STATUTORY_DUES_RE = None  # compiled lazily below to keep imports light at module load
 
@@ -259,24 +344,45 @@ def compute_accounting_change(cur_notes: str, prior_notes: str | None,
                         evidence_basis="structured+notes")
 
 
-def compute_scope_creep() -> SignalResult:
-    """LNC-02 needs a stored project-appraisal baseline (cost, timeline) that Lane C does
-    not ingest yet for any borrower. Always unmeasurable until that feed exists - the
-    same honest gap CPT-03 is in without a loaded CERSAI registry."""
-    return _unmeasurable("LNC-02",
-                         "no project-appraisal baseline feed exists yet for this borrower")
-
-
 def compute_all(cur: dict[str, int], prior: dict[str, int] | None,
                 cur_notes: str = "", prior_notes: str | None = None,
                 cur_reporting_month: int = 0, prior_reporting_month: int | None = None,
-                peer_median_inventory_growth: float | None = None
+                peer_median_inventory_growth: float | None = None,
+                company_identifier: str | None = None, roc_entry: dict | None = None,
+                rating_entry: dict | None = None, prior_rank: float | None = None,
+                godown_entry: dict | None = None, bills_entry: dict | None = None,
+                insurance_entry: dict | None = None, stock_audit_entry: dict | None = None,
+                shareholding_entry: dict | None = None, prior_promoter_pct: float | None = None,
+                enforcement_entry: dict | None = None, enforcement_feed_loaded: bool = False,
+                invoice_entry: dict | None = None, management_change_entry: dict | None = None,
+                project_baseline: dict | None = None, project_progress: dict | None = None,
                 ) -> dict[str, SignalResult]:
     """Every LNC signal for one borrower-quarter. ``prior`` is the immediately preceding
-    filed statement's metrics, or None for a borrower's first-ever submission."""
+    filed statement's metrics, or None for a borrower's first-ever submission. Every
+    ``*_entry`` parameter is the caller's pre-fetched lookup (runner.py's job, via
+    reference_fetch.active_entry()/is_loaded() or a direct ManualFinding read) - this
+    function stays pure and does no I/O of its own, the same split every other signal
+    here already follows for prior_metrics/prior_notes."""
+    # Imported here, not at module top, so a compute_all() caller that never enables the
+    # LLM signal pays no import cost for httpx - signal_engine.py stays the pure,
+    # dependency-light module every other signal function already keeps it as.
+    from .enforcement_check import compute_enforcement_action_check
+    from .insurance_check import compute_insurance_coverage_check
+    from .management_change_check import compute_management_change_check
+    from .manual_findings import (
+        compute_bill_verification_check, compute_godown_inspection_check,
+        compute_invoice_compliance_check,
+    )
+    from .project_appraisal_check import compute_cost_variance, compute_scope_creep
+    from .qualitative_red_flags import compute_qualitative_red_flags
+    from .rating_check import compute_rating_check
+    from .roc_mca_check import compute_roc_mca_check
+    from .shareholding_check import compute_shareholding_check
+    from .stock_audit_check import compute_stock_audit_check
+
     results = [
         compute_statutory_dues_default(cur_notes),
-        compute_scope_creep(),
+        compute_scope_creep(project_baseline, project_progress),
         compute_inventory_movement(cur, prior, peer_median_inventory_growth),
         compute_receivables_movement(cur, prior),
         compute_oca_change(cur, prior),
@@ -284,5 +390,20 @@ def compute_all(cur: dict[str, int], prior: dict[str, int] | None,
         compute_fixed_asset_funding(cur, prior),
         compute_accounting_change(cur_notes, prior_notes, cur_reporting_month,
                                   prior_reporting_month),
+        compute_qualitative_red_flags(cur_notes),
+        compute_roc_mca_check(company_identifier, roc_entry),
+        compute_rating_check(company_identifier, rating_entry, prior_rank),
+        compute_borrowing_despite_cash(cur, prior),
+        compute_contingent_liabilities_high(cur),
+        compute_unbilled_revenue_growth(cur, prior),
+        compute_godown_inspection_check(godown_entry),
+        compute_bill_verification_check(bills_entry),
+        compute_insurance_coverage_check(company_identifier, insurance_entry, cur.get("INVENTORY")),
+        compute_stock_audit_check(company_identifier, stock_audit_entry),
+        compute_shareholding_check(company_identifier, shareholding_entry, prior_promoter_pct),
+        compute_enforcement_action_check(company_identifier, enforcement_entry, enforcement_feed_loaded),
+        compute_invoice_compliance_check(invoice_entry),
+        compute_management_change_check(company_identifier, management_change_entry),
+        compute_cost_variance(project_baseline, project_progress),
     ]
     return {r.signal_code: r for r in results}

@@ -111,6 +111,16 @@ NEEDS_CBS_FEED = {
     "CBS-03": "loan_utilisation events and a connected-group register",
     "CBS-04": "cheque_return events",
     "CBS-05": "od_position events with a sanctioned limit",
+    "CBS-06": "bg_lc_event events",
+    "CBS-07": "facility_sanction events flagged funds_interest",
+    # Same two-independent-dependencies shape as CPT-03: loan_repayment is already
+    # required for BEH-02, but CBS-08 additionally needs those events to carry a
+    # due_date, which most CBS extracts don't send yet.
+    "CBS-08": "loan_repayment events carrying a due_date",
+    # CPT-03 has two independent dependencies, unlike everything else here - it also
+    # needs a CERSAI list loaded (NEEDS_REFERENCE_DATA below). Both are named so neither
+    # gap reads as the whole story.
+    "CPT-03": "collateral_valuation events carrying a matchable collateral_id",
 }
 
 #: Loan-origination indicators (BR-214), fed by loan_application / collateral_valuation
