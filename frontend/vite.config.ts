@@ -19,9 +19,11 @@ export default defineConfig({
     // Proxying the same way here means this dev server speaks to the real running
     // services with no CORS setup and no separate "point this at localhost:8081"
     // config scattered through the code - one base URL, /api, same as production.
+    // Defaults to run_local.ps1's gateway port. Set FRAUD360_GATEWAY_URL to point at a
+    // gateway running elsewhere (another port, or a shared dev server).
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:8090",
+        target: process.env.FRAUD360_GATEWAY_URL ?? "http://127.0.0.1:8080",
         changeOrigin: true,
       },
     },
