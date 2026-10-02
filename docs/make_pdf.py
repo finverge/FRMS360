@@ -302,12 +302,12 @@ def main() -> int:
     require_mermaid()
 
     jobs = [
-        ("brd.html", "Fraud360-BRD-v1.7.pdf",
-         "BRD v1.7  ·  Fraud360  ·  Business Requirements"),
-        ("hld.html", "Fraud360-HLD-v1.6.pdf",
-         "HLD v1.6  ·  Fraud360  ·  High-Level Design"),
-        ("fsd.html", "Fraud360-FSD-v1.4.pdf",
-         "FSD v1.4  ·  Fraud360  ·  Functional Specification"),
+        ("brd.html", "Fraud360-BRD-v1.9.pdf",
+         "BRD v1.9  ·  Fraud360  ·  Business Requirements"),
+        ("hld.html", "Fraud360-HLD-v1.8.pdf",
+         "HLD v1.8  ·  Fraud360  ·  High-Level Design"),
+        ("fsd.html", "Fraud360-FSD-v1.6.pdf",
+         "FSD v1.6  ·  Fraud360  ·  Functional Specification"),
     ]
     for src_name, pdf_name, footer in jobs:
         src = HERE / src_name

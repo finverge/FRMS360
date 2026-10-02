@@ -72,6 +72,9 @@ COMPUTABLE = (
 NEEDS_REFERENCE_DATA = {
     "CPT-02": "sanctions",
     "CPT-03": "cersai_charges",
+    "CPT-04": "title_disputes",
+    "CBS-09": "related_party_register",
+    "CBS-10": "related_party_register",
 }
 
 #: Why the rest do not fire. Surfaced to operators so "dormant" never reads as "broken".
@@ -121,6 +124,11 @@ NEEDS_CBS_FEED = {
     # needs a CERSAI list loaded (NEEDS_REFERENCE_DATA below). Both are named so neither
     # gap reads as the whole story.
     "CPT-03": "collateral_valuation events carrying a matchable collateral_id",
+    # Same two-dependency shape as CPT-03 - the same collateral_id, a second,
+    # independent reference list (title_disputes, NEEDS_REFERENCE_DATA below).
+    "CPT-04": "collateral_valuation events carrying a matchable collateral_id",
+    "CBS-09": "loan_utilisation events and a related-party register",
+    "CBS-10": "loan_disbursement and loan_utilisation events and a related-party register",
 }
 
 #: Loan-origination indicators (BR-214), fed by loan_application / collateral_valuation

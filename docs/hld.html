@@ -233,10 +233,10 @@ footer { margin-top:64px; padding-top:20px; border-top:1px solid var(--rule); fo
 
   <dl class="control">
     <div><dt>Document</dt><dd>HLD / FRMS-EWS</dd></div>
-    <div><dt>Version</dt><dd>1.6</dd></div>
-    <div><dt>Date</dt><dd>28 September 2026</dd></div>
+    <div><dt>Version</dt><dd>1.8</dd></div>
+    <div><dt>Date</dt><dd>2 October 2026</dd></div>
     <div><dt>Stack</dt><dd>Python · FastAPI · PostgreSQL</dd></div>
-    <div><dt>Companion</dt><dd>BRD v1.7</dd></div>
+    <div><dt>Companion</dt><dd>BRD v1.9</dd></div>
   </dl>
 
   <div class="note">
@@ -246,7 +246,7 @@ footer { margin-top:64px; padding-top:20px; border-top:1px solid var(--rule); fo
     have been closed. This revision rewrites <b>identity and access</b> (§13) and
     <b>data protection</b> (§14) from scratch, adds <b>regulatory artefacts</b> (§10),
     <b>backfill, replay and simulation</b> (§8) and a seventh service, and restates the
-    gap register against the R1–R5 release gates in BRD v1.7. Sections whose design has
+    gap register against the R1–R5 release gates in BRD v1.9. Sections whose design has
     not changed are unchanged.</p>
   </div>
 </header>
@@ -282,7 +282,7 @@ flowchart LR
     subgraph SRC["the bank's estate"]
       direction TB
       RAILS["<b>Payment rails</b><br/>UPI · IMPS · NEFT · RTGS · Card"]
-      CBSF["<b>Core banking</b><br/>loan conduct · 7 event kinds"]
+      CBSF["<b>Core banking</b><br/>loan conduct · 9 event kinds"]
       REF["<b>Reference feeds</b><br/>sanctions · PEP · negative list<br/>CERSAI charges · group register"]
       IDP["<b>Identity provider</b><br/>OIDC · SAML 2.0"]
       EXT["invoice · geolocation · trade finance"]
@@ -339,7 +339,7 @@ flowchart LR
     <p>A UPI collect request, an IMPS P2A transfer and a card authorisation describe the
     same event with different field names, different amount units and different notions of
     who initiated it. If that variation reaches the rule engine, every indicator has to
-    know about every rail, and adding a sixth rail means editing twenty-five indicators.
+    know about every rail, and adding a sixth rail means editing thirty-three indicators.
     Normalising once at intake means a rail is an adapter, and the detection code has
     never heard of UPI.</p>
   </div>
@@ -382,7 +382,7 @@ flowchart LR
         <div class="cell card">
           <b>Detection &amp; scoring</b>
           <ul>
-            <li>25 EWS indicators across 8 families</li>
+            <li>33 EWS indicators across 8 families</li>
             <li>Per-tenant thresholds and comparators</li>
             <li>Debtor <em>and</em> creditor side scored</li>
             <li>Graph traversal, circular flow, device clusters</li>
@@ -417,7 +417,7 @@ flowchart LR
       <div class="band">Integration</div>
       <div class="row">
         <div class="cell"><b>Payment rails</b><span>UPI · IMPS · NEFT · RTGS · Card</span></div>
-        <div class="cell"><b>Core banking</b><span>Loan conduct, 7 event kinds</span></div>
+        <div class="cell"><b>Core banking</b><span>Loan conduct, 9 event kinds</span></div>
         <div class="cell"><b>ISO 20022</b><span><code>pacs.008</code> · <code>pain.001</code></span></div>
         <div class="cell"><b>Reference feeds</b><span>Sanctions · PEP · CERSAI · group</span></div>
         <div class="cell"><b>Identity providers</b><span>OIDC · SAML 2.0</span></div>
@@ -531,9 +531,10 @@ flowchart LR
     the FRM policy body was entity-type aware. <code>ENTITY_TYPES</code> now carries a
     <code>can_extend_credit</code> flag per entity type, checked against each of the nine RBI
     2026 Directions' own Chapter III text rather than assumed, and <code>rule_configs()</code>
-    accepts it to drop the 12 rules whose premise is a lending relationship (loan-account
-    misuse, borrowal-account conduct, collateral, qualitative credit signals, loan
-    origination — BR-214) for an entity type that cannot extend credit — today, only
+    accepts it to drop the 20 rules whose premise is a lending relationship (loan-account
+    misuse, borrowal-account conduct, collateral, title disputes, related-party exposure,
+    qualitative credit signals, loan origination — BR-214) for an entity type that cannot
+    extend credit — today, only
     Payments Bank. This is capability-gated
     seeding, not a per-tenant override: it happens once, at onboarding, in
     <code>default_configs_for()</code>, and what gets seeded is what
@@ -661,7 +662,7 @@ flowchart TB
         <tr><td>REST batch</td><td>JSON, canonical or per-rail</td><td>The synchronous path. Per-row rejection with index and reason</td></tr>
         <tr><td>File / SFTP drop</td><td>CSV</td><td>Each file is registered, checksummed and processed once. Re-dropping the same file is a no-op, not a double count</td></tr>
         <tr><td>ISO 20022</td><td><code>pacs.008</code>, <code>pain.001</code></td><td>Parsed by local element name, so a bank's own namespace prefix does not break it. <code>GrpHdr/NbOfTxs</code> and <code>CtrlSum</code> are verified against what was actually parsed, and a mismatch fails the <em>whole</em> file</td></tr>
-        <tr><td>CBS loan-conduct events</td><td>7 event kinds</td><td>Account-level rather than payment-level: sanction, disbursal, repayment, classification change, security and end-use events. Feeds the BEH and CBS indicator families</td></tr>
+        <tr><td>CBS loan-conduct events</td><td>9 event kinds</td><td>Account-level rather than payment-level: sanction, disbursal, repayment, classification change, security, BG/LC and end-use events. Feeds the BEH and CBS indicator families</td></tr>
       </tbody>
     </table>
   </div>
@@ -730,7 +731,7 @@ sequenceDiagram
   are scored: a mule collection account may never pay anybody, so a debtor-only view never
   assesses the hub of a fan-in, which is the single account an investigation is about.</p>
 
-  <p>Twenty-five indicators are declared. Which of them can actually be measured depends
+  <p>Thirty-three indicators are declared. Which of them can actually be measured depends
   on which feeds a given tenant has connected, so the split below is by <em>dependency</em>,
   not by whether code exists.</p>
 
@@ -741,19 +742,19 @@ sequenceDiagram
         <tr><td>Velocity</td><td>VEL-01, VEL-02, VEL-03</td><td>—</td><td>—</td></tr>
         <tr><td>Structuring</td><td>SME-01, SME-02</td><td>—</td><td>SME-03 (invoice)</td></tr>
         <tr><td>Behavioural</td><td>BEH-01</td><td>BEH-02, BEH-03 (CBS)</td><td>—</td></tr>
-        <tr><td>Loan conduct</td><td>—</td><td>CBS-01, CBS-02, CBS-03 (CBS)</td><td>—</td></tr>
+        <tr><td>Loan conduct</td><td>—</td><td>CBS-01, CBS-02, CBS-03, CBS-04, CBS-05, CBS-06, CBS-07, CBS-08, CBS-09, CBS-10 (CBS)</td><td>—</td></tr>
         <tr><td>Layering / mule</td><td>LAY-01, LAY-02, LAY-03, LAY-04</td><td>—</td><td>—</td></tr>
-        <tr><td>Counterparty</td><td>CPT-01</td><td>CPT-02 (sanctions), CPT-03 (CERSAI)</td><td>—</td></tr>
+        <tr><td>Counterparty</td><td>CPT-01</td><td>CPT-02 (sanctions), CPT-03 (CERSAI), CPT-04 (title dispute)</td><td>—</td></tr>
         <tr><td>Channel / device</td><td>CHN-01, CHN-03</td><td>—</td><td>CHN-02 (geolocation)</td></tr>
         <tr><td>Trade-based</td><td>—</td><td>—</td><td>TBM-01, TBM-02, TBM-03</td></tr>
-        <tr><td colspan="1"><strong>Total</strong></td><td><strong>13</strong></td><td><strong>7</strong></td><td><strong>5</strong></td></tr>
+        <tr><td colspan="1"><strong>Total</strong></td><td><strong>13</strong></td><td><strong>15</strong></td><td><strong>5</strong></td></tr>
       </tbody>
     </table>
   </div>
 
   <p>LAY-03 (multi-hop layering) moved from the third column to the first: the graph
   traversal is now computed in the database rather than requiring an external graph store.
-  The seven middle-column indicators became measurable when CBS event intake and scheduled
+  The fifteen middle-column indicators became measurable when CBS event intake and scheduled
   reference retrieval landed — but only for a tenant that has actually connected those
   feeds, which is the distinction the next note is about.</p>
 
@@ -804,7 +805,7 @@ sequenceDiagram
         <tr><td><strong>Answers</strong></td><td>Binary on UPI and IMPS &mdash; approve or decline. Card adds a 3-D Secure challenge; NEFT and RTGS can hold</td><td>Scored alerts, grouped into cases</td></tr>
         <tr><td><strong>Budget</strong></td><td>50&ndash;150&nbsp;ms by rail, set per tenant</td><td>Seconds; measured at p99 2.65&nbsp;s per worker at 200&nbsp;tps</td></tr>
         <tr><td><strong>Context</strong></td><td>Pre-computed counters and what the channel supplies</td><td>Full account, graph and reference context</td></tr>
-        <tr><td><strong>Rules</strong></td><td>9 of the 31 catalogue rules are inline-eligible</td><td>All 31</td></tr>
+        <tr><td><strong>Rules</strong></td><td>9 of the 33 catalogue rules are inline-eligible</td><td>All 33</td></tr>
         <tr><td><strong>Reads</strong></td><td>Single-key lookups only; no aggregate, no cross-service call</td><td>Whatever the typology needs, including multi-hop traversal</td></tr>
         <tr><td><strong>On failure</strong></td><td>Reports which rules were skipped; the outcome is <code>budget_exceeded</code>, never a clean pass</td><td>Retries; the backlog is visible</td></tr>
         <tr><td><strong>Availability class</strong></td><td>In the payment path &mdash; its own service, own schema, own role, own scaling</td><td>Can absorb a restart behind the queue</td></tr>
@@ -1720,7 +1721,7 @@ Content-Type: application/json
       <g class="chip-g">
         <rect x="104" y="384" width="120" height="30" rx="4"/>
         <text class="ct" x="164" y="397">Rule engine</text>
-        <text class="cs" x="164" y="408">25 indicators</text>
+        <text class="cs" x="164" y="408">33 indicators</text>
 
         <rect x="230" y="384" width="120" height="30" rx="4"/>
         <text class="ct" x="290" y="397">Cases / RFA</text>
@@ -1885,7 +1886,7 @@ Content-Type: application/json
 <section id="h15">
   <h2>Known gaps</h2>
   <p class="lede">Architectural debt stated plainly, with the consequence of leaving it.
-  Gates refer to the release plan in BRD v1.7 §17.</p>
+  Gates refer to the release plan in BRD v1.9 §17.</p>
 
   <h4>Closed since v1.0</h4>
   <div class="tw">
@@ -2113,7 +2114,7 @@ Content-Type: application/json
   demonstration data held side by side. Where this document says a control is enforced,
   the enforcement has been checked by reintroducing the fault and confirming the test
   fails — a guard that has never been seen to refuse anything is an assumption.</p>
-  <p>Read with BRD v1.7, which carries the numbered requirements, the release gates and
+  <p>Read with BRD v1.9, which carries the numbered requirements, the release gates and
   the regulatory traceability this design serves.</p>
 </footer>
 

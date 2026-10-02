@@ -82,6 +82,24 @@ LIST_KINDS = {
         # Keyed by an asset identifier, so exact.
         "match": "key",
     },
+    "title_disputes": {
+        "label": "Collateral title dispute register",
+        "why": "A recorded title dispute on the pledged asset is RBI #9's own signal, "
+               "not a proxy for it the way multiple-charge detection (CPT-03) is - "
+               "CPT-03 can only ever prove 'multiply-charged', never 'disputed'.",
+        "feeds": ("CPT-04",),
+        # Same physical asset CPT-03 keys on, so the same exact-match discipline.
+        "match": "key",
+    },
+    "related_party_register": {
+        "label": "Verified related-party / front-company register",
+        "why": "Common-director, shareholding-overlap or declared-associate "
+               "relationships verified against MCA/ROC data - richer and account-keyed, "
+               "unlike group_register's loose self-declared accounts list, which has no "
+               "relationship type at all.",
+        "feeds": ("CBS-09", "CBS-10"),
+        "match": "key",
+    },
 }
 
 

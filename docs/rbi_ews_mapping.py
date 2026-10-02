@@ -47,10 +47,9 @@ officer actually records a finding for the period — a human-input gap, not a f
 LNC-02 and LNC-22 are built but unmeasurable until a borrower has both a
 project-appraisal baseline and a period's progress submission on file — the same
 honest gap, fed by a direct submission (``routes/lane_c.py``) rather than a feed or a
-human checkbox. LNC-02 is marked ``partial`` here regardless of whether it is
-measurable for a given borrower, because even when it is, it checks a single period's
-slip against the original baseline, not the repeated-revision count RBI's own word
-"frequent" asks for.
+human checkbox. LNC-02 answers RBI's word "frequent" directly: it counts how many
+times the reported completion date has actually changed across every period on file,
+not just whether the current period's own slip is large.
 
 Running this file prints the coverage table and the gap analysis.
 """
@@ -66,12 +65,12 @@ MAP: list[tuple[int, str, str, str]] = [
      "CBS-04", "cheque_return_count, threshold 3 - closed via the CBS cheque_return "
      "event kind"),
     (3, "Frequent change in the scope of the project",
-     "partial:LNC-02", "Lane C - a project-finance timeline slip against the "
-     "sanctioned appraisal baseline; needs project_appraisals/project_progress on "
-     "file for this borrower (routes/lane_c.py), unmeasurable until both are "
-     "submitted. Partial because it is a level check against the original baseline "
-     "from a single period, not yet the count of repeated revisions across periods "
-     "RBI's own word 'frequent' asks for"),
+     "LNC-02", "Lane C - a project-finance timeline slip against the sanctioned "
+     "appraisal baseline, AND a count of how many times the completion date has "
+     "actually changed across every period on file - RBI's own word 'frequent', "
+     "answered directly rather than by a single period's magnitude alone. Needs "
+     "project_appraisals/project_progress on file for this borrower (routes/lane_c.py); "
+     "unmeasurable until both are submitted"),
     (4, "Foreign bills outstanding with the bank for a long time / overdue",
      "TBM-03", "days_outstanding, threshold 270"),
     (5, "Delay in payment of outstanding dues",
@@ -89,7 +88,9 @@ MAP: list[tuple[int, str, str, str]] = [
      "records a finding for the period (also blocks SME-03, a separate transaction-"
      "level indicator this does not close)"),
     (9, "Dispute on title of collateral securities",
-     "partial:CPT-03", "CPT-03 detects multiple charges, not a title dispute"),
+     "CPT-04", "Needs a title_disputes reference feed configured for the tenant - "
+     "a recorded dispute, not CPT-03's multiple-charges proxy; unmeasurable until "
+     "one is - the engine is built, no vendor is wired up yet"),
     (10, "Funds from other banks to liquidate the outstanding loan",
      "BEH-02", "external_funding_pct, threshold 0.6"),
     (11, "In merchanting trade, import leg not revealed to the bank",
@@ -106,7 +107,10 @@ MAP: list[tuple[int, str, str, str]] = [
     (15, "Concealment of vital documents (master agreement, insurance)",
      "QUAL-03", "concealment_findings — in the catalogue, manual input"),
     (16, "Floating front / associate companies by investing borrowed money",
-     "partial:CBS-01,CBS-03", "Diversion and group exposure are proxies, not the signal"),
+     "CBS-10", "front_company_diversion_pct, threshold 0.10 — diverted funds landing on "
+     "a verified control-grade related party, not CBS-01/CBS-03's looser proxies. Needs "
+     "a related_party_register reference feed configured for the tenant; unmeasurable "
+     "until one is"),
     (17, "Critical issues highlighted in the stock audit report",
      "LNC-18", "Lane C - needs a stock_audit reference feed configured for the tenant; "
      "unmeasurable until one is - the engine is built, no vendor is wired up yet"),
@@ -155,7 +159,9 @@ MAP: list[tuple[int, str, str, str]] = [
     (36, "Many transactions with inter-connected companies, large outstandings",
      "CBS-03", "group_exposure_pct, threshold 0.35"),
     (37, "Substantial related party transactions",
-     "partial:CBS-03", "Group exposure is a proxy; related-party status is not held"),
+     "CBS-09", "related_party_exposure_pct, threshold 0.25 — a verified related-party "
+     "register, not CBS-03's looser group-exposure proxy. Needs a related_party_register "
+     "reference feed configured for the tenant; unmeasurable until one is"),
     (38, "Material discrepancies / inconsistencies within the annual report",
      "partial:LNC-09", "Lane C - local-LLM read of the statement text, off by default "
      "(settings.lane_c_llm_enabled); a probabilistic read, never counted as a full "
@@ -178,9 +184,9 @@ MAP: list[tuple[int, str, str, str]] = [
 DECLARED = [
     "VEL-01", "VEL-02", "VEL-03", "SME-01", "SME-02", "SME-03",
     "BEH-01", "BEH-02", "BEH-03", "LAY-01", "LAY-02", "LAY-03", "LAY-04",
-    "CPT-01", "CPT-02", "CPT-03", "CHN-01", "CHN-02", "CHN-03",
+    "CPT-01", "CPT-02", "CPT-03", "CPT-04", "CHN-01", "CHN-02", "CHN-03",
     "TBM-01", "TBM-02", "TBM-03", "CBS-01", "CBS-02", "CBS-03", "CBS-04", "CBS-05",
-    "CBS-06", "CBS-07", "CBS-08",
+    "CBS-06", "CBS-07", "CBS-08", "CBS-09", "CBS-10",
     # BR-214, added after this file's own 2016-list cross-check confirmed none of the 42
     # signals below are about the pre-sanction / application stage - they are corporate-
     # borrower monitoring signals, and a falsified application or a straw borrower

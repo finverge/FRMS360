@@ -177,10 +177,10 @@ footer { margin-top:64px; padding-top:20px; border-top:1px solid var(--rule); fo
 
   <dl class="control">
     <div><dt>Document</dt><dd>BRD / FRMS-EWS</dd></div>
-    <div><dt>Version</dt><dd>1.7</dd></div>
-    <div><dt>Date</dt><dd>28 September 2026</dd></div>
+    <div><dt>Version</dt><dd>1.9</dd></div>
+    <div><dt>Date</dt><dd>2 October 2026</dd></div>
     <div><dt>Status</dt><dd>For review</dd></div>
-    <div><dt>Companion</dt><dd>HLD v1.6</dd></div>
+    <div><dt>Companion</dt><dd>HLD v1.8</dd></div>
   </dl>
 </header>
 
@@ -212,7 +212,7 @@ footer { margin-top:64px; padding-top:20px; border-top:1px solid var(--rule); fo
     <div><div class="n">106</div><div class="l">Requirements</div></div>
     <div><div class="n">80%</div><div class="l">EWS coverage*</div></div>
   </div>
-  <p style="font-size:12.5px;color:var(--muted);margin-top:-12px">*Coverage of <i>our own</i> 25 indicators, which is a narrower claim than coverage of RBI's illustrative list &mdash; see the note below. 20 of 25 quantitative indicators are measurable once a tenant sends its feeds: 13 from the payment stream alone, CPT-02 and CPT-03 from screening lists, and BEH-02, BEH-03 and CBS-01/02/03 from the core-banking event intake. The remaining five need records the platform cannot yet take — invoice lines, session geolocation and trade-finance documents — and are reported as unmeasurable <i>with the reason</i>, never scored as zero. See section 7.</p>
+  <p style="font-size:12.5px;color:var(--muted);margin-top:-12px">*Coverage of <i>our own</i> 33 indicators, which is a narrower claim than coverage of RBI's illustrative list &mdash; see the note below. 28 of 33 quantitative indicators are measurable once a tenant sends its feeds: 13 from the payment stream alone, CPT-02, CPT-03 and CPT-04 from screening lists, and BEH-02, BEH-03 and CBS-01 through CBS-10 from the core-banking event intake. The remaining five need records the platform cannot yet take — invoice lines, session geolocation and trade-finance documents — and are reported as unmeasurable <i>with the reason</i>, never scored as zero. See section 7.</p>
   <div class="callout" style="margin-top:14px">
     <p style="margin:0"><b>On the RBI early-warning-signal list.</b> The 2016 Master
     Directions on Frauds carried an illustrative annexure of <b>42</b> early-warning
@@ -228,16 +228,36 @@ footer { margin-top:64px; padding-top:20px; border-top:1px solid var(--rule); fo
     platform's own configured defaults (see policy.py's threshold model per entity type)
     and must be confirmed against each entity type's own 2026 Direction text before
     being relied on as an exact regulatory figure.</p>
-    <p style="margin:.6em 0 0">Mapped against the 2016 annexure, the platform covers
-    <b>12 of 42</b> signals, partially covers <b>3</b>, and does not cover <b>27</b>.
-    That is not a defect. <b>26 of the 27</b> are borrower-conduct and credit-monitoring
-    signals &mdash; audited financials, stock-audit findings, ROC filings, auditor's
-    reports &mdash; which are read from a loan file on a periodic cycle, not from a
-    payment stream in real time. Conversely <b>16 of our 25</b> indicators have no
-    counterpart on that list, because they are payment-fraud typologies answering a
-    different question. Closing the remaining 27 is a separate periodic-assessment
-    capability (Lane&nbsp;C on the roadmap), not a threshold change. The mapping is
-    generated and kept current by <code>docs/rbi_ews_mapping.py</code>.</p>
+    <p style="margin:.6em 0 0">Mapped against the 2016 annexure, the platform fully covers
+    <b>40 of 42</b> signals, partially covers <b>2</b>, and leaves
+    <b>0</b> uncovered &mdash; every one of the 42 now maps to at least a partial
+    indicator, and all but two map to a full one. Two catalogues share that coverage.
+    Account-conduct signals that arrive as
+    events &mdash; cheque returns, BG invocation and LC devolvement, interest funded by a
+    fresh sanction, delayed repayment, diversion, cash withdrawal &mdash; are payment-rail
+    and core-banking rules (CBS-01 through CBS-10 among them). A verified title-dispute
+    register (CPT-04) and a verified related-party register (CBS-09/10) closed the last
+    gaps in that catalogue this round, replacing the proxies (CPT-03's multiple-charge
+    detection, CBS-01/03's group-exposure ratio) that previously stood in for them. The
+    borrower-conduct and
+    credit-monitoring signals &mdash; audited financials, stock-audit findings, ROC
+    filings, auditor's reports &mdash; are read from a loan file on a periodic cycle, not
+    from a payment stream in real time, by Lane&nbsp;C's own catalogue, <b>LNC-01 through
+    LNC-23</b>. Several Lane&nbsp;C signals are built but unmeasurable until a tenant
+    configures the matching reference feed, a credit officer records a finding, or a
+    borrower's project-appraisal baseline and progress submission are both on file
+    &mdash; reported as unmeasurable, never scored as zero. LNC-02 (project scope change,
+    #3) also counts how many times a borrower's reported completion date has actually
+    changed across every period on file, directly answering RBI's own word "frequent"
+    rather than checking only the current period's own slip. LNC-11 (a negative rating
+    action) has no counterpart on the list and is never counted toward the 42. The two
+    remaining partial covers are both the same off-by-default
+    local-LLM read of the annual report (#38, #39) &mdash; deliberately never promoted to
+    "full": a probabilistic read should not claim to be deterministic. Conversely
+    <b>20 of our 36</b>
+    indicators have no counterpart on that list, because they are payment-fraud typologies
+    answering a different question. The mapping is generated and kept current by
+    <code>docs/rbi_ews_mapping.py</code>.</p>
   </div>
 
   <h4>In scope</h4>
@@ -384,7 +404,7 @@ footer { margin-top:64px; padding-top:20px; border-top:1px solid var(--rule); fo
         <tr><td class="id">BR-108</td><td>Invite tenant users with a role, a temporary password and forced reset at first login. <strong>Found and fixed this cycle</strong>: create and delete were <code>require_role("platform_admin")</code> only — a bank's own tenant_admin could view their user list but not invite, update or remove anyone; every one of those required the vendor's own staff to act on the bank's behalf, undocumented as an actor mismatch until this session's FSD sweep named it. Fixed: create, update (new — role reassignment, previously not possible for any actor at all) and delete are now gated by <code>can_admin_tenant</code>, checked dynamically so a BR-113 custom role granted admin scope gets the same reach as the seeded <code>tenant_admin</code>. A safety net added alongside: removing or demoting a user is refused if it would leave the tenant with nobody able to administer it, not merely if it would leave zero users — the latter is what the code checked before and would have allowed a tenant with several users but zero admin-capable ones</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
         <tr><td class="id">BR-109</td><td>Self-service tenant onboarding and an isolated sandbox tenant for integration testing. Built as <code>POST /tenants/self-service</code> — unauthenticated (the one path the gateway admits under the <code>tenants</code> segment without a bearer token), running the same onboarding orchestration <code>platform_admin</code>'s <code>POST /tenants</code> always has, but always producing a tenant with <code>is_sandbox=true</code>. Isolation is enforced, not just labelled: <code>/ingest/{tenant_id}/transactions</code> and <code>/cbs-events</code> refuse a sandbox tenant's batch outright if it claims <code>source="live"</code>, so sandbox traffic can never be miscounted as the traffic BR-508 (CTR) or BR-611 build regulatory filings and live/demo reporting from. One live sandbox per admin email (a signup guard, not a login wall). A console form on the login page (no sign-in required) drives it end-to-end. Promotion to a real, billable tenant is a separate, deliberate <code>platform_admin</code> action (<code>POST /tenants/{id}/promote</code>) — never automatic, never self-service.</td><td><span class="pri should">SHOULD</span></td><td><span class="chip built">Built</span></td></tr>
         <tr><td class="id">BR-110</td><td>Meter usage per tenant for billing (transactions ingested, alerts scored, seats)</td><td><span class="pri should">SHOULD</span></td><td><span class="chip built">Built</span></td></tr>
-        <tr><td class="id">BR-111</td><td>Gate the seeded EWS rule catalogue by entity-type capability — a licence that cannot extend credit (Payments Bank) does not get the 9 credit-linked rules (loan-account misuse, borrowal-account conduct, collateral, qualitative credit signals) seeded at onboarding</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="id">BR-111</td><td>Gate the seeded EWS rule catalogue by entity-type capability — a licence that cannot extend credit (Payments Bank) does not get the 20 credit-linked rules (loan-account misuse, borrowal-account conduct, collateral, title disputes, related-party exposure, qualitative credit signals, loan origination) seeded at onboarding</td><td><span class="pri">MUST</span></td><td><span class="chip built">Built</span></td></tr>
         <tr><td class="id">BR-112</td><td>Phase 1 of role flexibility: give a tenant administrator a read-only view of the platform's role catalogue — what each of the ten fixed roles (BR-108) can access (modules, dashboards, PII-reveal, admin scope) — and which of their own users currently hold each one. Pure transparency over the existing catalogue in code; no new permission model, no write path. Establishes, from real tenant usage, whether the fixed set actually needs extending before Phase 2 is built. <code>GET /tenants/{id}/roles</code> — same access level as the existing user list (any authenticated user of the tenant, not admin-only), scoped to the ten tenant-assignable roles; <code>platform_admin</code> never appears, matching the floor BR-108's invite flow already enforces</td><td><span class="pri should">SHOULD</span></td><td><span class="chip built">Built</span></td></tr>
         <tr><td class="id">BR-113</td><td>Phase 2 of role flexibility: let a tenant define its own roles and permission grants — custom module/dashboard access, PII-reveal and admin scope — beyond the fixed ten-role catalogue, with the same versioning, maker-checker and audit trail every other tenant configuration carries, and without a tenant-defined role ever able to reach cross-tenant scope or the platform-staff PII floor. Not a functional or regulatory gap today: RBAC, least-privilege and segregation of duties are already satisfied by the fixed catalogue, and every seeded role maps to a named persona the FRM Directions themselves expect (Principal Officer, ACB/CRO, board).
           <br/><br/><strong>Phase 2a (persistence) is built</strong>: every tenant gets its own materialised <code>tenant_roles</code> rows, seeded at onboarding the same way BR-111 seeds the EWS rule catalogue, verified byte-for-byte equivalent to the pre-existing hardcoded catalogue against a frozen backup (<code>scripts/backups/rbac_py_pre_br113_20260816.py</code>).

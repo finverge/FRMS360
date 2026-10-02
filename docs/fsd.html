@@ -204,9 +204,9 @@ footer { margin-top:64px; padding-top:20px; border-top:1px solid var(--rule); fo
 
   <dl class="control">
     <div><dt>Document</dt><dd>FSD / Fraud360</dd></div>
-    <div><dt>Version</dt><dd>1.4</dd></div>
-    <div><dt>Date</dt><dd>28 September 2026</dd></div>
-    <div><dt>Derived from</dt><dd>BRD v1.7 · HLD v1.6</dd></div>
+    <div><dt>Version</dt><dd>1.6</dd></div>
+    <div><dt>Date</dt><dd>2 October 2026</dd></div>
+    <div><dt>Derived from</dt><dd>BRD v1.9 · HLD v1.8</dd></div>
     <div><dt>Verification basis</dt><dd>790 automated tests</dd></div>
   </dl>
 
@@ -250,7 +250,7 @@ footer { margin-top:64px; padding-top:20px; border-top:1px solid var(--rule); fo
       actor code (see the persona table in §3). Referenced from the traceability matrix in
       §19 and, where relevant, from other use cases via <em>includes</em> — a step that is
       itself specified in full somewhere else, rather than repeated.</li>
-    <li><strong>BR-<em>nnn</em></strong> — the business requirement in BRD v1.7 that this
+    <li><strong>BR-<em>nnn</em></strong> — the business requirement in BRD v1.9 that this
       use case satisfies. A use case with no BR reference is either purely a screen
       convenience or a system-actor interface documented for completeness.</li>
     <li><span class="chip built">Built</span> / <span class="chip partial">Partial</span> /
@@ -587,7 +587,7 @@ flowchart LR
 
 <section id="f5b">
   <h2>Detection scope — Lane A / Lane B / Lane C</h2>
-  <p class="lede">Which of the 31 EWS rules run where, and why — the question the two-lane
+  <p class="lede">Which of the 43 EWS rules run where, and why — the question the two-lane
   architecture raises the moment anyone asks "does real-time mean I lose detection
   quality?" The answer is a table, not a slogan: Lane A is a strict subset of Lane B, and
   the boundary is drawn by whether the signal exists yet at the moment of authorisation,
@@ -603,11 +603,11 @@ flowchart LR
     end
     subgraph B["Lane B — near-real-time · in scope today"]
       direction TB
-      B1["31 rules<br/>the full catalogue, incl. Lane A's 9"]
+      B1["43 rules<br/>the full catalogue, incl. Lane A's 9"]
     end
-    subgraph C["Lane C — periodic review · roadmap"]
+    subgraph C["Lane C — periodic review · in scope today"]
       direction TB
-      C1["15 RBI-42 signals<br/>read from the credit file, no rule yet"]
+      C1["23 signals, LNC-01–LNC-23<br/>read from the borrower's filed statements"]
     end
     TXN -->|"UPI · IMPS · Card<br/>(rail configured inline)"| A
     TXN -->|"every rail, always"| B
@@ -616,21 +616,22 @@ flowchart LR
 </pre>
     <p class="cap">Lane A answers inside the payment window and hands nothing back that
     Lane B does not also compute — the dotted line marks that A is contained in B, not
-    parallel to it. Lane C has no transaction to react to at all; it is scoped in this
-    section for planning purposes and carries the <span class="chip pending">Pending</span>
-    status honestly throughout.</p>
+    parallel to it. Lane C has no transaction to react to at all; it reads a borrower's
+    own filed financial statements on a review cadence, from its own separate catalogue
+    (LNC-01 through LNC-23), and a signal whose input has not been supplied yet is
+    reported as unmeasurable, never scored as zero.</p>
   </div>
 
   <div class="note">
-    <h5>31, 12 and 9 are the counts for a lending-capable entity type — not every tenant (BR-111)</h5>
+    <h5>43, 20 and 9 are the counts for a lending-capable entity type — not every tenant (BR-111)</h5>
     <p>A Payments Bank licence cannot extend credit (RBI/DoS/2026-27/430 carries none of the
-    borrower/financial-performance EWS language every other 2026 Direction does). The 12 rules
-    whose entire premise is a lending relationship — <code>BEH-02/03</code>, <code>CPT-03</code>,
-    <code>CBS-01/02/03</code>, <code>QUAL-01/02/03</code>, <code>LOS-01/02/03</code> (BR-214,
+    borrower/financial-performance EWS language every other 2026 Direction does). The 20 rules
+    whose entire premise is a lending relationship — <code>BEH-02/03</code>, <code>CPT-03/04</code>,
+    <code>CBS-01/02/03/04/05/06/07/08/09/10</code>, <code>QUAL-01/02/03</code>, <code>LOS-01/02/03</code> (BR-214,
     an application or a valuation cannot exist without a credit facility to originate) — are
-    never seeded for one, not just muted. All 12 were already Lane B-only (see the per-rule
+    never seeded for one, not just muted. All 20 are Lane B-only (see the per-rule
     table below), so Lane A stays at 9 of 9 for every entity type unchanged; only Lane B's
-    count moves, from 31 to 19 for a Payments Bank tenant. Nothing else in the catalogue is
+    count moves, from 43 to 23 for a Payments Bank tenant. Nothing else in the catalogue is
     gated this way today — see FSD §"Entity-type gating" note under the rule table for what
     was checked and deliberately left ungated.</p>
   </div>
@@ -677,10 +678,10 @@ flowchart LR
     decision still open. See <code>docs/ISO8583_LANE_A_SCOPING.md</code>.</p>
   </div>
 
-  <h3>The 31 indicators, by lane</h3>
+  <h3>The 36 indicators, by lane</h3>
   <p>Nine indicators are inline-eligible because their observation is either a
   precomputed per-account counter or something the channel already supplies with the
-  request — nothing that needs a lookup. All 31 run in Lane B for a lending-capable entity
+  request — nothing that needs a lookup. All 36 run in Lane B for a lending-capable entity
   type; the "Lane" column below says which additionally run in Lane A. See the entity-type
   gating note directly below this table for the one entity type this doesn't hold for.</p>
 
@@ -723,19 +724,44 @@ flowchart LR
           <td>Needs a geolocation feed that is not contracted</td></tr>
         <tr><td class="id">CHN-03</td><td>B only</td>
           <td>Needs the account's hour profile, held but not published as a counter</td></tr>
-        <tr><td rowspan="3">Counterparty (CPT)</td><td class="id">CPT-01</td><td>B only</td>
+        <tr><td rowspan="4">Counterparty (CPT)</td><td class="id">CPT-01</td><td>B only</td>
           <td>Beneficiary age needs the first-seen-pair set, not an account counter — an
           unknown pair would read as age zero and fire on every high-value payment</td></tr>
         <tr><td class="id">CPT-02</td><td>B only</td>
           <td>Sanctions and PEP screening lists are not loaded in the payment path</td></tr>
         <tr><td class="id">CPT-03</td><td>B only</td>
           <td>CERSAI charge registry is a lookup, and not on this path</td></tr>
-        <tr><td rowspan="3">Loan conduct (CBS)</td><td class="id">CBS-01</td><td>B only</td>
+        <tr><td class="id">CPT-04</td><td>B only</td>
+          <td>Title-dispute register is a lookup against the same <code>collateral_ref</code>,
+          and not on this path</td></tr>
+        <tr><td rowspan="10">Loan conduct (CBS)</td><td class="id">CBS-01</td><td>B only</td>
           <td>Needs the loan account's disbursal-to-withdrawal history from the CBS</td></tr>
         <tr><td class="id">CBS-02</td><td>B only</td>
           <td>Needs security and stock records from the CBS</td></tr>
         <tr><td class="id">CBS-03</td><td>B only</td>
           <td>Needs sale-proceeds routing, known only after the fact</td></tr>
+        <tr><td class="id">CBS-04</td><td>B only</td>
+          <td>Needs cheque-return events from the CBS (<code>cheque_return</code>); a
+          dishonour never traverses a payment rail</td></tr>
+        <tr><td class="id">CBS-05</td><td>B only</td>
+          <td>Needs overdraft/cash-credit drawn-vs-limit positions from the CBS
+          (<code>od_position</code>)</td></tr>
+        <tr><td class="id">CBS-06</td><td>B only</td>
+          <td>Needs BG invocation / LC devolvement events from the CBS
+          (<code>bg_lc_event</code>), recorded by the trade-finance desk, not a rail</td></tr>
+        <tr><td class="id">CBS-07</td><td>B only</td>
+          <td>Needs fresh facility sanctions flagged as funding interest from the CBS
+          (<code>facility_sanction</code>), a credit-committee fact</td></tr>
+        <tr><td class="id">CBS-08</td><td>B only</td>
+          <td>Needs repayment due dates from the CBS (an optional <code>due_date</code> on
+          the existing <code>loan_repayment</code> event); unmeasurable where the extract
+          does not send it</td></tr>
+        <tr><td class="id">CBS-09</td><td>B only</td>
+          <td>Needs loan-utilisation events, matched against a verified related-party
+          register not loaded in the payment path</td></tr>
+        <tr><td class="id">CBS-10</td><td>B only</td>
+          <td>Same related-party register as CBS-09, narrowed to utilisation also flagged
+          as diverted</td></tr>
         <tr><td rowspan="3">Trade-based (TBM)</td><td class="id">TBM-01</td><td>B only</td>
           <td>Needs trade-finance records</td></tr>
         <tr><td class="id">TBM-02</td><td>B only</td><td>Needs trade-finance records</td></tr>
@@ -761,16 +787,16 @@ flowchart LR
 
   <div class="note">
     <h5>Entity-type gating (BR-111)</h5>
-    <p>The 12 rules marked "B only" above and named in the table — <code>BEH-02/03</code>,
-    <code>CPT-03</code>, <code>CBS-01/02/03</code>, <code>QUAL-01/02/03</code>,
-    <code>LOS-01/02/03</code> — share one property none of the other 19 do: their premise is
+    <p>The 20 rules marked "B only" above and named in the table — <code>BEH-02/03</code>,
+    <code>CPT-03/04</code>, <code>CBS-01/02/03/04/05/06/07/08/09/10</code>, <code>QUAL-01/02/03</code>,
+    <code>LOS-01/02/03</code> — share one property none of the other 23 do: their premise is
     a lending relationship (a borrowal account, pledged collateral, a disbursement, a
     "primary banker", or — for LOS — an application for one). Checked against the
     actual Chapter III EWS text of all nine RBI 2026 Directions, every entity type carries
     that borrower/financial-performance language except Payments Bank — a PB licence cannot
     extend credit, and its Direction (RBI/DoS/2026-27/430) has no credit-related EWS section
-    at all. For a Payments Bank tenant, none of these 12 are seeded at onboarding; the platform
-    starts that tenant on 19 rules, not 31, and detection never evaluates the excluded 12
+    at all. For a Payments Bank tenant, none of these 20 are seeded at onboarding; the platform
+    starts that tenant on 23 rules, not 43, and detection never evaluates the excluded 20
     because they are absent from the tenant's active configuration, not merely deactivated.</p>
     <p>TBM-01/02/03 (trade-based: merchanting trade, Letters of Credit, foreign bills) were
     checked the same way and left ungated on purpose. None of the nine 2026 Directions tie
@@ -1023,12 +1049,12 @@ flowchart LR
     <p><strong>Lane A (9 rules):</strong> Detects the most urgent fraud signatures using only
     data that exists at authorization time—account counters and channel-supplied signals. Answer
     in 50–150 milliseconds.</p>
-    <p><strong>Lane B (31 rules for a lending-capable entity type):</strong> Adds 22 more rules
+    <p><strong>Lane B (43 rules for a lending-capable entity type):</strong> Adds 34 more rules
     that need external feeds, post-settlement facts, or signals that only form after the
     payment clears — or, for the three loan-origination rules (BR-214), before it. Answer in
     ~2.65 seconds, but with full context. Includes all of Lane A's
-    signals, so no coverage is lost—only timing. A Payments Bank tenant runs 19 in Lane B, not
-    31 — the 12 credit-linked rules are never seeded for a licence that cannot extend credit
+    signals, so no coverage is lost—only timing. A Payments Bank tenant runs 23 in Lane B, not
+    43 — the 20 credit-linked rules are never seeded for a licence that cannot extend credit
     (BR-111, see the entity-type gating note above).</p>
     <p><strong>Result:</strong> A bank that runs only Lane A gets 9 out of its entity type's
     catalogue in real time and loses nothing—the 9 catch the highest-confidence attacks and are
@@ -1039,63 +1065,135 @@ flowchart LR
 
   <div class="note">
     <h5>The boundary is not speed</h5>
-    <p>Three of the twenty-two deferred rules — LAY-03, CPT-01, VEL-02 — are excluded for a
+    <p>Three of the thirty-four deferred rules — LAY-03, CPT-01, VEL-02 — are excluded for a
     reason no amount of engineering removes: the signal has not <em>formed</em> yet at
     authorisation time. A fan-in hub is invisible until the fan has formed; a beneficiary
     read from a context with no first-seen-pair set would compute as age zero and fire on
-    every high-value payment, which is a broken control, not a fast one. The other nineteen
-    are deferred because a feed is not yet connected or a fact only exists after
+    every high-value payment, which is a broken control, not a fast one. The other
+    thirty-one are deferred because a feed is not yet connected or a fact only exists after
     settlement — connecting them moves rules from Lane B's "unmeasured" state to scored,
     not from Lane B to Lane A.</p>
   </div>
 
-  <h3>Lane C — periodic borrower assessment <span class="chip pending">Pending — roadmap</span></h3>
+  <h3>Lane C — periodic borrower assessment <span class="chip built">Built</span></h3>
   <p>Lanes A and B both react to a transaction or an account event; nothing in either can
   read an auditor's qualification or a rise in unbilled revenue, because nothing about
-  those facts arrives on a payment rail. Lane C is scoped as a third, deliberately
-  different engine: no transaction stream, a periodic read of the credit file on a review
+  those facts arrives on a payment rail. Lane C is a third, deliberately different
+  engine: no transaction stream, a periodic read of the credit file on a review
   cadence — the way a bank's own credit team already works.</p>
 
-  <p>It is scoped against 15 of the RBI 2016 illustrative early-warning signals that
-  neither lane can reach no matter which feeds are connected, because the underlying fact
-  is not transactional at all:</p>
+  <p>Its catalogue is <strong>LNC-01 through LNC-23</strong> — 23 signals, separate from
+  the payment-rail rule catalogue Lanes A and B share. Between them they answer 23 of the
+  RBI 2016 illustrative early-warning signals, the ones whose underlying fact is about the
+  borrower's filed statements, records or conduct rather than a transaction. How each is
+  measured decides when it can be scored:</p>
+  <ul>
+    <li><strong>LNC-01, LNC-03–08, LNC-12–14</strong> — ratios and text patterns read from
+      the borrower's own filed statement, compared with the prior filing. No external
+      dependency.</li>
+    <li><strong>LNC-02</strong> (project scope) and <strong>LNC-22</strong> (project cost
+      variance) — need a project-appraisal baseline and that period's progress submission
+      on file (<code>POST .../project-appraisal</code>, <code>POST .../project-progress</code>);
+      unmeasurable until both exist. LNC-02 also counts how many times the reported
+      completion date has actually changed across every period on file, not just
+      whether the current period's own slip is large — RBI's own word "frequent",
+      answered directly.</li>
+    <li><strong>LNC-09</strong> — a local-LLM read of the statement's notes, off by default;
+      a finding is kept only if its quoted source sentence verifies against the statement
+      text.</li>
+    <li><strong>LNC-10, LNC-17, LNC-18, LNC-19, LNC-20, LNC-23</strong> — one shared
+      reference-feed mechanism (feed kinds <code>mca_roc</code>,
+      <code>insurance_coverage</code>, <code>stock_audit</code>, <code>shareholding</code>,
+      <code>enforcement_action</code>, <code>management_changes</code>); unmeasurable until
+      a tenant configures that feed.</li>
+    <li><strong>LNC-15, LNC-16, LNC-21</strong> — one shared manual-finding mechanism: a
+      credit officer submits a finding for a specific period via the API; unmeasurable
+      until someone does.</li>
+    <li><strong>LNC-11</strong> — a negative rating action. It has no counterpart on RBI's
+      list and is never counted toward the 42; it is added capability, not a checklist
+      item.</li>
+  </ul>
+  <p>An unmeasurable signal is reported as unmeasurable with its reason, never scored as
+  zero.</p>
 
   <div class="tw">
     <table>
-      <thead><tr><th>Signal (RBI 2016 illustrative list)</th><th>What Lane C would read</th></tr></thead>
+      <thead><tr><th>RBI #</th><th>Signal (RBI 2016 illustrative list)</th><th>Lane C signal</th><th>Cover</th><th>What Lane C reads</th></tr></thead>
       <tbody>
-        <tr><td>Default in undisputed payment to statutory bodies per the annual report</td>
-          <td rowspan="15">Audited financial statements, the annual report and the
-            auditor's report — assessed against the prior filing, not against a live
-            feed. No indicator ID exists for these yet; Lane C is unbuilt, so none has
-            been catalogued</td></tr>
-        <tr><td>Frequent change in the scope of the project</td></tr>
-        <tr><td>Request to postpone godown inspection for flimsy reasons</td></tr>
-        <tr><td>Non-production of original bills for verification</td></tr>
-        <tr><td>Inventory movements disproportionate to turnover</td></tr>
-        <tr><td>Receivables movements disproportionate to turnover / ageing</td></tr>
-        <tr><td>Disproportionate change in other current assets</td></tr>
-        <tr><td>Working capital borrowing rising as a percentage of turnover</td></tr>
-        <tr><td>Fixed assets increasing without corresponding long-term sources</td></tr>
-        <tr><td>Borrowings increasing despite large cash balances</td></tr>
-        <tr><td>Frequent change in accounting period or accounting policies</td></tr>
-        <tr><td>Claims not acknowledged as debt are high</td></tr>
-        <tr><td>Substantial increase in unbilled revenue year after year</td></tr>
-        <tr><td>Material discrepancies / inconsistencies within the annual report</td></tr>
-        <tr><td>Poor disclosure of adverse information, no auditor qualification</td></tr>
+        <tr><td>1</td><td>Default in undisputed payment to statutory bodies per the annual report</td>
+          <td class="id">LNC-01</td><td>Full</td><td>Text-pattern read of the notes / auditor's report</td></tr>
+        <tr><td>3</td><td>Frequent change in the scope of the project</td>
+          <td class="id">LNC-02</td><td>Full</td><td>Timeline slip against the sanctioned
+          appraisal baseline, AND a count of how many times the completion date has
+          actually changed across every period on file — RBI's own word "frequent",
+          answered directly; needs the appraisal and a progress submission on file</td></tr>
+        <tr><td>7</td><td>Under-insured or over-insured inventory</td>
+          <td class="id">LNC-17</td><td>Full</td><td><code>insurance_coverage</code> reference feed</td></tr>
+        <tr><td>8</td><td>Invoices devoid of TAN and other details</td>
+          <td class="id">LNC-21</td><td>Full</td><td>Credit officer's sampled-invoice finding for the period</td></tr>
+        <tr><td>12</td><td>Request to postpone godown inspection for flimsy reasons</td>
+          <td class="id">LNC-15</td><td>Full</td><td>Credit / inspection officer's finding for the period</td></tr>
+        <tr><td>17</td><td>Critical issues highlighted in the stock audit report</td>
+          <td class="id">LNC-18</td><td>Full</td><td><code>stock_audit</code> reference feed</td></tr>
+        <tr><td>18</td><td>Liabilities in the ROC search report not reported by the borrower</td>
+          <td class="id">LNC-10</td><td>Full</td><td><code>mca_roc</code> reference feed</td></tr>
+        <tr><td>25</td><td>Non-production of original bills for verification</td>
+          <td class="id">LNC-16</td><td>Full</td><td>Credit officer's finding for the period</td></tr>
+        <tr><td>26</td><td>Inventory movements disproportionate to turnover</td>
+          <td class="id">LNC-03</td><td>Full</td><td>Ratio vs. the prior filed period</td></tr>
+        <tr><td>27</td><td>Receivables movements disproportionate to turnover / ageing</td>
+          <td class="id">LNC-04</td><td>Full</td><td>Ratio, incl. days-sales-outstanding</td></tr>
+        <tr><td>28</td><td>Disproportionate change in other current assets</td>
+          <td class="id">LNC-05</td><td>Full</td><td>Ratio</td></tr>
+        <tr><td>29</td><td>Working capital borrowing rising as a percentage of turnover</td>
+          <td class="id">LNC-06</td><td>Full</td><td>Ratio; degrades gracefully when EBITDA is not reported</td></tr>
+        <tr><td>30</td><td>Fixed assets increasing without corresponding long-term sources</td>
+          <td class="id">LNC-07</td><td>Full</td><td>Capex vs. new long-term debt / equity raised</td></tr>
+        <tr><td>31</td><td>Borrowings increasing despite large cash balances</td>
+          <td class="id">LNC-12</td><td>Full</td><td>Ratio, WC borrowing growth vs. cash-to-revenue</td></tr>
+        <tr><td>32</td><td>Frequent change in accounting period or accounting policies</td>
+          <td class="id">LNC-08</td><td>Full</td><td>Fiscal year-end and depreciation-method language, compared across filings</td></tr>
+        <tr><td>33</td><td>Project cost at wide variance with the standard cost</td>
+          <td class="id">LNC-22</td><td>Full</td><td>Cost incurred so far vs. the sanctioned
+          appraisal baseline; needs the appraisal and a progress submission on file</td></tr>
+        <tr><td>34</td><td>Claims not acknowledged as debt are high</td>
+          <td class="id">LNC-13</td><td>Full</td><td>Contingent liabilities vs. net worth, from a single filing</td></tr>
+        <tr><td>35</td><td>Substantial increase in unbilled revenue year after year</td>
+          <td class="id">LNC-14</td><td>Full</td><td>Unbilled-revenue growth vs. turnover</td></tr>
+        <tr><td>38</td><td>Material discrepancies / inconsistencies within the annual report</td>
+          <td class="id">LNC-09</td><td>Partial</td><td>Local-LLM read of the statement text,
+          off by default — a probabilistic read, never counted as a full cover</td></tr>
+        <tr><td>39</td><td>Poor disclosure of adverse information, no auditor qualification</td>
+          <td class="id">LNC-09</td><td>Partial</td><td>Same LLM read as #38; a finding is kept
+          only if its quoted source sentence verifies against the statement text</td></tr>
+        <tr><td>40</td><td>Raid by Income Tax / GST / TDS / central excise officials</td>
+          <td class="id">LNC-20</td><td>Full</td><td><code>enforcement_action</code> reference feed</td></tr>
+        <tr><td>41</td><td>Reduction in promoter stake or increase in encumbered shares</td>
+          <td class="id">LNC-19</td><td>Full</td><td><code>shareholding</code> reference feed</td></tr>
+        <tr><td>42</td><td>Resignation of key personnel, frequent management change</td>
+          <td class="id">LNC-23</td><td>Full</td><td><code>management_changes</code> reference feed (MCA DIR-12 / KMP filing history)</td></tr>
       </tbody>
     </table>
   </div>
 
-  <div class="note risk">
-    <h5>Twelve more signals look like Lane C but are not</h5>
-    <p>Of the 27 RBI-42 signals no platform rule currently covers, 15 are the credit-file
-    group above and belong to Lane C. The remaining 12 — securities and stock-audit
-    records, ROC/MCA and depository feeds, CBS cheque-return data, project-appraisal data
-    — are connectable data for rules the platform can extend within <strong>Lane B</strong>,
-    not a reason to build a third engine. Scoping them into Lane C would overstate what
-    Lane C is for and understate what a connected feed already unlocks. See
-    <code>docs/rbi_ews_mapping.py</code> — the source this table and BRD v1.7's own
+  <div class="note">
+    <h5>None of the 42 is uncovered — and the other 19 are not Lane C's</h5>
+    <p>Every one of RBI's 42 illustrative signals now maps to at least a partial indicator:
+    40 fully covered, 2 partially, 0 not covered. The 23 rows above are Lane
+    C's — 21 fully, 2 partially. The other 19 are answered by the payment-rail and core-banking rules Lanes A and
+    B share — among them cheque returns (CBS-04), BG invocation / LC devolvement (CBS-06),
+    interest funded by a fresh sanction (CBS-07) and delayed repayment (CBS-08), all
+    account events the CBS intake already carries rather than facts a third engine has to
+    read; a verified title-dispute register (CPT-04) and a verified related-party register
+    (CBS-09/10) closed the last three of those this round, replacing the proxies (CPT-03's
+    multiple-charge detection, CBS-01/03's group-exposure ratio) that previously stood in
+    for #9, #16 and #37 — all 19 Lane A/B rows are now full, none by proxy. Stock-audit,
+    ROC/MCA and shareholding data, by contrast, turned out to be
+    periodic facts about the borrower rather than account events, and are read by Lane C
+    through its reference feeds. The only two signals that stay partial are both Lane C's
+    off-by-default local-LLM read (LNC-09, #38/#39) — deliberately never promoted to
+    "full": a probabilistic read should not claim to be deterministic. See
+    <code>docs/rbi_ews_mapping.py</code> — the source this table and BRD's own
     RBI-signal note are both generated from — for the full 42-signal mapping.</p>
   </div>
 </section>
@@ -2376,7 +2474,7 @@ flowchart LR
           NABARD, NHB, or FIU-IND) — a UCB and a commercial bank do not inherit the same
           starting policy</li>
         <li>The system seeds the tenant's starter EWS rule catalogue, gated by what its
-          entity type is licensed to do — a Payments Bank does not receive the 9
+          entity type is licensed to do — a Payments Bank does not receive the 20
           credit-linked rules a lending entity type does, because it cannot generate the
           underlying event (BR-111)</li>
         <li>The tenant enters <code>provisioning</code>, then <code>active</code>,
@@ -2689,7 +2787,7 @@ flowchart LR
 
 <section id="f20">
   <h2>Non-functional requirements</h2>
-  <p class="lede">Carried from BRD v1.7 §14, with the one figure this session's work
+  <p class="lede">Carried from BRD v1.9 §14, with the one figure this session's work
   changed: detection latency at single-worker scale is now measured, not merely
   targeted.</p>
 
@@ -2933,8 +3031,8 @@ flowchart LR
 </main>
 
 <footer>
-  <p><strong>Read with</strong> BRD v1.7 for the numbered business requirements and release
-  gates, and HLD v1.6 for how each use case is actually carried out underneath — the
+  <p><strong>Read with</strong> BRD v1.9 for the numbered business requirements and release
+  gates, and HLD v1.8 for how each use case is actually carried out underneath — the
   service, the schema, the latency budget. This document sits between the two: it is BRD
   requirements resolved into who performs them and how, and it is HLD behaviour resolved
   into who is allowed to trigger it.</p>

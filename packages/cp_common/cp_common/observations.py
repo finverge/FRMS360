@@ -204,7 +204,7 @@ def observe(txn: dict, ctx: AccountContext, clusters: dict[str, int],
         # indicator is left unmeasured, which is the correct behaviour anyway.
         try:
             from services.analytics_service.app.detection.reference import (
-                screen_collateral, screen_name,
+                screen_collateral, screen_name, screen_title_dispute,
             )
         except ImportError:
             # A deployment carrying only the decision lane has no reference module. The
@@ -221,5 +221,8 @@ def observe(txn: dict, ctx: AccountContext, clusters: dict[str, int],
             charge = screen_collateral(screening, asset)
             if charge is not None:
                 out["CPT-03"] = charge[0]
+            dispute = screen_title_dispute(screening, asset)
+            if dispute is not None:
+                out["CPT-04"] = dispute[0]
 
     return out

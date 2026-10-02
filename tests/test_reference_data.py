@@ -261,9 +261,14 @@ def test_lay03_and_chn03_are_no_longer_declared_as_needing_external_data():
     # devolvement, nor a limits-desk sanction touches a payment rail either. CBS-08
     # (delayed repayment, RBI item 5) reuses loan_repayment itself rather than a new
     # event kind - see cbs_features.py's DUE_DATE_SEEN for its own, finer-grained gate.
+    # CPT-04 (title dispute, RBI item 9) has the same two-dependency shape as CPT-03.
+    # CBS-09/10 (related-party exposure / front-company diversion, RBI items 37/16)
+    # read loan_utilisation the same way CBS-03 does, against a verified register
+    # instead of group_register's loose one - see cbs_features.py's
+    # related_party_accounts().
     assert set(NEEDS_CBS_FEED) == {
         "BEH-02", "BEH-03", "CBS-01", "CBS-02", "CBS-03", "CBS-04", "CBS-05", "CBS-06",
-        "CBS-07", "CBS-08", "CPT-03"}
+        "CBS-07", "CBS-08", "CBS-09", "CBS-10", "CPT-03", "CPT-04"}
     assert all(NEEDS_EXTERNAL_DATA.values()), "an indicator is unmeasurable with no reason"
     assert all(NEEDS_CBS_FEED.values()), "a feed-backed indicator names no feed"
 

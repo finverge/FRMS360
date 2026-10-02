@@ -120,7 +120,19 @@ def load_screening_set(db: Session, tenant_id: str) -> dict:
         {"t": tenant_id}).mappings():
         charges[r["match_key"]] = {**(r["attributes"] or {}), "_version": r["version"]}
 
-    return {"names": names, "charges": charges,
+    # RBI #9's own signal ("disputed"), not CPT-03's proxy ("multiply-charged") - a
+    # separate fact about the same physical asset, so its own query rather than an
+    # attribute folded into `charges` above.
+    disputes: dict[str, dict] = {}
+    for r in db.execute(text(
+        "SELECT e.match_key, e.attributes, l.version "
+        "  FROM analytics.reference_entries e "
+        "  JOIN analytics.reference_lists l ON l.id = e.list_id "
+        " WHERE e.tenant_id = :t AND l.active IS TRUE AND e.kind = 'title_disputes'"),
+        {"t": tenant_id}).mappings():
+        disputes[r["match_key"]] = {**(r["attributes"] or {}), "_version": r["version"]}
+
+    return {"names": names, "charges": charges, "disputes": disputes,
             "availability": availability(db, tenant_id)}
 
 
@@ -153,3 +165,17 @@ def screen_collateral(screening: dict, asset_key: str) -> tuple[float, dict] | N
     lenders = row.get("lenders") or []
     n = len(lenders) if isinstance(lenders, list) else int(lenders or 0)
     return float(n), {"lenders": lenders, "version": row.get("_version", "")}
+
+
+def screen_title_dispute(screening: dict, asset_key: str) -> tuple[float, dict] | None:
+    """Whether this asset has a recorded title dispute, or None if no register loaded.
+
+    A flag, not a count - unlike screen_collateral's lender_count, presence of a
+    matching entry at all already IS the finding, the same shape enforcement_action's
+    Lane C equivalent (LNC-20) uses for the same reason."""
+    if not screening["availability"]["title_disputes"].loaded:
+        return None
+    row = screening["disputes"].get(normalise(asset_key))
+    if row is None:
+        return 0.0, {}
+    return 1.0, {"detail": row.get("detail", ""), "version": row.get("_version", "")}

@@ -20,6 +20,13 @@ The eighth and ninth, ``bg_lc_event_count`` (CBS-06) and ``interest_funding_coun
 (CBS-07), are straight counts like CBS-04 - "frequent invocation" and "sanctioning a
 fresh facility to fund interest" are both about how often something happened, not a
 ratio of anything. Same "omit unless the feed is known to cover this account" gate.
+
+The eleventh and twelfth, ``related_party_exposure_pct`` (CBS-09) and
+``front_company_diversion_pct`` (CBS-10), are proportions again, following the same
+denominator rule as CBS-01/03 - both read ``related_party_accounts()`` below rather
+than ``group_accounts()``'s loose, unverified list, deliberately: a verified
+relationship type is the fact RBI #16/#37 actually ask for, not "in some declared
+group."
 """
 from __future__ import annotations
 
@@ -28,6 +35,13 @@ from datetime import date, datetime, timedelta
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from .reference import normalise
+
+#: relationship_type values treated as control, not merely related - the narrower
+#: subset CBS-10 (front/associate company) fires on. shareholding_overlap alone is
+#: related-but-not-control: it feeds CBS-09 but not CBS-10's narrower control check.
+_CONTROL_RELATIONSHIP_TYPES = {"common_director", "declared_associate"}
 
 #: Which event kind each indicator depends on. Used to report honestly why an indicator
 #: is unmeasurable for a tenant, rather than leaving it silently dormant.
@@ -49,6 +63,11 @@ FEEDS = {
     # second, independent dependency beyond "is a CERSAI list loaded" (see
     # detection/features.py's NEEDS_REFERENCE_DATA and screen_collateral()).
     "CPT-03": ("collateral_valuation",),
+    # Same two-dependency shape as CPT-03 - the same collateral_id, a second,
+    # independent reference list (title_disputes, NEEDS_REFERENCE_DATA).
+    "CPT-04": ("collateral_valuation",),
+    "CBS-09": ("loan_utilisation",),
+    "CBS-10": ("loan_disbursement", "loan_utilisation"),
 }
 
 #: How far back the ratios look. A loan behaves over quarters, not hours - the payment
@@ -78,6 +97,15 @@ class LoanContext:
     proceeds_paise: int = 0
     unrouted_paise: int = 0
     group_exposure_paise: int = 0
+    #: Utilisation to an account in the verified related_party_register (CBS-09) -
+    #: distinct from group_exposure_paise above, which reads the looser, unverified
+    #: group_register instead.
+    related_party_exposure_paise: int = 0
+    #: The narrower subset of the above: utilisation that is ALSO diverted
+    #: (within_sanctioned_purpose is False) AND landed on a control-grade related
+    #: party (CBS-10) - "floating a front/associate company with borrowed money" is
+    #: specifically about diversion, not every related-party dealing.
+    front_company_diversion_paise: int = 0
     #: A straight count, not a ratio - unlike everything else on this dataclass, zero is
     #: itself a real, measured value rather than an absent one. See observe_loan.
     cheque_return_count: int = 0
@@ -111,6 +139,7 @@ class LoanContext:
 
 def load_loan_context(db: Session, tenant_id: str, accounts: list[str], now: datetime,
                       *, group_accounts: set[str] | None = None,
+                      related_party: dict[str, str] | None = None,
                       window_days: int = WINDOW_DAYS) -> dict[str, LoanContext]:
     """One pass over the CBS events for the whole batch."""
     ctx: dict[str, LoanContext] = {a: LoanContext() for a in accounts}
@@ -118,6 +147,7 @@ def load_loan_context(db: Session, tenant_id: str, accounts: list[str], now: dat
         return ctx
     since = now - timedelta(days=window_days)
     group_accounts = group_accounts or set()
+    related_party = related_party or {}
 
     rows = db.execute(text("""
         SELECT account, kind, amount_paise, funding_source, routed_through_lender,
@@ -162,6 +192,12 @@ def load_loan_context(db: Session, tenant_id: str, accounts: list[str], now: dat
                 c.diverted_paise += amount
             if r["counterparty_account"] and r["counterparty_account"] in group_accounts:
                 c.group_exposure_paise += amount
+            relationship = related_party.get(normalise(r["counterparty_account"] or ""))
+            if relationship:
+                c.related_party_exposure_paise += amount
+                if (r["within_sanctioned_purpose"] is False
+                        and relationship in _CONTROL_RELATIONSHIP_TYPES):
+                    c.front_company_diversion_paise += amount
         elif kind == "loan_repayment":
             c.repaid_paise += amount
             if r["funding_source"] == "external_bank":
@@ -184,11 +220,19 @@ def load_loan_context(db: Session, tenant_id: str, accounts: list[str], now: dat
     return ctx
 
 
-def observe_loan(ctx: LoanContext) -> dict[str, float]:
-    """The five ratios, omitting any whose denominator is absent.
+def observe_loan(ctx: LoanContext, related_party_loaded: bool = False) -> dict[str, float]:
+    """The ratios and counts, omitting any whose denominator - or, for CBS-09/10,
+    whose reference list - is absent.
 
     An omitted key means "not measurable for this account", which the engine reports
-    rather than scoring. It never means zero.
+    rather than scoring. It never means zero. ``related_party_loaded`` exists because
+    CBS-09/10 have the same "no list loaded" trap CBS-03/group_register already has -
+    without this gate, a tenant with no related_party_register configured would score
+    every account a false 0.0 (clean) rather than leave it unmeasured, since
+    ``related_party_exposure_paise`` stays 0 whether the register is merely sparse or
+    was never loaded at all. Same ``bool(related_party)`` shape engine.py already uses
+    for ``has_group_register`` - not a fix to that existing imprecision, just not a
+    second copy of its opposite mistake (reporting zero unconditionally).
     """
     out: dict[str, float] = {}
 
@@ -203,6 +247,10 @@ def observe_loan(ctx: LoanContext) -> dict[str, float]:
         out["CBS-02"] = ctx.cash_paise / ctx.disbursed_paise
     if ctx.utilised_paise > 0:
         out["CBS-03"] = ctx.group_exposure_paise / ctx.utilised_paise
+        if related_party_loaded:
+            out["CBS-09"] = ctx.related_party_exposure_paise / ctx.utilised_paise
+    if ctx.disbursed_paise > 0 and related_party_loaded:
+        out["CBS-10"] = ctx.front_company_diversion_paise / ctx.disbursed_paise
     # A count, not a ratio, but the same "only if this account actually has the feed"
     # gate as everything above: an account this window never saw a cheque_return event
     # for stays out of `out` entirely, same as an account with no reported disbursement.
@@ -243,7 +291,28 @@ def group_accounts(db: Session, tenant_id: str) -> set[str]:
     return out
 
 
-def unmeasurable(available_kinds: set[str], has_group_register: bool) -> dict[str, str]:
+def related_party_accounts(db: Session, tenant_id: str) -> dict[str, str]:
+    """account -> relationship_type, from the verified related_party_register.
+
+    Deliberately not group_accounts()'s pattern: this reads match_key via the exact
+    "match: key" discipline every other key-matched kind (cersai_charges, title_disputes)
+    already uses, rather than hand-reading a loose attributes.accounts/account blob - an
+    entry with no usable relationship_type still shows up as present (just ungraded),
+    rather than silently vanishing from the result the way it would from
+    group_accounts().
+    """
+    rows = db.execute(text(
+        "SELECT e.match_key, e.attributes FROM analytics.reference_entries e "
+        "  JOIN analytics.reference_lists l ON l.id = e.list_id "
+        " WHERE e.tenant_id = :t AND l.active IS TRUE "
+        "   AND e.kind = 'related_party_register'"),
+        {"t": tenant_id}).mappings().all()
+    return {r["match_key"]: (r["attributes"] or {}).get("relationship_type", "")
+           for r in rows}
+
+
+def unmeasurable(available_kinds: set[str], has_group_register: bool,
+                 has_related_party_register: bool = False) -> dict[str, str]:
     """Why each CBS-fed indicator cannot be measured, for the dormant register."""
     out: dict[str, str] = {}
     for rule, needed in FEEDS.items():
@@ -253,4 +322,9 @@ def unmeasurable(available_kinds: set[str], has_group_register: bool) -> dict[st
                          + " or ".join(sorted(missing)) + " events")
     if not has_group_register and "CBS-03" not in out:
         out["CBS-03"] = "no connected-group register has been loaded for this tenant"
+    if not has_related_party_register:
+        for rule in ("CBS-09", "CBS-10"):
+            if rule not in out:
+                out[rule] = ("no related-party register has been loaded for this "
+                             "tenant")
     return out

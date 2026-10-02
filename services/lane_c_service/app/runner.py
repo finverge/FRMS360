@@ -133,6 +133,18 @@ def _project_progress(db: Session, tenant_id: str, account: str, reporting_date:
             "revised_completion_date": row.revised_completion_date}
 
 
+def _project_progress_history(db: Session, tenant_id: str, account: str) -> list[dict]:
+    """Every progress submission on file for this borrower, oldest first - unlike every
+    other lookup in this file (_prior_period/_prior_rank/_manual_finding all fetch a
+    single most-recent row), LNC-02's revision-frequency check needs the whole history:
+    "frequent" is a count across periods, not a fact about any one of them."""
+    rows = db.scalars(select(ProjectProgress).where(
+        ProjectProgress.tenant_id == tenant_id, ProjectProgress.account == account)
+        .order_by(ProjectProgress.reporting_date.asc())).all()
+    return [{"reporting_date": r.reporting_date,
+            "revised_completion_date": r.revised_completion_date} for r in rows]
+
+
 def _prior_score(db: Session, tenant_id: str, account: str, before: date) -> int | None:
     prior = db.scalars(
         select(CreditHealthScore)
@@ -197,6 +209,8 @@ def process_statement(db: Session, statement: FinancialStatement, rep: RunReport
     project_baseline = _project_baseline(db, statement.tenant_id, statement.account)
     project_progress = _project_progress(db, statement.tenant_id, statement.account,
                                          statement.reporting_date)
+    project_progress_history = _project_progress_history(db, statement.tenant_id,
+                                                          statement.account)
 
     signals = se.compute_all(
         cur_metrics, prior_metrics,
@@ -211,6 +225,7 @@ def process_statement(db: Session, statement: FinancialStatement, rep: RunReport
         enforcement_entry=enforcement_entry, enforcement_feed_loaded=enforcement_feed_loaded,
         invoice_entry=invoice_entry, management_change_entry=management_change_entry,
         project_baseline=project_baseline, project_progress=project_progress,
+        project_progress_history=project_progress_history,
     )
 
     signal_rows: dict[str, ComputedSignal] = {}

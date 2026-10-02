@@ -73,6 +73,12 @@ _RULES = [
      "Counterparty present on a negative, sanctions, or Central Fraud Registry list"),
     ("CPT-03", "CPT", "Same collateral charged to multiple lenders",
      "lender_count", 2, ".02", "Same collateral charged to multiple lenders"),
+    # RBI 2016 EWS annexure item 9. A flag, not a count - presence of a matching entry
+    # in the title-dispute register already IS the finding, the same shape LNC-20
+    # (Lane C's enforcement-action signal) uses for the same reason.
+    ("CPT-04", "CPT", "Dispute on title of collateral securities",
+     "dispute_flag", 1, ".02", "Collateral title under active dispute per the "
+     "title-dispute register"),
 
     ("CHN-01", "CHN", "New device, new beneficiary and high value in one session",
      "risk_signals", 3, ".03", "New device + new beneficiary + high value in one session"),
@@ -135,6 +141,21 @@ _RULES = [
     ("CBS-08", "CBS", "Delay in payment of outstanding dues",
      "delayed_repayment_count", 2, ".02",
      "2+ instalments paid more than a week past their due date in the observation window"),
+    # RBI 2016 EWS annexure item 37. A verified related-party register, not the loose
+    # self-declared group_register CBS-03 already reads - see cbs_features.py's
+    # related_party_accounts(). Tighter than CBS-03's 0.35 because this register is
+    # MCA-verified, not self-declared, so a lower bar still holds up.
+    ("CBS-09", "CBS", "Substantial related-party transactions",
+     "related_party_exposure_pct", 0.25, ".02",
+     "Large exposure to verified related-party accounts"),
+    # RBI 2016 EWS annexure item 16. Narrower than CBS-09: diverted funds (the same
+    # within_sanctioned_purpose signal CBS-01 reads) landing specifically on a
+    # control-grade related party - "floating a front/associate company with borrowed
+    # money" is about diversion, not every related-party dealing. Low threshold because
+    # the condition is already narrow.
+    ("CBS-10", "CBS", "Floating front/associate companies via diverted funds",
+     "front_company_diversion_pct", 0.10, ".02",
+     "Diverted funds routed to a verified control-type related party"),
 
     ("QUAL-01", "QUAL", "Frequent change of primary banker",
      "banker_changes_24m", 2, ".01", "Frequent change of primary banker"),
@@ -235,12 +256,14 @@ def _rule_body(rule_id: str, family: str, desc: str, unit: str,
 CREDIT_LINKED_RULES = {
     "BEH-02", "BEH-03",            # borrowal account conduct
     "CPT-03",                       # collateral charged to multiple lenders
+    "CPT-04",                       # title dispute on collateral - same collateral-registry fact
     "CBS-01", "CBS-02", "CBS-03",   # loan-account misuse
     "CBS-04",                       # cheque returns - borrower-conduct EWS signal, RBI item 2
     "CBS-05",                       # overdraft/cash-credit breach - a credit facility by definition
     "CBS-06",                       # BG invocation / LC devolvement - trade-finance credit facilities
     "CBS-07",                       # interest funded by a fresh sanction - a credit facility by definition
     "CBS-08",                       # delayed instalments - a repayment schedule is a credit facility fact
+    "CBS-09", "CBS-10",             # related-party exposure / front-company diversion - loan-account facts
     "QUAL-01", "QUAL-02", "QUAL-03",  # banker changes, loan requests, post-disbursement concealment
     # LOS (BR-214): a loan application or a collateral valuation cannot exist without a
     # credit facility to originate. Same gate as the rest of this set, for the same

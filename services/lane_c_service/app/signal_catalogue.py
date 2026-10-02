@@ -40,8 +40,10 @@ _SIGNALS = [
      "Unpaid statutory dues (tax, government agency) disclosed as a contingent "
      "liability", "text-pattern", 1, "notes"),
     ("LNC-02", "Project scope creep",
-     "Project-finance timeline slipping beyond the sanctioned completion date - needs "
-     "a project-appraisal baseline and a period's progress submission to be on file; "
+     "Project-finance timeline slipping beyond the sanctioned completion date, and how "
+     "many times the completion date has actually changed across every period on file "
+     "- RBI's own word 'frequent', not just one period's slip. Needs a "
+     "project-appraisal baseline and a period's progress submission to be on file; "
      "unmeasurable until both are", "ratio", 35, "project appraisal"),
     ("LNC-03", "Inventory movement vs. turnover",
      "Inventory growing while revenue is flat or falling",

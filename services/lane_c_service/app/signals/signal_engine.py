@@ -356,6 +356,7 @@ def compute_all(cur: dict[str, int], prior: dict[str, int] | None,
                 enforcement_entry: dict | None = None, enforcement_feed_loaded: bool = False,
                 invoice_entry: dict | None = None, management_change_entry: dict | None = None,
                 project_baseline: dict | None = None, project_progress: dict | None = None,
+                project_progress_history: list[dict] | None = None,
                 ) -> dict[str, SignalResult]:
     """Every LNC signal for one borrower-quarter. ``prior`` is the immediately preceding
     filed statement's metrics, or None for a borrower's first-ever submission. Every
@@ -382,7 +383,7 @@ def compute_all(cur: dict[str, int], prior: dict[str, int] | None,
 
     results = [
         compute_statutory_dues_default(cur_notes),
-        compute_scope_creep(project_baseline, project_progress),
+        compute_scope_creep(project_baseline, project_progress, project_progress_history),
         compute_inventory_movement(cur, prior, peer_median_inventory_growth),
         compute_receivables_movement(cur, prior),
         compute_oca_change(cur, prior),

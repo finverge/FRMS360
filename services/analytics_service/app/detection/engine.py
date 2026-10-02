@@ -228,8 +228,10 @@ def run_once(db: Session, tenant_id: str, *, limit: int = 500) -> RunReport:
             {"t": tenant_id, "accts": accounts}).all()}
     # CBS / loan-system events (BR-211). Loaded per batch like every other aggregate.
     group_accts = cbs_features.group_accounts(db, tenant_id)
+    related_party = cbs_features.related_party_accounts(db, tenant_id)
     loan_ctx = cbs_features.load_loan_context(db, tenant_id, accounts, now,
-                                              group_accounts=group_accts)
+                                              group_accounts=group_accts,
+                                              related_party=related_party)
 
     # ---- 3. score -----------------------------------------------------------------
     for t in scorable:
@@ -252,7 +254,8 @@ def run_once(db: Session, tenant_id: str, *, limit: int = 500) -> RunReport:
         # Loan-conduct ratios describe the borrowal account, so they are observed once
         # per account rather than per side of the payment.
         if loan is not None:
-            for rule_id, value in cbs_features.observe_loan(loan).items():
+            for rule_id, value in cbs_features.observe_loan(
+                    loan, related_party_loaded=bool(related_party)).items():
                 observations[rule_id] = max(observations.get(rule_id, 0.0), value)
 
         cred_ctx = ctxs.get(t["creditor_account"])
@@ -345,7 +348,7 @@ def run_once(db: Session, tenant_id: str, *, limit: int = 500) -> RunReport:
             "SELECT DISTINCT kind FROM ingestion.cbs_events WHERE tenant_id = :t"),
             {"t": tenant_id}).all()}
     for rule_id, why in cbs_features.unmeasurable(
-            seen_kinds, bool(group_accts)).items():
+            seen_kinds, bool(group_accts), bool(related_party)).items():
         if rule_id in catalogue:
             rep.unmeasurable[rule_id] = why
 
