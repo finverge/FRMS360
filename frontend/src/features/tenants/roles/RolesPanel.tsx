@@ -21,7 +21,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { RoleForm } from "./RoleForm"
-import { FIXED_ROLE_NAMES } from "./roleCatalogue"
 
 export function RolesPanel({ tenantId }: { tenantId: string }) {
   const { accessToken } = useSession()
@@ -87,7 +86,7 @@ export function RolesPanel({ tenantId }: { tenantId: string }) {
     <div className="space-y-4">
       <PageHeader
         title="Roles"
-        description="What each role can do, and how many of this tenant's own users hold it"
+        description="Every role is this tenant's own and can be changed, added or removed here. A change takes effect on the person's next request."
         action={<Button size="sm" onClick={openNew}>+ New role</Button>}
       />
 
@@ -111,6 +110,7 @@ export function RolesPanel({ tenantId }: { tenantId: string }) {
             <tr>
               <th className="px-3 py-1.5 font-medium">Role</th>
               <th className="px-3 py-1.5 font-medium">Modules</th>
+              <th className="px-3 py-1.5 text-right font-medium" title="Gated actions this role may perform">Actions</th>
               <th className="px-3 py-1.5 text-center font-medium">Admin</th>
               <th className="px-3 py-1.5 text-center font-medium">PII</th>
               <th className="px-3 py-1.5 text-center font-medium">Activate</th>
@@ -120,21 +120,20 @@ export function RolesPanel({ tenantId }: { tenantId: string }) {
           </thead>
           <tbody>
             {roles === null && (
-              <tr><td colSpan={7} className="px-3 py-2.5 text-muted-foreground">Loading…</td></tr>
+              <tr><td colSpan={8} className="px-3 py-2.5 text-muted-foreground">Loading…</td></tr>
             )}
             {roles?.length === 0 && (
-              <tr><td colSpan={7} className="px-3 py-2.5 text-muted-foreground">No roles</td></tr>
+              <tr><td colSpan={8} className="px-3 py-2.5 text-muted-foreground">No roles</td></tr>
             )}
             {roles?.map((r) => {
-              const fixed = FIXED_ROLE_NAMES.has(r.name)
-              const canDelete = !fixed && r.member_count === 0
+              const canDelete = r.member_count === 0
               return (
                 <tr key={r.name} className="border-t border-border align-top">
                   <td className="px-3 py-1.5">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="font-medium">{r.label}</span>
                       <span className="font-mono text-xs text-muted-foreground">{r.name}</span>
-                      {r.source === "custom" && <Badge variant="outline">custom</Badge>}
+                      {r.source === "custom" && <Badge variant="outline">edited</Badge>}
                       {r.elevation_pending && (
                         <Badge
                           variant="secondary"
@@ -148,6 +147,7 @@ export function RolesPanel({ tenantId }: { tenantId: string }) {
                   <td className="px-3 py-1.5 text-muted-foreground">
                     {r.modules.map((m) => m.label).join(", ") || "—"}
                   </td>
+                  <td className="px-3 py-1.5 text-right" title={r.permissions.join(", ") || "none"}>{r.permissions.length}</td>
                   <td className="px-3 py-1.5 text-center">{r.can_admin_tenant ? "✓" : "—"}</td>
                   <td className="px-3 py-1.5 text-center">{r.can_reveal_pii ? "✓" : "—"}</td>
                   <td className="px-3 py-1.5 text-center" title="May propose or confirm a configuration activation">
@@ -169,9 +169,7 @@ export function RolesPanel({ tenantId }: { tenantId: string }) {
                           Confirm
                         </button>
                       )}
-                      {fixed ? (
-                        <span className="text-sm text-muted-foreground" title="One of the platform's fixed roles">fixed</span>
-                      ) : r.member_count > 0 ? (
+                      {r.member_count > 0 ? (
                         <span className="text-sm text-muted-foreground" title="Reassign its users first">in use</span>
                       ) : (
                         <AlertDialog>
@@ -184,7 +182,8 @@ export function RolesPanel({ tenantId }: { tenantId: string }) {
                             <AlertDialogHeader>
                               <AlertDialogTitle>Delete {r.label}?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                This cannot be undone. No user currently holds this role, so nothing is reassigned.
+                                This cannot be undone. No user holds this role, so nobody loses access. A role that
+                                is the tenant's only way to administer it cannot be deleted.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>

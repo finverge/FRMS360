@@ -178,6 +178,11 @@ class TenantRole(Base):
     # cp_common.rbac.Role.can_activate_config for why this is a separate flag rather
     # than folded into admin scope.
     can_activate_config: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # Gated actions this role may perform (cp_common.permissions.PERMISSIONS keys). This, with
+    # the three flags above and the module/dashboard lists, is the whole of what a role can do:
+    # no service decides by role name.
+    permissions: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
+    description: Mapped[str] = mapped_column(String(600), default="", server_default="")
     # seeded = still an unedited copy of the platform catalogue; custom = created by
     # the tenant, or a seeded row the tenant has since edited.
     source: Mapped[str] = mapped_column(String(16), default="seeded", server_default="seeded")

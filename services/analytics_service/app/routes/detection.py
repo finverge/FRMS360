@@ -14,7 +14,7 @@ from cp_common import (
     AppError, Principal, get_current_principal, get_session, record_audit,
     resolve_tenant_scope,
 )
-from cp_common.dynamic_roles import get_role
+from cp_common.dynamic_roles import get_role, has_permission
 
 from ..detection import run_until_empty
 from ..detection import backfill as backfill_mod
@@ -22,10 +22,10 @@ from ..rules import active_rules, policy_values
 
 router = APIRouter(prefix="/analytics", tags=["detection"])
 
-#: Re-scoring history is a control operation. Simulating is safe; replaying writes alerts.
-SIMULATE_ROLES = ("analyst", "investigator", "risk_manager", "principal_officer",
-                  "supervisor", "tenant_admin", "model_risk")
-REPLAY_ROLES = ("risk_manager", "principal_officer", "tenant_admin")
+# Re-scoring history is a control operation. Simulating is safe; replaying writes alerts.
+# Each is its own grant on the tenant's role rows.
+SIMULATE = "detection.simulate"
+REPLAY = "detection.replay"
 
 
 @router.post("/{tenant_id}/detection/run")
@@ -39,7 +39,7 @@ def run_detection(
     resolve_tenant_scope(principal, tenant_id)
     # Running detection writes alerts and can open cases, so it is not a read.
     if not get_role(tenant_id, principal.role).can_admin_tenant:
-        raise AppError("Only a tenant administrator may run detection", 403,
+        raise AppError("Running detection needs the administrator capability, which your role has not been given", 403,
                        "role_not_permitted")
     report = run_until_empty(db, tenant_id, batch=batch, max_batches=max_batches)
     record_audit(
@@ -75,11 +75,11 @@ def backfill(
     """
     resolve_tenant_scope(principal, tenant_id)
     mode = (body.mode or "simulate").lower()
-    allowed = REPLAY_ROLES if mode == "replay" else SIMULATE_ROLES
-    if not (principal.role in allowed or get_role(tenant_id, principal.role).can_admin_tenant):
+    needed = REPLAY if mode == "replay" else SIMULATE
+    if not has_permission(tenant_id, principal.role, needed):
         raise AppError(
-            "Replaying detection writes alerts and requires a Fraud Risk Manager, "
-            "Principal Officer or Tenant Administrator."
+            "Replaying detection writes alerts and needs the replay permission, which "
+            "your role has not been given."
             if mode == "replay" else "Your role may not re-score history.",
             403, "role_not_permitted")
 

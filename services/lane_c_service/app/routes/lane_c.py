@@ -19,6 +19,7 @@ from cp_common import (
     AppError, Principal, get_current_principal, get_session, resolve_tenant_scope,
     settings,
 )
+from cp_common.dynamic_roles import has_permission
 
 from ..entity_gate import can_extend_credit
 from ..models import (
@@ -28,6 +29,20 @@ from ..models import (
 from ..signal_catalogue import MANUAL_SIGNALS, signal_definitions
 
 router = APIRouter(prefix="/lane-c", tags=["lane-c"])
+
+#: Who may read borrower credit data, and who may change it, is data on the tenant's own role
+#: rows (cp_common.permissions) - not a list of role names here. Reading and changing are
+#: separate grants: a reviewer can be given the first without the second.
+VIEW = "lane_c.view"
+MANAGE = "lane_c.manage"
+
+
+def _authorise(principal: Principal, tenant_id: str, permission: str) -> None:
+    resolve_tenant_scope(principal, tenant_id)
+    if not has_permission(tenant_id, principal.role, permission):
+        raise AppError("Your role may not use borrower credit health"
+                       + (" to make changes" if permission == MANAGE else ""),
+                       403, "role_not_permitted")
 
 #: A statement large enough to need this is almost certainly the wrong file - the same
 #: reasoning CaseDocument's MAX_BYTES applies, sized up for a multi-page annual report.
@@ -48,7 +63,7 @@ async def ingest_statement(
     db: Session = Depends(get_session),
     principal: Principal = Depends(get_current_principal),
 ) -> dict:
-    resolve_tenant_scope(principal, tenant_id)
+    _authorise(principal, tenant_id, MANAGE)
     eligible, reason = can_extend_credit(tenant_id)
     if not eligible:
         raise AppError(f"Lane C is not available for this tenant: {reason}",
@@ -105,7 +120,7 @@ def latest_score(
     db: Session = Depends(get_session),
     principal: Principal = Depends(get_current_principal),
 ) -> dict:
-    resolve_tenant_scope(principal, tenant_id)
+    _authorise(principal, tenant_id, VIEW)
     row = db.scalars(select(CreditHealthScore).where(
         CreditHealthScore.tenant_id == tenant_id, CreditHealthScore.account == account
     ).order_by(CreditHealthScore.reporting_date.desc()).limit(1)).first()
@@ -124,7 +139,7 @@ def signals_for_period(
     db: Session = Depends(get_session),
     principal: Principal = Depends(get_current_principal),
 ) -> dict:
-    resolve_tenant_scope(principal, tenant_id)
+    _authorise(principal, tenant_id, VIEW)
     catalogue = signal_definitions()
     rows = db.scalars(select(ComputedSignal).where(
         ComputedSignal.tenant_id == tenant_id, ComputedSignal.account == account,
@@ -146,7 +161,7 @@ def list_alerts(
     db: Session = Depends(get_session),
     principal: Principal = Depends(get_current_principal),
 ) -> dict:
-    resolve_tenant_scope(principal, tenant_id)
+    _authorise(principal, tenant_id, VIEW)
     q = select(LaneCAlert).where(LaneCAlert.tenant_id == tenant_id)
     if status:
         q = q.where(LaneCAlert.status == status)
@@ -165,7 +180,7 @@ def review_alert(
     db: Session = Depends(get_session),
     principal: Principal = Depends(get_current_principal),
 ) -> dict:
-    resolve_tenant_scope(principal, tenant_id)
+    _authorise(principal, tenant_id, MANAGE)
     if status not in ("reviewed", "escalated", "dismissed"):
         raise AppError("status must be one of reviewed, escalated, dismissed",
                        422, "invalid_status")
@@ -202,7 +217,7 @@ def submit_manual_finding(
     Tied to one exact review period, not a standing flag - resubmitting for the same
     (account, reporting_date, signal_code) overwrites the prior entry, the same
     re-delivery tolerance every other Lane C intake already gives."""
-    resolve_tenant_scope(principal, tenant_id)
+    _authorise(principal, tenant_id, MANAGE)
     if signal_code not in MANUAL_SIGNALS:
         raise AppError(f"signal_code must be one of {', '.join(sorted(MANUAL_SIGNALS))}",
                        422, "invalid_signal_code")
@@ -242,7 +257,7 @@ def submit_project_appraisal(
     set once at sanction, not tied to a review period the way project-progress is.
     Resubmitting for the same account overwrites the prior baseline (e.g. a formally
     revised sanction), the same re-delivery tolerance every other Lane C intake gives."""
-    resolve_tenant_scope(principal, tenant_id)
+    _authorise(principal, tenant_id, MANAGE)
     cost_paise = round(sanctioned_cost * 100)
     if cost_paise <= 0:
         raise AppError("sanctioned_cost must be positive", 422, "invalid_sanctioned_cost")
@@ -280,7 +295,7 @@ def submit_project_progress(
     """This period's update against the sanctioned baseline above - cost incurred so
     far, and a revised completion date only if the timeline has actually moved.
     Resubmitting for the same (account, reporting_date) overwrites the prior entry."""
-    resolve_tenant_scope(principal, tenant_id)
+    _authorise(principal, tenant_id, MANAGE)
     cost_paise = round(actual_cost_incurred * 100)
     if cost_paise < 0:
         raise AppError("actual_cost_incurred cannot be negative",

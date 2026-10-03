@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
-import { Building2, LogOut, Moon, Plus, Search, Sun } from "lucide-react"
+import { Building2, Home, LogOut, Moon, Plus, Search, Sun } from "lucide-react"
 
 import type { Session } from "@/features/auth/AuthPage"
+import { getMe, type MeOut } from "@/api/auth"
 import { listTenants, type TenantOut } from "@/api/tenants"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,14 +13,18 @@ import {
 } from "@/components/ui/sidebar"
 import { useTheme } from "./ThemeContext"
 import { SessionProvider, useSession } from "./SessionContext"
-import { TenantDetail, TENANT_SECTIONS, type TenantSection } from "@/features/tenants/TenantDetail"
+import { TenantDetail, TENANT_SECTIONS } from "@/features/tenants/TenantDetail"
 import { OnboardTenantDialog } from "@/features/tenants/OnboardTenantDialog"
+import { HomePage } from "@/features/home/HomePage"
+import { canOpen, type SectionId } from "@/lib/access"
 
 function ConsoleBody() {
-  const { accessToken, isPlatformAdmin, role, theme, signOut, toggleTheme } = useConsoleSession()
+  const { accessToken, isPlatformAdmin, me, theme, signOut, toggleTheme } = useConsoleSession()
   const [tenants, setTenants] = useState<TenantOut[] | null>(null)
   const [selected, setSelected] = useState<TenantOut | null>(null)
-  const [section, setSection] = useState<TenantSection>("monitoring")
+  // Everyone lands on Home; what it shows, and what the sidebar offers, comes from the role.
+  const [section, setSection] = useState<SectionId>("home")
+  const [dashboard, setDashboard] = useState<string | null>(null)
   const [onboardOpen, setOnboardOpen] = useState(false)
   const [reloadToken, setReloadToken] = useState(0)
   const [tenantQuery, setTenantQuery] = useState("")
@@ -39,7 +44,19 @@ function ConsoleBody() {
 
   function selectTenant(t: TenantOut) {
     setSelected(t)
+    setSection("home")
+    setDashboard(null)
+  }
+
+  function openSection(s: SectionId) {
+    setSection(s)
+    setDashboard(null)
+  }
+
+  // A Home tile or card opens a specific dashboard, not just the Monitoring page.
+  function openDashboard(key: string) {
     setSection("monitoring")
+    setDashboard(key)
   }
 
   return (
@@ -106,43 +123,34 @@ function ConsoleBody() {
             </div>
           )}
 
-          {selected && (
-            <>
-              <div>
-                <SidebarSectionLabel>Monitoring</SidebarSectionLabel>
-                {TENANT_SECTIONS.filter((s) => s.group === "monitoring").map((s) => (
-                  <SidebarNavItem
-                    key={s.value}
-                    icon={s.icon}
-                    active={section === s.value}
-                    onClick={() => setSection(s.value)}
-                  >
-                    {s.label}
-                  </SidebarNavItem>
-                ))}
-              </div>
-              <div>
-                <SidebarSectionLabel>Tenant Admin</SidebarSectionLabel>
-                {TENANT_SECTIONS.filter((s) => s.group === "admin").map((s) => (
-                  <SidebarNavItem
-                    key={s.value}
-                    icon={s.icon}
-                    active={section === s.value}
-                    onClick={() => setSection(s.value)}
-                  >
-                    {s.label}
-                  </SidebarNavItem>
-                ))}
-              </div>
-            </>
-          )}
+          <div>
+            <SidebarNavItem icon={Home} active={section === "home"} onClick={() => openSection("home")}>
+              Home
+            </SidebarNavItem>
+          </div>
+
+          {selected &&
+            (["monitoring", "admin"] as const).map((group) => {
+              const items = TENANT_SECTIONS.filter((s) => s.group === group && canOpen(me, s.value))
+              if (items.length === 0) return null
+              return (
+                <div key={group}>
+                  <SidebarSectionLabel>{group === "monitoring" ? "Monitoring" : "Tenant Admin"}</SidebarSectionLabel>
+                  {items.map((s) => (
+                    <SidebarNavItem key={s.value} icon={s.icon} active={section === s.value} onClick={() => openSection(s.value)}>
+                      {s.label}
+                    </SidebarNavItem>
+                  ))}
+                </div>
+              )
+            })}
         </SidebarNav>
 
         <SidebarFooter>
           <div className="flex items-center gap-2.5 px-1 py-1.5">
-            <UserAvatar name={role} />
+            <UserAvatar name={me.role_label} />
             <div className="min-w-0 flex-1">
-              <Badge variant="outline" className="uppercase tracking-wide">{role}</Badge>
+              <Badge variant="outline" className="uppercase tracking-wide">{me.role_label}</Badge>
             </div>
             <Button
               variant="ghost" size="icon"
@@ -161,18 +169,31 @@ function ConsoleBody() {
 
       <SidebarMain>
         <ContentBody>
-          {selected ? (
+          {section === "home" ? (
+            // A tenant-scoped role's tenant is auto-selected, so until it arrives there is
+            // nothing to summarise; a platform administrator gets the platform view instead.
+            isPlatformAdmin || selected ? (
+              <HomePage
+                key={selected?.id ?? "fleet"}
+                tenant={selected}
+                tenants={tenants}
+                onOpenDashboard={openDashboard}
+                onOpenSection={openSection}
+                onOpenTenant={selectTenant}
+                onOnboard={() => setOnboardOpen(true)}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center text-muted-foreground">Loading your tenant…</div>
+            )
+          ) : selected ? (
             <TenantDetail
-              key={selected.id}
+              key={selected.id + (dashboard ?? "")}
               tenant={selected}
               section={section}
+              initialDashboard={dashboard}
               onTenantChanged={setSelected}
             />
-          ) : (
-            <div className="flex h-full items-center justify-center text-muted-foreground">
-              {isPlatformAdmin ? "Select a tenant, or onboard a new one." : "Loading your tenant…"}
-            </div>
-          )}
+          ) : null}
         </ContentBody>
       </SidebarMain>
 
@@ -197,8 +218,24 @@ function useConsoleSession() {
 }
 
 export function ConsoleApp({ session, signOut }: { session: Session; signOut: () => void }) {
+  const [me, setMe] = useState<MeOut | null>(null)
+
+  // The console renders from what the server says this role may use. If it cannot say (an
+  // expired or refused token), the person goes back to sign in rather than being shown a menu
+  // the console invented for them.
+  useEffect(() => {
+    let live = true
+    getMe(session.accessToken)
+      .then((m) => { if (live) setMe(m) })
+      .catch(() => { if (live) signOut() })
+    return () => { live = false }
+  }, [session.accessToken, signOut])
+
+  if (!me) {
+    return <div className="flex h-svh items-center justify-center text-muted-foreground">Loading…</div>
+  }
   return (
-    <SessionProvider session={session} signOut={signOut}>
+    <SessionProvider session={session} me={me} signOut={signOut}>
       <ConsoleBody />
     </SessionProvider>
   )

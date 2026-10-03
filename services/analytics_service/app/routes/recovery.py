@@ -10,7 +10,7 @@ from cp_common import (
     AppError, Principal, get_current_principal, get_session, record_audit,
     resolve_tenant_scope,
 )
-from cp_common.dynamic_roles import get_role
+from cp_common.dynamic_roles import has_permission
 
 from ..lea_model import (
     AGENCIES, PROGRESSED, RECOVERY_MODES, REFERRAL_STATES, LeaReferral, RecoveryEntry,
@@ -20,8 +20,9 @@ from ..rules import policy_values
 
 router = APIRouter(prefix="/analytics", tags=["recovery"])
 
-RECORD_ROLES = ("investigator", "risk_manager", "principal_officer", "supervisor",
-                "tenant_admin")
+# Who may do this is data: the tenant's own role rows grant "recovery.record"
+# (cp_common.permissions); nothing here names a role.
+PERMISSION = "recovery.record"
 
 
 class ReferralIn(BaseModel):
@@ -49,7 +50,7 @@ class RecoveryIn(BaseModel):
 
 
 def _may(tenant_id: str, principal: Principal) -> bool:
-    return principal.role in RECORD_ROLES or get_role(tenant_id, principal.role).can_admin_tenant
+    return has_permission(tenant_id, principal.role, PERMISSION)
 
 
 def _case(db: Session, tenant_id: str, case_id: str, *, lock: bool = False) -> FactCase:

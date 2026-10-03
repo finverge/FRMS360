@@ -19,7 +19,9 @@ from cp_common import (
     record_audit,
     resolve_tenant_scope,
 )
-from cp_common.dynamic_roles import can_access_dashboard, can_access_module, can_reveal_pii
+from cp_common.dynamic_roles import (
+    can_access_dashboard, can_access_module, can_reveal_pii, has_permission,
+)
 from cp_common.rbac import MOD_MONITORING
 
 from .. import data_source
@@ -859,6 +861,9 @@ def ofac_screen(
     typed in from outside the record (a case note, a KYC document, ...). See ofac.py.
     """
     _guard(principal, tenant_id)
+    # Screening a name is a gated action: granted per role on the tenant's own role rows.
+    if not has_permission(tenant_id, principal.role, "sanctions.screen"):
+        raise AppError("Your role may not run sanctions screens", 403, "role_not_permitted")
     result = ofac.screen(db, name)
     record_audit(
         service="analytics-service", action="ofac.screen", actor=principal.subject,

@@ -108,6 +108,9 @@ def register_success(db: Session, identity: Identity) -> None:
     db.commit()
 
 
+from .roles import effective_role  # noqa: E402
+
+
 def tenant_of(db: Session, identity: Identity) -> Tenant | None:
     if not identity.tenant_id:
         return None
@@ -125,7 +128,9 @@ def mfa_obligation(db: Session, identity: Identity) -> tuple[bool, bool]:
         return True, enrolled
     tenant = tenant_of(db, identity)
     policy = getattr(tenant, "mfa_policy", "privileged") if tenant else "privileged"
-    return mfa_required_for(policy, identity.role), enrolled
+    role = effective_role(db, identity.tenant_id, identity.role)
+    privileged = bool(role.can_admin_tenant or role.can_reveal_pii)
+    return mfa_required_for(policy, privileged=privileged), enrolled
 
 
 # --------------------------------------------------------------------- sessions

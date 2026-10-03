@@ -13,7 +13,7 @@ from cp_common import (
     AppError, Principal, get_current_principal, get_session, record_audit,
     resolve_tenant_scope,
 )
-from cp_common.dynamic_roles import get_role
+from cp_common.dynamic_roles import has_permission
 
 from ..accountability_model import (
     ACTIONS, ADVERSE, FINDINGS, AccountabilityFinding, StaffAccountability,
@@ -23,11 +23,11 @@ from ..rules import policy_values
 
 router = APIRouter(prefix="/analytics", tags=["accountability"])
 
-#: Who may run the exercise. Broader than who may conclude it: gathering findings is
-#: casework, signing off on them is an act of authority.
-EXAMINER_ROLES = ("investigator", "risk_manager", "principal_officer", "supervisor",
-                  "tenant_admin")
-CONCLUDER_ROLES = ("risk_manager", "principal_officer", "tenant_admin")
+# Who may run or conclude the exercise is data: the tenant's own role rows grant
+# "case.examine" and "case.conclude" (cp_common.permissions). Gathering findings is
+# casework; signing off on them is an act of authority, so they are separate grants.
+EXAMINE = "case.examine"
+CONCLUDE = "case.conclude"
 
 
 class OpenIn(BaseModel):
@@ -50,8 +50,8 @@ class ConcludeIn(BaseModel):
     systemic_note: str = Field(default="", max_length=4000)
 
 
-def _may(tenant_id: str, principal: Principal, roles: tuple[str, ...]) -> bool:
-    return principal.role in roles or get_role(tenant_id, principal.role).can_admin_tenant
+def _may(tenant_id: str, principal: Principal, permission: str) -> bool:
+    return has_permission(tenant_id, principal.role, permission)
 
 
 def _case(db: Session, tenant_id: str, case_id: str) -> FactCase:
@@ -124,8 +124,8 @@ def _serialise(exam: StaffAccountability | None, findings, case: FactCase,
         "vocabulary": {"findings": FINDINGS, "actions": ACTIONS},
         # So the console can disable an action *with its reason* rather than offer a
         # button that fails on save. Same rule the lifecycle follows (BR-410).
-        "may_examine": bool(principal and _may(case.tenant_id, principal, EXAMINER_ROLES)),
-        "may_conclude": bool(principal and _may(case.tenant_id, principal, CONCLUDER_ROLES)),
+        "may_examine": bool(principal and _may(case.tenant_id, principal, EXAMINE)),
+        "may_conclude": bool(principal and _may(case.tenant_id, principal, CONCLUDE)),
         "conclude_requires": ("Concluding requires a Fraud Risk Manager, Principal "
                               "Officer or Tenant Administrator."),
     }
@@ -151,7 +151,7 @@ def open_examination(
     principal: Principal = Depends(get_current_principal),
 ) -> dict:
     resolve_tenant_scope(principal, tenant_id)
-    if not _may(tenant_id, principal, EXAMINER_ROLES):
+    if not _may(tenant_id, principal, EXAMINE):
         raise AppError("Your role may not run a staff accountability examination", 403,
                        "role_not_permitted")
     case = _case(db, tenant_id, case_id)
@@ -184,7 +184,7 @@ def add_finding(
     principal: Principal = Depends(get_current_principal),
 ) -> dict:
     resolve_tenant_scope(principal, tenant_id)
-    if not _may(tenant_id, principal, EXAMINER_ROLES):
+    if not _may(tenant_id, principal, EXAMINE):
         raise AppError("Your role may not record accountability findings", 403,
                        "role_not_permitted")
     if payload.finding not in FINDINGS:
@@ -233,7 +233,7 @@ def remove_finding(
     answer to a supervisor.
     """
     resolve_tenant_scope(principal, tenant_id)
-    if not _may(tenant_id, principal, EXAMINER_ROLES):
+    if not _may(tenant_id, principal, EXAMINE):
         raise AppError("Your role may not amend accountability findings", 403,
                        "role_not_permitted")
     case = _case(db, tenant_id, case_id)
@@ -270,7 +270,7 @@ def conclude(
     principal: Principal = Depends(get_current_principal),
 ) -> dict:
     resolve_tenant_scope(principal, tenant_id)
-    if not _may(tenant_id, principal, CONCLUDER_ROLES):
+    if not _may(tenant_id, principal, CONCLUDE):
         raise AppError(
             "Concluding a staff accountability examination requires a Fraud Risk "
             "Manager, Principal Officer or Tenant Administrator.", 403,

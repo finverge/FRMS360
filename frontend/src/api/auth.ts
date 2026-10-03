@@ -130,3 +130,29 @@ export interface TenantOut {
 export function requestSandbox(payload: SelfServiceSignup) {
   return apiFetch<TenantOut>("/tenants/self-service", { method: "POST", body: payload })
 }
+
+// ---- who am I, and what may I use ----
+export interface MeModule { key: string; label: string; icon: string; description: string }
+export interface MeDashboard { key: string; label: string; persona: string; question: string }
+
+/** GET /auth/me. Resolved server-side the way every enforcing service resolves the role,
+ * including a tenant's own custom roles, so the console can render exactly what the role
+ * may open. It is a rendering aid, not the control: every endpoint re-checks. */
+export interface MeOut {
+  subject: string
+  role: string
+  role_label: string
+  tenant_id: string | null
+  tenant_scoped: boolean
+  can_admin_tenant: boolean
+  can_reveal_pii: boolean
+  can_activate_config: boolean
+  permissions: string[]
+  description: string
+  modules: MeModule[]
+  dashboards: MeDashboard[]
+}
+
+export function getMe(token: string) {
+  return apiFetch<MeOut>("/auth/me", { token })
+}

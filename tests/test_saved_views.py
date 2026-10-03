@@ -145,7 +145,7 @@ def test_the_owner_keeps_a_view_they_scoped_away_from_themselves(analytics_clien
 def test_a_role_prefix_does_not_match_a_longer_role(analytics_client, token_for, tid):
     """Guards the LIKE match: ',board,' must not be found inside a future ',board_x,'."""
     from services.analytics_service.app.routes.views import _pack_roles
-    assert _pack_roles(["board"]) == ",board,"
+    assert _pack_roles(tid, ["board"]) == ",board,"
     assert ",board," not in ",board_committee,"
 
 

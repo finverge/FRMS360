@@ -75,6 +75,11 @@ def seeded(database):
                         mfa_policy="optional")
         db.add(tenant)
         db.flush()
+        # Roles are rows, and the only authority: a tenant with none has no one who can do
+        # anything. Onboarding does this for a real tenant; a fixture that inserts the tenant
+        # directly has to do it too.
+        from services.tenant_service.app.roles import seed_default_roles
+        seed_default_roles(db, tenant.id)
         for role in ROLES:
             if role == "platform_admin":
                 continue
@@ -293,6 +298,30 @@ def route_tenant_status_in_process(tenant_client, seeded):
     tenant_status.httpx = _Shim
     yield
     tenant_status.httpx = original
+
+
+@pytest.fixture(scope="session", autouse=True)
+def route_roles_in_process(tenant_client, seeded):
+    """Send every other service's role lookup to the in-process tenant-service.
+
+    ``cp_common.dynamic_roles`` reads a tenant's role rows over HTTP from tenant-service (the
+    only service with a grant on that schema), and since roles are the sole authority every
+    authorisation check in every service goes through it. Same real contract (URL, key header,
+    JSON shape), no second process.
+    """
+    from cp_common import dynamic_roles
+
+    class _Shim:
+        @staticmethod
+        def get(url, headers=None, timeout=None):
+            path = url.split("://", 1)[-1].split("/", 1)[-1]
+            return tenant_client.get("/" + path, headers=headers or {})
+
+    original = dynamic_roles.httpx
+    dynamic_roles.httpx = _Shim
+    dynamic_roles.invalidate()
+    yield
+    dynamic_roles.httpx = original
 
 
 @pytest.fixture(scope="session", autouse=True)

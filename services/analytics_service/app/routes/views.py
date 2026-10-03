@@ -11,7 +11,7 @@ from cp_common import (
     record_audit, resolve_tenant_scope,
 )
 from cp_common.dynamic_roles import can_admin_tenant
-from cp_common.rbac import ASSIGNABLE_TENANT_ROLES, get_role
+from cp_common.dynamic_roles import catalogue
 
 from ..views_model import SavedView
 
@@ -42,18 +42,19 @@ class ViewOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-def _pack_roles(roles: list[str]) -> str:
+def _pack_roles(tenant_id: str, roles: list[str]) -> str:
     """Normalise to ',role,role,' after rejecting anything not a real tenant role.
 
     Validating here matters twice over: an unknown role silently stored would make the
     view invisible to everyone, and the stored value is interpolated into a LIKE pattern.
     """
+    valid = set(catalogue(tenant_id))
     cleaned = []
     for r in roles:
         r = (r or "").strip()
         if not r:
             continue
-        if r not in ASSIGNABLE_TENANT_ROLES:
+        if r not in valid:
             raise AppError(f"Unknown role: {r}", 400, "unknown_role")
         if r not in cleaned:
             cleaned.append(r)
@@ -90,7 +91,8 @@ def _audience(v: SavedView) -> str:
     roles = _unpack_roles(v.shared_roles)
     if not roles:
         return "Everyone in this tenant"
-    return ", ".join(get_role(r).label for r in roles)
+    known = catalogue(v.tenant_id)
+    return ", ".join(known[r].label if r in known else r for r in roles)
 
 
 def _out(v: SavedView, subject: str) -> ViewOut:
@@ -118,11 +120,10 @@ def audiences(
 ) -> list[dict]:
     """Roles a view may be shared with.
 
-    Served from the RBAC table rather than duplicated in the console, so a role added to
-    ASSIGNABLE_TENANT_ROLES becomes shareable without a second edit that can be missed.
+    The tenant's own role rows, so a role an administrator adds is shareable at once.
     """
     resolve_tenant_scope(principal, tenant_id)
-    return [{"name": r, "label": get_role(r).label} for r in ASSIGNABLE_TENANT_ROLES]
+    return [{"name": n, "label": r.label} for n, r in catalogue(tenant_id).items()]
 
 
 @router.post("/{tenant_id}/views", response_model=ViewOut, status_code=201)
@@ -134,7 +135,7 @@ def save_view(
 ) -> ViewOut:
     """Create, or overwrite the caller's view of the same name."""
     resolve_tenant_scope(principal, tenant_id)
-    packed = _pack_roles(payload.shared_roles) if payload.shared else ""
+    packed = _pack_roles(tenant_id, payload.shared_roles) if payload.shared else ""
     existing = db.scalar(
         select(SavedView).where(SavedView.tenant_id == tenant_id,
                                 SavedView.owner == principal.subject,

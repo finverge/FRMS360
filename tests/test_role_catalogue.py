@@ -6,7 +6,7 @@ cp_common.rbac or, since BR-113, this tenant's own tenant_roles rows grant). The
 write path BR-113 phase 2b adds - create/update/confirm/delete - is covered
 separately in test_role_writes.py.
 """
-from cp_common.rbac import ASSIGNABLE_TENANT_ROLES, ROLES, get_role
+from cp_common.rbac import ASSIGNABLE_TENANT_ROLES, ROLES
 
 
 def test_returns_every_assignable_role_and_no_others(tenant_client, token_for, tid):
@@ -31,7 +31,7 @@ def test_each_role_reports_its_real_catalogue_entry(tenant_client, token_for, ti
     r = tenant_client.get(f"/tenants/{tid}/roles", headers=token_for("tenant_admin"))
     by_name = {row["name"]: row for row in r.json()}
     for name in ASSIGNABLE_TENANT_ROLES:
-        role = get_role(name)
+        role = ROLES[name]  # the starter template the tenant's row was copied from
         row = by_name[name]
         assert row["label"] == role.label
         assert row["can_admin_tenant"] == role.can_admin_tenant

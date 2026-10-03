@@ -23,17 +23,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-# Informational only now - kept as a name every existing reference to it (comments,
-# docs, error text below) can still point at. The real check is
-# cp_common.dynamic_roles.can_activate_config, a single flag both the fixed catalogue
-# and a BR-113 custom role are checked against the same way: platform_admin and
-# tenant_admin carry it because they carry everything; risk_manager carries it on its
-# own, since owning fraud thresholds day-to-day under BR-104/BR-311 has never required
-# full tenant admin. A custom role can now be granted exactly that - the
-# risk_manager-equivalent capability - without also needing can_admin_tenant.
-ELIGIBLE_ROLES = ("tenant_admin", "platform_admin", "risk_manager")
-
-
 class MakerCheckerRefused(Exception):
     """A proposal, confirmation or rejection this gate does not permit."""
 
@@ -48,9 +37,8 @@ def ensure_eligible(tenant_id: str, role: str) -> None:
     if can_activate_config(tenant_id, role):
         return
     raise MakerCheckerRefused(
-        "Your role may not activate a configuration. Activation requires a role "
-        "granted that capability for this tenant - tenant_admin, risk_manager and "
-        "platform_admin carry it by default.", "role_not_permitted")
+        "Your role may not activate a configuration. Activation needs a role this "
+        "tenant has granted that capability.", "role_not_permitted")
 
 
 def propose(tenant_id: str, row, actor: str, role: str, *, now: datetime | None = None) -> None:
@@ -75,7 +63,7 @@ def confirm(tenant_id: str, row, actor: str, role: str, *, now: datetime | None 
     if row.proposed_by == actor:
         raise MakerCheckerRefused(
             "You proposed this activation, so you may not also confirm it. A different "
-            "tenant_admin, risk_manager or platform_admin must confirm.", "self_approval")
+            "person holding the activation capability must confirm.", "self_approval")
     row.approved_by = actor
     row.approved_by_role = role
     row.approved_at = now or datetime.now(timezone.utc)

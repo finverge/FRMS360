@@ -204,9 +204,9 @@ footer { margin-top:64px; padding-top:20px; border-top:1px solid var(--rule); fo
 
   <dl class="control">
     <div><dt>Document</dt><dd>FSD / Fraud360</dd></div>
-    <div><dt>Version</dt><dd>1.6</dd></div>
+    <div><dt>Version</dt><dd>1.7</dd></div>
     <div><dt>Date</dt><dd>2 October 2026</dd></div>
-    <div><dt>Derived from</dt><dd>BRD v1.9 · HLD v1.8</dd></div>
+    <div><dt>Derived from</dt><dd>BRD v1.10 · HLD v1.9</dd></div>
     <div><dt>Verification basis</dt><dd>790 automated tests</dd></div>
   </dl>
 
@@ -250,7 +250,7 @@ footer { margin-top:64px; padding-top:20px; border-top:1px solid var(--rule); fo
       actor code (see the persona table in §3). Referenced from the traceability matrix in
       §19 and, where relevant, from other use cases via <em>includes</em> — a step that is
       itself specified in full somewhere else, rather than repeated.</li>
-    <li><strong>BR-<em>nnn</em></strong> — the business requirement in BRD v1.9 that this
+    <li><strong>BR-<em>nnn</em></strong> — the business requirement in BRD v1.10 that this
       use case satisfies. A use case with no BR reference is either purely a screen
       convenience or a system-actor interface documented for completeness.</li>
     <li><span class="chip built">Built</span> / <span class="chip partial">Partial</span> /
@@ -2114,14 +2114,16 @@ flowchart LR
           <td>Deciding which role to assign a new user, or auditing who holds an
           admin-capable or PII-revealing role</td><td>BR-112, BR-113</td></tr>
         <tr><td class="id">UC-TAD-07</td><td>Create, edit and delete a role</td>
-          <td>The fixed ten roles do not match the bank's own org structure</td>
-          <td>BR-113</td></tr>
+          <td>A role's reach or actions need to change, or the bank needs a role it does not have</td>
+          <td>BR-113, BR-114</td></tr>
         <tr><td class="id">UC-TAD-08</td><td>View and export the audit trail</td>
           <td>Reviewing recent activity, or assembling evidence for a compliance
           review or an RBI inspection request</td><td>BR-701, BR-705, BR-716</td></tr>
         <tr><td class="id">UC-TAD-09</td><td>Invite, update and remove a user</td>
           <td>Staff joins, changes desk, or leaves — without waiting on the vendor's
           own platform staff to act on the tenant's behalf</td><td>BR-108</td></tr>
+        <tr><td class="id">UC-TAD-10</td><td>Grant or withdraw a gated action</td>
+          <td>A role must (or must no longer) be able to perform a specific act &mdash; file a return, replay detection, screen a name, upload a borrower statement</td><td>BR-114, BR-115</td></tr>
       </tbody>
     </table>
   </div>
@@ -2138,18 +2140,14 @@ flowchart LR
       <div class="uc-lbl">Main flow</div>
       <div><ol>
         <li>Actor requests <code>GET /tenants/{id}/roles</code></li>
-        <li>The system returns every role this tenant has — the fixed ten, plus any it
-          has created itself (UC-TAD-07) — never <code>platform_admin</code>, which is
+        <li>The system returns every role this tenant has — each is the tenant's own row,
+          whether it started as a starter role or was created by the tenant (UC-TAD-07) — never <code>platform_admin</code>, which is
           cross-tenant and excluded here the same way BR-108's invite flow already
           excludes it from what a tenant may hand out. Each entry carries its label,
           the modules and dashboards it reaches, whether it can administer the tenant,
-          whether it can reveal customer PII, whether an elevation is pending
+          whether it can reveal customer PII, the gated actions it may perform and its description, whether an elevation is pending
           confirmation, and how many of this tenant's own users currently hold it</li>
-        <li>The system reads this tenant's own materialised <code>tenant_roles</code>
-          rows if BR-113 (phase 2a) has seeded them — every tenant onboarded from that
-          point on — and falls back to the platform's hardcoded catalogue otherwise. The
-          two sources are verified indistinguishable to the caller: the same response
-          shape, checked against the same test suite either way</li>
+        <li>The system reads only this tenant's own <code>tenant_roles</code> rows. There is no catalogue in code to fall back on: a tenant with no rows lists none (and nobody in it could do anything), which is why onboarding, and the data migration for existing tenants, always create them</li>
       </ol></div>
       <div class="uc-lbl">Postconditions</div><div>Nothing changes — this is read-only.
         Creating, editing, deleting or assigning a role happens through UC-TAD-07 and
@@ -2165,19 +2163,16 @@ flowchart LR
       <div class="uc-lbl">Actor</div><div>Any role holding <code>can_admin_tenant</code>
         — checked dynamically, so a custom role the tenant has granted admin scope to
         can manage further roles itself, not only the seeded <code>tenant_admin</code></div>
-      <div class="uc-lbl">Trigger</div><div>The fixed ten roles do not match the bank's
-        own org structure — a title, a narrower grant, or a role scoped to one region
-        or desk</div>
+      <div class="uc-lbl">Trigger</div><div>The bank's org structure differs from a starter role &mdash; a title, a narrower grant, a role scoped to one region or desk &mdash; or a starter role it will not use</div>
       <div class="uc-lbl">Main flow</div>
       <div><ol>
-        <li>Actor names a role, chooses its modules and dashboards, and optionally
+        <li>Actor names a role, writes a description (shown to its holders on their home page), chooses its modules and dashboards, ticks the actions it may perform (UC-TAD-10), and optionally
           grants any combination of <code>can_admin_tenant</code>,
           <code>can_reveal_pii</code> and <code>can_activate_config</code> (the
           risk_manager-equivalent capability to propose or confirm a configuration
           activation, BR-715 — independent of admin scope), via
           <code>POST /tenants/{id}/roles</code></li>
-        <li>The system refuses a name that collides with one of the platform's ten
-          reserved names (including <code>platform_admin</code>), and refuses any grant
+        <li>The system refuses the platform operator's name (<code>platform_admin</code>) and a name the tenant already uses, and refuses any grant
           reaching the platform-only <code>administration</code> module or the
           <code>tenant_health</code> dashboard — regardless of who is asking. Cross-tenant
           reach needs no separate check: the tenant a role belongs to is always the URL
@@ -2185,16 +2180,14 @@ flowchart LR
         <li>A grant that does not raise any of the three capability flags applies
           immediately on <code>PUT /tenants/{id}/roles/{name}</code> — this includes
           lowering any of them, which is always safe to apply unilaterally. Editing a
-          seeded role marks it <code>custom</code>: it is no longer an unedited copy
-          of the platform catalogue</li>
-        <li>A grant that <em>raises</em> any of the three is staged, not applied, and
+          starter role marks it <code>custom</code>: it is no longer an unedited copy
+          of its template, and nothing else is different about it</li>
+        <li>A grant that <em>raises</em> any of the three, or adds an action, is staged, not applied, and
           needs a different eligible actor to confirm it via
           <code>POST /tenants/{id}/roles/{name}/confirm</code> — the same maker-checker
           asymmetry BR-715 applies elsewhere. The actor who staged it cannot confirm
           their own change (<code>self_approval</code>, refused)</li>
-        <li>The system deletes a custom role via <code>DELETE .../roles/{name}</code>,
-          refusing one of the fixed ten outright and refusing any role still held by a
-          user until they are reassigned</li>
+        <li>The system deletes any of the tenant's roles &mdash; a starter role is an ordinary row &mdash; via <code>DELETE .../roles/{name}</code>, refusing a role still held by a user until they are reassigned, and refusing a delete (or an edit that removes administration) that would leave the tenant with no administrator who can sign in</li>
         <li>The resulting role becomes immediately assignable through BR-108's existing
           invite flow — a custom role is not a second-class name; the moment it exists,
           <code>POST /tenants/{id}/users</code> accepts it exactly as it would
@@ -2206,7 +2199,7 @@ flowchart LR
         reaches platform-only surface. <code>insufficient_role</code> (403) — the caller
         lacks <code>can_admin_tenant</code>, dynamically checked. <code>self_approval</code>
         (403) — the proposer tried to confirm their own elevation.
-        <code>fixed_role</code> / <code>role_in_use</code> (409) — delete refused. Every
+        <code>role_in_use</code> (409) — delete refused; <code>last_administrator</code> (422/409) — the change would leave no administrator who can sign in. Every
         refusal is audited, not only every success</div>
       <div class="uc-lbl">Postconditions</div><div>Every create, edit, confirmation and
         delete — success or refusal — writes a full before/after snapshot to the audit
@@ -2217,38 +2210,95 @@ flowchart LR
   </div>
 
   <div class="note">
-    <h5>BR-113's capability check now runs platform-wide, three flags deep</h5>
-    <p>A tenant's roles are real, editable, per-tenant database rows — the write path,
-    the platform-only guardrails, the maker-checker elevation and the full audit
-    snapshot on every change are all built (phase 2b). A custom role is functional
-    within tenant-service's own admin surface, assignable to a user via BR-108, and
-    — phase 2c — recognised by analytics-service, config-service, decision-service
-    and notification-service too, through <code>cp_common.dynamic_roles</code>: a
-    shared module every one of them imports, fetching a tenant's custom-role
-    catalogue from tenant-service's <code>GET /tenants/internal/{tenant_id}/roles</code>
-    and caching it against the same generation-token mechanism config-service's
-    rule/policy changes already use, so an edit is visible everywhere the instant it
-    is made, not after some clock interval. Every one of the ten fixed roles still
-    resolves with zero network calls — nothing about existing behaviour changed for
-    them. <code>ingestion-service</code> needed no change at all: BR-213 machine
-    credentials carry scopes, not human roles.</p>
-    <p><strong>Phase 2d</strong> closed the sharpest remaining gap: config-service's
-    <code>maker_checker.ELIGIBLE_ROLES</code> used to be a hardcoded name list mixing
-    <code>risk_manager</code> in alongside the two admin-capable roles, because
-    <code>TenantRole</code> had no flag for "may activate configuration" on its own.
-    It has one now — <code>can_activate_config</code>, checked dynamically the same
-    way as the other two — so <code>ensure_eligible()</code> is one capability check
-    instead of a name comparison plus a fallback, and a custom role can be granted
-    exactly the risk_manager-equivalent capability, independent of
-    <code>can_admin_tenant</code>. Raising it is staged through the same elevation
-    confirmation as the other two flags; a bank does not get to hand out configuration
-    authority any more casually than it hands out admin scope. What remains open is
-    narrower still: a small number of call sites (analytics-service's
-    <code>FILING_ROLES</code>/<code>CTR_ROLES</code>) mix in roles like
-    <code>principal_officer</code> that no flag on this platform describes at all —
-    extending those means new capability flags, real and separately-scoped, not
-    attempted here. Recorded rather than left implicit, in the same spirit as the
-    BR-108 invite-flow finding above.</p>
+    <h5>Roles are data: no service decides by role name</h5>
+    <p>A tenant's roles are its own database rows &mdash; created from ten starter
+    templates at onboarding (and by data migration for tenants that already existed) and
+    from then on editable, widenable, narrowable and deletable by its administrators, or by
+    platform staff on its behalf. Every service decides from those rows alone: tenant-service
+    reads them directly, and analytics-service, config-service, decision-service,
+    notification-service and lane-c-service fetch them from tenant-service's
+    <code>GET /tenants/internal/{tenant_id}/roles</code> through
+    <code>cp_common.dynamic_roles</code>, cached against a shared generation so a change is
+    live everywhere on the next request. There is no in-code catalogue to fall back on, no
+    list of role names in any endpoint, and no implicit &ldquo;administrator may do
+    anything&rdquo;: a role holds each permission explicitly. A name that is not a row for the
+    tenant can do nothing, and a service that cannot read a tenant's roles refuses the request
+    rather than guessing (a failed fetch is never recorded as &ldquo;this tenant has no
+    roles&rdquo;). What a role may do is five things on its row: modules, dashboards, the three
+    capability flags (<code>can_admin_tenant</code>, <code>can_reveal_pii</code>,
+    <code>can_activate_config</code>) and its permissions (UC-TAD-10). The one role not in the
+    table is the platform operator (<code>platform_admin</code>, Finverge staff), recognised
+    by name because it is not a bank's role. This closed the last gap the earlier phases
+    recorded &mdash; the named-role lists in filing, CTR, recovery, reference loading, board
+    packs, accountability, detection and the case workflow &mdash; and it is why a tenant
+    can now change them without a release.</p>
+  </div>
+
+  <div class="uc">
+    <div class="uc-head"><span class="ucid">UC-TAD-10</span>
+      <h4>Grant or withdraw a gated action</h4></div>
+    <div class="uc-grid">
+      <div class="uc-lbl">Actor</div><div>Any role holding <code>can_admin_tenant</code>, or platform staff for any tenant</div>
+      <div class="uc-lbl">Trigger</div><div>A role must, or must no longer, be able to perform a specific act: file a return, replay detection, load a reference list, screen a name, upload a borrower statement, take a case-workflow step</div>
+      <div class="uc-lbl">Main flow</div>
+      <div><ol>
+        <li>Actor opens the role in the console's Roles page. The editor lists every gated action the platform has (28 today, served by <code>GET /tenants/{id}/permissions</code>) grouped by area, with the actions the role holds ticked</li>
+        <li>Actor ticks or unticks actions and saves via <code>PUT /tenants/{id}/roles/{name}</code></li>
+        <li>Unticking applies on the person's next request. Ticking an action the role does not hold is a privilege-raising edit: it is staged, and a different administrator confirms it (<code>POST .../confirm</code>); until then the role is as it was</li>
+        <li>The endpoint behind each action refuses a caller whose role does not hold the permission with 403 <code>role_not_permitted</code>; the console hides the page or control</li>
+      </ol></div>
+      <div class="uc-lbl">Exception flows</div><div><code>role_guardrail</code> (422) &mdash; an unknown permission. <code>self_approval</code> (403) &mdash; the proposer tried to confirm their own elevation. <code>last_administrator</code> &mdash; an edit that removes administration from the last role that gives a working administrator</div>
+      <div class="uc-lbl">Postconditions</div><div>A before/after snapshot of the role, permissions included, is written to the audit trail. No deployment is involved</div>
+      <div class="uc-lbl">Business rules</div><div>BR-113, BR-114, BR-115</div>
+    </div>
+  </div>
+
+  <div class="note">
+    <h5>Starter grants: who holds what when a tenant is onboarded</h5>
+    <p>These reproduce what the per-endpoint role lists used to hard-code, so a tenant behaves
+    exactly as before until its administrator changes a role. They are a starting point, not a
+    rule: every cell is the tenant's own data. Sanctions screening and borrower credit health
+    are the one place the starter grants are narrower than before (BR-115).</p>
+    <table class="matrix" style="font-size:6.5pt; table-layout:fixed; width:100%"><colgroup><col style="width:26%"/><col style="width:7.4%"/><col style="width:7.4%"/><col style="width:7.4%"/><col style="width:7.4%"/><col style="width:7.4%"/><col style="width:7.4%"/><col style="width:7.4%"/><col style="width:7.4%"/><col style="width:7.4%"/><col style="width:7.4%"/></colgroup>
+      <thead><tr><th style="letter-spacing:0;font-size:6pt">Action</th><th style="letter-spacing:0;font-size:6pt;padding:3px 2px;text-align:center;white-space:normal;word-break:normal;hyphens:manual">Tenant admin</th><th style="letter-spacing:0;font-size:6pt;padding:3px 2px;text-align:center;white-space:normal;word-break:normal;hyphens:manual">Analyst</th><th style="letter-spacing:0;font-size:6pt;padding:3px 2px;text-align:center;white-space:normal;word-break:normal;hyphens:manual">Investi&shy;gator</th><th style="letter-spacing:0;font-size:6pt;padding:3px 2px;text-align:center;white-space:normal;word-break:normal;hyphens:manual">Risk mgr</th><th style="letter-spacing:0;font-size:6pt;padding:3px 2px;text-align:center;white-space:normal;word-break:normal;hyphens:manual">Princ. officer</th><th style="letter-spacing:0;font-size:6pt;padding:3px 2px;text-align:center;white-space:normal;word-break:normal;hyphens:manual">Super&shy;visor</th><th style="letter-spacing:0;font-size:6pt;padding:3px 2px;text-align:center;white-space:normal;word-break:normal;hyphens:manual">Board</th><th style="letter-spacing:0;font-size:6pt;padding:3px 2px;text-align:center;white-space:normal;word-break:normal;hyphens:manual">CRO</th><th style="letter-spacing:0;font-size:6pt;padding:3px 2px;text-align:center;white-space:normal;word-break:normal;hyphens:manual">Model risk</th><th style="letter-spacing:0;font-size:6pt;padding:3px 2px;text-align:center;white-space:normal;word-break:normal;hyphens:manual">Inspector</th></tr></thead>
+      <tbody>
+<tr><td colspan="11"><strong>Casework</strong></td></tr>
+<tr><td>Assign cases to people<br/><code>case.assign</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td>Run the staff accountability examination<br/><code>case.examine</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td>Conclude the accountability examination<br/><code>case.conclude</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td>Approve a case action as the second person<br/><code>case.approve_transition</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td>Record recoveries and agency referrals<br/><code>recovery.record</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td colspan="11"><strong>Case actions</strong></td></tr>
+<tr><td>Flag an account as red-flagged<br/><code>case.act.flag_rfa</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td>Close a case as no fraud<br/><code>case.act.close_no_fraud</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td>Revoke a red-flag<br/><code>case.act.revoke_rfa</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td>Issue a show-cause notice<br/><code>case.act.issue_show_cause</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td>Record the borrower's response<br/><code>case.act.record_response</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td>Close the response window<br/><code>case.act.close_window</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td>Declare fraud<br/><code>case.act.declare_fraud</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td>Exonerate after the response<br/><code>case.act.exonerate</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td>File the fraud monitoring report<br/><code>case.act.file_fmr</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td>Close a reported case<br/><code>case.act.close_case</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td>Reopen an exonerated case<br/><code>case.act.reopen</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td colspan="11"><strong>Detection</strong></td></tr>
+<tr><td>Re-score history to test a threshold (writes nothing)<br/><code>detection.simulate</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td>Replay detection over history (writes alerts)<br/><code>detection.replay</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td>Load screening and reference lists<br/><code>reference.load</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td colspan="11"><strong>Regulatory returns</strong></td></tr>
+<tr><td>Prepare and submit FMR and STR returns<br/><code>filing.submit</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td>Prepare and file cash transaction reports<br/><code>ctr.file</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td colspan="11"><strong>Governance</strong></td></tr>
+<tr><td>Prepare board and committee packs<br/><code>board_pack.prepare</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td>Issue a pack to the committee<br/><code>board_pack.issue</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td>View metered usage and billing figures<br/><code>usage.view</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td colspan="11"><strong>Screening and credit</strong></td></tr>
+<tr><td>Screen a name against the sanctions list<br/><code>sanctions.screen</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td></tr>
+<tr><td>View borrower credit health: scores, signals and alerts<br/><code>lane_c.view</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td></tr>
+<tr><td>Upload statements, review alerts and record borrower findings<br/><code>lane_c.manage</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="text-align:center;padding:2px">&#10003;</td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+<tr><td colspan="11"><strong>Integration</strong></td></tr>
+<tr><td>Issue and revoke machine credentials<br/><code>machine_credential.manage</code></td><td style="text-align:center;padding:2px">&#10003;</td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td><td style="padding:2px"></td></tr>
+      </tbody>
+    </table>
   </div>
 
   <div class="uc">
@@ -2787,7 +2837,7 @@ flowchart LR
 
 <section id="f20">
   <h2>Non-functional requirements</h2>
-  <p class="lede">Carried from BRD v1.9 §14, with the one figure this session's work
+  <p class="lede">Carried from BRD v1.10 §14, with the one figure this session's work
   changed: detection latency at single-worker scale is now measured, not merely
   targeted.</p>
 
@@ -3031,8 +3081,8 @@ flowchart LR
 </main>
 
 <footer>
-  <p><strong>Read with</strong> BRD v1.9 for the numbered business requirements and release
-  gates, and HLD v1.8 for how each use case is actually carried out underneath — the
+  <p><strong>Read with</strong> BRD v1.10 for the numbered business requirements and release
+  gates, and HLD v1.9 for how each use case is actually carried out underneath — the
   service, the schema, the latency budget. This document sits between the two: it is BRD
   requirements resolved into who performs them and how, and it is HLD behaviour resolved
   into who is allowed to trigger it.</p>

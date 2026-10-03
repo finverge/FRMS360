@@ -21,8 +21,8 @@ import secrets
 
 from cp_common import hash_password
 
-from cp_common.rbac import (ASSIGNABLE_TENANT_ROLES, MODULE_META, DASHBOARD_META,
-                            dashboards_for, get_role, modules_for)
+from cp_common.permissions import PERMISSIONS
+from cp_common.rbac import DASHBOARD_META, MODULE_META
 
 from .. import roles as roles_mod
 from ..models import TenantRole, TenantUser
@@ -441,6 +441,7 @@ def _role_out(row: TenantRole, member_count: int) -> RoleOut:
         dashboards=_expand(row.dashboards, DASHBOARD_META),
         can_admin_tenant=row.can_admin_tenant, can_reveal_pii=row.can_reveal_pii,
         can_activate_config=row.can_activate_config,
+        permissions=list(row.permissions or []), description=row.description or "",
         member_count=member_count, source=row.source,
         elevation_pending=bool(row.pending_change),
     )
@@ -475,22 +476,26 @@ def list_roles(
     for u in tenant.users:
         counts[u.role] = counts.get(u.role, 0) + 1
 
-    materialised = list(db.scalars(
-        select(TenantRole).where(TenantRole.tenant_id == tenant_id)))
-    if materialised:
-        return [_role_out(row, counts.get(row.name, 0)) for row in materialised]
+    rows = list(db.scalars(
+        select(TenantRole).where(TenantRole.tenant_id == tenant_id).order_by(TenantRole.created_at)))
+    return [_role_out(row, counts.get(row.name, 0)) for row in rows]
 
-    out = []
-    for name in ASSIGNABLE_TENANT_ROLES:
-        role = get_role(name)
-        out.append(RoleOut(
-            name=role.name, label=role.label,
-            modules=modules_for(name), dashboards=dashboards_for(name),
-            can_admin_tenant=role.can_admin_tenant, can_reveal_pii=role.can_reveal_pii,
-            can_activate_config=role.can_activate_config,
-            member_count=counts.get(name, 0), source=None,
-        ))
-    return out
+
+@router.get("/{tenant_id}/permissions")
+def permission_catalogue(
+    tenant_id: str,
+    principal: Principal = Depends(get_current_principal),
+) -> dict:
+    """What can be granted to a role: the gated actions that exist, the modules and the
+    dashboards - the vocabulary the role editor offers. Who holds what is the roles' data."""
+    resolve_tenant_scope(principal, tenant_id)
+    return {
+        "permissions": [{"key": k, **v} for k, v in PERMISSIONS.items()],
+        "modules": [{"key": k, **v} for k, v in MODULE_META.items()
+                    if k in roles_mod.TENANT_ALLOWED_MODULES],
+        "dashboards": [{"key": k, **v} for k, v in DASHBOARD_META.items()
+                       if k in roles_mod.TENANT_ALLOWED_DASHBOARDS],
+    }
 
 
 @router.post("/{tenant_id}/roles", response_model=RoleOut, status_code=201)
@@ -517,7 +522,8 @@ def create_role(
             modules=payload.modules, dashboards=payload.dashboards,
             can_admin_tenant=payload.can_admin_tenant,
             can_reveal_pii=payload.can_reveal_pii,
-            can_activate_config=payload.can_activate_config)
+            can_activate_config=payload.can_activate_config,
+            permissions=payload.permissions, description=payload.description)
     except (roles_mod.RoleGuardrailError, roles_mod.RoleConflictError) as exc:
         record_audit(
             service="tenant-service", action="role.create", actor=principal.subject,
@@ -558,7 +564,8 @@ def update_role(
             modules=payload.modules, dashboards=payload.dashboards,
             can_admin_tenant=payload.can_admin_tenant,
             can_reveal_pii=payload.can_reveal_pii,
-            can_activate_config=payload.can_activate_config)
+            can_activate_config=payload.can_activate_config,
+            permissions=payload.permissions, description=payload.description)
     except roles_mod.RoleGuardrailError as exc:
         record_audit(
             service="tenant-service", action="role.update", actor=principal.subject,
@@ -629,22 +636,13 @@ def delete_role(
     db: Session = Depends(get_session),
     principal: Principal = Depends(require_capability("can_admin_tenant")),
 ) -> None:
-    """Only a tenant's own custom role may be deleted — one of the fixed ten cannot,
-    since BR-108's invite flow and every historical TenantUser/AuditLog row assumes
-    those ten names are always real. Refused while any user still holds the role,
-    the same orphan-safety `remove_user` already applies to the tenant's last admin.
-    """
+    """Delete any of the tenant's roles - a starter role is an ordinary row. Refused while
+    anyone still holds it (so no user is left with a role that does nothing), and refused if
+    it would leave the tenant without an administrator who can sign in."""
     row = db.scalar(select(TenantRole).where(
         TenantRole.tenant_id == tenant_id, TenantRole.name == name))
     if not row:
         raise AppError("Role not found", 404, "not_found")
-    if name in ASSIGNABLE_TENANT_ROLES:
-        record_audit(
-            service="tenant-service", action="role.delete", actor=principal.subject,
-            actor_role=principal.role, tenant_id=tenant_id, target_type="role",
-            target_id=name, status="failure", detail={"error": "fixed_role"})
-        raise AppError("One of the platform's fixed roles cannot be deleted", 409,
-                       "fixed_role")
     tenant = TenantRepository(db).get(tenant_id)
     holders = [u.email for u in tenant.users if u.role == name]
     if holders:
@@ -656,6 +654,15 @@ def delete_role(
         raise AppError(
             f"{len(holders)} user(s) still hold this role; reassign them first", 409,
             "role_in_use")
+    try:
+        if row.can_admin_tenant:
+            roles_mod.ensure_admin_remains(db, row, admin_after=False)
+    except roles_mod.RoleGuardrailError as exc:
+        record_audit(
+            service="tenant-service", action="role.delete", actor=principal.subject,
+            actor_role=principal.role, tenant_id=tenant_id, target_type="role",
+            target_id=name, status="failure", detail={"error": exc.code})
+        raise AppError(str(exc), 409, exc.code) from exc
     before = roles_mod.snapshot(row)
     db.delete(row)
     db.commit()
@@ -722,6 +729,8 @@ def internal_roles(
         row.name: {"label": row.label, "modules": row.modules,
                   "dashboards": row.dashboards, "can_admin_tenant": row.can_admin_tenant,
                   "can_reveal_pii": row.can_reveal_pii,
-                  "can_activate_config": row.can_activate_config}
+                  "can_activate_config": row.can_activate_config,
+                  "permissions": row.permissions or [],
+                  "description": row.description or ""}
         for row in rows
     }}

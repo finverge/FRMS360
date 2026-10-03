@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 
 import { useSession } from "@/app/SessionContext"
+import { hasPermission } from "@/lib/access"
 import { ApiError } from "@/api/client"
 import {
   getLatestScore, getSignals, ingestStatement, listAlerts, reviewAlert,
@@ -183,7 +184,7 @@ function BorrowerLookupCard({ tenantId }: { tenantId: string }) {
 }
 
 // -------------------------------------------------------------- alerts queue
-function AlertsQueueCard({ tenantId }: { tenantId: string }) {
+function AlertsQueueCard({ tenantId, canManage }: { tenantId: string; canManage: boolean }) {
   const { accessToken } = useSession()
   const [alerts, setAlerts] = useState<LaneCAlertOut[] | null>(null)
   const [loading, setLoading] = useState(true)
@@ -242,7 +243,7 @@ function AlertsQueueCard({ tenantId }: { tenantId: string }) {
                 {new Date(a.created_at).toLocaleDateString("en-IN")}
               </td>
               <td className="px-3 py-1.5">
-                <div className="flex justify-end gap-1">
+                {canManage && <div className="flex justify-end gap-1">
                   <Button size="sm" variant="outline" disabled={actingOn === a.alert_id}
                           onClick={() => act(a.alert_id, "reviewed")}>
                     Reviewed
@@ -255,7 +256,7 @@ function AlertsQueueCard({ tenantId }: { tenantId: string }) {
                           onClick={() => act(a.alert_id, "dismissed")}>
                     Dismiss
                   </Button>
-                </div>
+                </div>}
               </td>
             </tr>
           ))}
@@ -267,6 +268,10 @@ function AlertsQueueCard({ tenantId }: { tenantId: string }) {
 
 // -------------------------------------------------------------- panel
 export function LaneCPanel({ tenantId }: { tenantId: string }) {
+  // Reading is one grant, changing another: a role that can only view sees no upload form and
+  // no review buttons, rather than controls the server would refuse.
+  const { me } = useSession()
+  const canManage = hasPermission(me, "lane_c.manage")
   return (
     <div className="space-y-6">
       <PageHeader
@@ -274,7 +279,7 @@ export function LaneCPanel({ tenantId }: { tenantId: string }) {
         description="Lane C — quarterly financial-statement review for corporate borrowers. Distinct from Lane A/B payment monitoring: scheduled, not transaction-triggered."
       />
 
-      <UploadStatementCard tenantId={tenantId} />
+      {canManage && <UploadStatementCard tenantId={tenantId} />}
 
       <div className="space-y-2">
         <h6 className="text-sm font-medium">Borrower lookup</h6>
@@ -283,7 +288,7 @@ export function LaneCPanel({ tenantId }: { tenantId: string }) {
 
       <div className="space-y-2">
         <h6 className="text-sm font-medium">Open alerts</h6>
-        <AlertsQueueCard tenantId={tenantId} />
+        <AlertsQueueCard tenantId={tenantId} canManage={canManage} />
       </div>
     </div>
   )

@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import select
 
-from cp_common.rbac import ASSIGNABLE_TENANT_ROLES, get_role
+from cp_common.rbac import ASSIGNABLE_TENANT_ROLES, ROLES
 from services.tenant_service.app.models import Tenant, TenantRole
 from services.tenant_service.app.roles import seed_default_roles
 
@@ -52,7 +52,7 @@ def test_the_backup_is_a_faithful_snapshot_of_todays_catalogue():
     checking seeding against the wrong baseline."""
     assert set(BACKUP.ASSIGNABLE_TENANT_ROLES) == set(ASSIGNABLE_TENANT_ROLES)
     for name in ASSIGNABLE_TENANT_ROLES:
-        live, backed_up = get_role(name), BACKUP.get_role(name)
+        live, backed_up = ROLES[name], BACKUP.get_role(name)
         assert live.label == backed_up.label
         assert set(live.modules) == set(backed_up.modules)
         assert set(live.dashboards) == set(backed_up.dashboards)
@@ -153,7 +153,7 @@ def test_the_viewer_serves_dynamic_rows_identically_to_the_hardcoded_fallback(
 
     assert set(by_name) == set(ASSIGNABLE_TENANT_ROLES)
     for name in ASSIGNABLE_TENANT_ROLES:
-        role = get_role(name)
+        role = ROLES[name]
         row = by_name[name]
         assert row["label"] == role.label
         assert row["can_admin_tenant"] == role.can_admin_tenant
@@ -164,23 +164,24 @@ def test_the_viewer_serves_dynamic_rows_identically_to_the_hardcoded_fallback(
         assert row["member_count"] == 0
 
 
-def test_a_tenant_without_materialised_rows_still_uses_the_hardcoded_fallback(
-        tenant_client, token_for, tid):
-    """`tid` (from the session-scoped `seeded` fixture) predates BR-113 phase 2a and
-    has no tenant_roles rows - this is the regression check that matters most: the
-    pre-existing, unmodified test_role_catalogue.py suite still passes unchanged, and
-    this is the same assertion in miniature."""
+def test_a_tenant_with_no_role_rows_has_no_roles_and_no_fallback(tenant_client, token_for):
+    """There is no catalogue in code to fall back on: roles are the tenant's rows, so a tenant
+    that somehow has none lists none (and every authorisation check refuses)."""
+    import uuid
     from cp_common import SessionLocal
+    from services.tenant_service.app.models import Tenant
     db = SessionLocal()
     try:
-        existing = db.scalar(select(TenantRole.id).where(TenantRole.tenant_id == tid))
-        assert existing is None, "the shared seeded tenant must stay on the fallback path"
+        t = Tenant(slug=f"no-roles-{uuid.uuid4().hex[:8]}", legal_name="No Roles Ltd.",
+                   display_name="No Roles", status="active", mfa_policy="optional")
+        db.add(t)
+        db.commit()
+        empty = t.id
     finally:
         db.close()
-
-    r = tenant_client.get(f"/tenants/{tid}/roles", headers=token_for("tenant_admin"))
+    r = tenant_client.get(f"/tenants/{empty}/roles", headers=token_for("platform_admin"))
     assert r.status_code == 200, r.text
-    assert {row["name"] for row in r.json()} == set(ASSIGNABLE_TENANT_ROLES)
+    assert r.json() == []
 
 
 # --------------------------------------------------------- onboarding wiring

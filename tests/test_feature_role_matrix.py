@@ -52,13 +52,17 @@ def _a_txn_with_public_ip(analytics_client, tid, headers) -> str:
     raise AssertionError("no transaction with a non-private IP found in the seed window")
 
 
-# ---------------- OFAC screening: identical for every role ----------------
+# ---------------- OFAC screening: gated by the sanctions.screen permission ----------------
 
 @pytest.mark.parametrize("role", ALL_TENANT_ROLES)
-def test_ofac_screen_works_for_every_tenant_role(analytics_client, token_for, tid, role):
+def test_ofac_screen_follows_the_sanctions_permission(analytics_client, token_for, tid, role):
+    """Allowed exactly for the roles whose own row grants sanctions.screen; refused for the rest
+    (Board, CRO and Model Risk work on aggregates or masked data and are not given it)."""
+    from cp_common.rbac import ROLES
     h = token_for(role)
     r = analytics_client.get(f"/analytics/{tid}/ofac-screen", headers=h, params={"name": "Cuba"})
-    assert r.status_code == 200, f"{role}: {r.text}"
+    expected = 200 if "sanctions.screen" in ROLES[role].permissions else 403
+    assert r.status_code == expected, f"{role}: {r.text}"
 
 
 # ---------------- AI Insights: masked works for everyone, reveal is gated ----------------

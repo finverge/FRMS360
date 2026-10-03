@@ -19,7 +19,7 @@ from cp_common import (
     AppError, Principal, get_current_principal, get_session, record_audit,
     resolve_tenant_scope, settings,
 )
-from cp_common.dynamic_roles import get_role
+from cp_common.dynamic_roles import has_permission
 
 from ..board_pack import builder, renderers
 from ..board_pack.sections import CADENCE_MONTHS
@@ -29,10 +29,11 @@ from ..rules import policy
 
 router = APIRouter(prefix="/analytics", tags=["board-pack"])
 
-#: Who may prepare a pack. It aggregates the whole tenant's fraud position.
-PREPARE_ROLES = ("risk_manager", "principal_officer", "supervisor", "tenant_admin", "cro")
-#: Who may issue it to the committee. Narrower: this is the governance act.
-ISSUE_ROLES = ("risk_manager", "principal_officer", "tenant_admin", "cro")
+# Who may prepare a pack (it aggregates the whole tenant's fraud position) and who may
+# issue it to the committee (the narrower, governance act) are separate grants on the
+# tenant's own role rows.
+PREPARE = "board_pack.prepare"
+ISSUE = "board_pack.issue"
 
 
 class GenerateIn(BaseModel):
@@ -47,8 +48,8 @@ class IssueIn(BaseModel):
     note: str = Field(default="", max_length=8000)
 
 
-def _may(tenant_id: str, principal: Principal, roles: tuple[str, ...]) -> bool:
-    return principal.role in roles or get_role(tenant_id, principal.role).can_admin_tenant
+def _may(tenant_id: str, principal: Principal, permission: str) -> bool:
+    return has_permission(tenant_id, principal.role, permission)
 
 
 def _hash(payload: dict) -> str:
@@ -103,7 +104,7 @@ def generate(
     principal: Principal = Depends(get_current_principal),
 ) -> dict:
     resolve_tenant_scope(principal, tenant_id)
-    if not _may(tenant_id, principal, PREPARE_ROLES):
+    if not _may(tenant_id, principal, PREPARE):
         raise AppError("Your role may not prepare a board pack", 403,
                        "role_not_permitted")
 
@@ -213,7 +214,7 @@ def issue(
 ) -> dict:
     """Put the pack in front of the committee and record who received it."""
     resolve_tenant_scope(principal, tenant_id)
-    if not _may(tenant_id, principal, ISSUE_ROLES):
+    if not _may(tenant_id, principal, ISSUE):
         raise AppError(
             "Issuing a board pack requires a Fraud Risk Manager, Principal Officer, "
             "CRO or Tenant Administrator.", 403, "role_not_permitted")
@@ -348,7 +349,7 @@ def due(
             "periods": periods,
             # So the console disables a control with its reason rather than offering a
             # button that fails on click (BR-410).
-            "may_prepare": _may(tenant_id, principal, PREPARE_ROLES),
-            "may_issue": _may(tenant_id, principal, ISSUE_ROLES),
+            "may_prepare": _may(tenant_id, principal, PREPARE),
+            "may_issue": _may(tenant_id, principal, ISSUE),
             "issue_requires": ("Issuing requires a Fraud Risk Manager, Principal "
                                "Officer, CRO or Tenant Administrator.")}

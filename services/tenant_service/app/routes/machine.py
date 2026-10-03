@@ -26,6 +26,7 @@ from cp_common import tenant_status
 from cp_common.security import create_access_token
 from cp_common.tenancy import resolve_tenant_scope
 
+from .. import roles as roles_mod
 from .. import service_credentials as sc
 from ..repositories import TenantRepository
 
@@ -202,8 +203,8 @@ def create_credential(
     principal: Principal = Depends(get_current_principal),
 ) -> CredentialOut:
     resolve_tenant_scope(principal, tenant_id)
-    if not principal.is_platform_admin and principal.role != "tenant_admin":
-        raise AppError("Only a tenant administrator may issue machine credentials",
+    if not roles_mod.capability(db, tenant_id, principal.role, "machine_credential.manage"):
+        raise AppError("Your role may not issue machine credentials",
                        403, "role_not_permitted")
     try:
         scope = sc.validate_scope(payload.scope)

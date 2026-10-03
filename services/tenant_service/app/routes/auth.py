@@ -15,15 +15,12 @@ from cp_common import (
     AppError,
     Principal,
     create_access_token,
-    dashboards_for,
     describe_policy,
     generate_backup_codes,
     get_current_principal,
     get_principal_any_scope,
-    get_role,
     get_session,
     hash_password,
-    modules_for,
     new_totp_secret,
     provisioning_uri,
     qr_svg,
@@ -34,7 +31,10 @@ from cp_common import (
     verify_totp,
 )
 
+from cp_common.rbac import DASHBOARD_META, MODULE_META
+
 from .. import auth_service as svc
+from ..roles import effective_role
 from ..auth_models import UserSession
 from ..repositories import TenantRepository
 from ..schemas import (
@@ -391,23 +391,31 @@ def list_sessions(db: Session = Depends(get_session),
 @router.get("/me", tags=["auth"])
 def whoami(
     principal: Principal = Depends(get_principal_any_scope),
+    db: Session = Depends(get_session),
 ) -> dict:
-    """Identity plus the modules/dashboards this role may use.
+    """Identity plus what this role may use, resolved the way every other service does.
 
-    The console renders its navigation from this, so UI and API cannot disagree about
-    who sees what. It is a convenience, not the control: every endpoint re-checks.
+    The console renders its navigation and its home page from this, so UI and API
+    cannot disagree about who sees what. That includes a tenant's own custom roles
+    (BR-113), which the static catalogue does not know about. It is a convenience, not
+    the control: every endpoint re-checks.
     """
-    role = get_role(principal.role)
+    role = effective_role(db, principal.tenant_id, principal.role)
     return {
         "subject": principal.subject,
-        "role": role.name,
+        "role": principal.role,
         "role_label": role.label,
         "tenant_id": principal.tenant_id,
         "tenant_scoped": role.tenant_scoped,
         "can_admin_tenant": role.can_admin_tenant,
+        "can_reveal_pii": role.can_reveal_pii,
+        "can_activate_config": role.can_activate_config,
+        "permissions": list(role.permissions),
+        "description": role.description,
         "must_change_password": principal.scope == "password_reset",
-        "modules": modules_for(role.name),
-        "dashboards": dashboards_for(role.name),
+        "modules": [{"key": m, **MODULE_META[m]} for m in role.modules if m in MODULE_META],
+        "dashboards": [{"key": d, **DASHBOARD_META[d]}
+                       for d in role.dashboards if d in DASHBOARD_META],
     }
 
 

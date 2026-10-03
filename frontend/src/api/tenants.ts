@@ -100,10 +100,13 @@ export interface RoleOut {
   can_admin_tenant: boolean
   can_reveal_pii: boolean
   can_activate_config: boolean
+  // Gated actions this role may perform (keys from the permission catalogue below), and the
+  // text its holders see on their home page. Both are the tenant's own data.
+  permissions: string[]
+  description: string
   member_count: number
-  // "seeded" for an unedited copy of the platform catalogue, "custom" for a
-  // tenant-created role or one the tenant has since edited. null for a role still
-  // served from the hardcoded fallback (no tenant_roles row exists at all yet).
+  // "seeded" for an unedited copy of the starter template, "custom" for a role the tenant
+  // created or has since edited. Every role is a row the tenant owns; none is built in.
   source: string | null
   // True while a can_admin_tenant/can_reveal_pii/can_activate_config grant is staged
   // awaiting a second, different eligible actor's confirmation (BR-715-style
@@ -118,6 +121,19 @@ export interface RoleWrite {
   can_admin_tenant?: boolean
   can_reveal_pii?: boolean
   can_activate_config?: boolean
+  permissions?: string[]
+  description?: string
+}
+
+/** What a role can be granted. The vocabulary only - who holds what is each role's data. */
+export interface PermissionCatalogue {
+  permissions: { key: string; label: string; group: string }[]
+  modules: { key: string; label: string; description: string }[]
+  dashboards: { key: string; label: string; persona: string; question: string }[]
+}
+
+export function getPermissionCatalogue(tenantId: string, token: string) {
+  return apiFetch<PermissionCatalogue>(`/tenants/${tenantId}/permissions`, { token })
 }
 
 export function listRoles(tenantId: string, token: string) {

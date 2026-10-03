@@ -10,7 +10,7 @@ from cp_common import (
     AppError, Principal, get_current_principal, get_session, record_audit,
     resolve_tenant_scope,
 )
-from cp_common.dynamic_roles import get_role
+from cp_common.dynamic_roles import get_role, has_permission
 
 from .. import workflow as wf
 from ..accountability_model import StaffAccountability
@@ -123,6 +123,7 @@ def _context(db: Session, tenant_id: str, case: FactCase, principal: Principal,
         pending_actor=pend.actor if pend else None,
         pending_role=pend.actor_role if pend else None,
         state_since=_state_since(db, tenant_id, case.case_id, case),
+        permissions=frozenset(get_role(tenant_id, principal.role).permissions),
     )
 
 
@@ -308,9 +309,7 @@ def assign(
 ) -> dict:
     """Assignment is not a state change, but it is still accountability."""
     resolve_tenant_scope(principal, tenant_id)
-    role = get_role(tenant_id, principal.role)
-    if not (role.can_admin_tenant or principal.role in
-            ("risk_manager", "investigator", "supervisor", "principal_officer")):
+    if not has_permission(tenant_id, principal.role, "case.assign"):
         raise AppError("Your role may not assign cases", 403, "role_not_permitted")
     # A case assigned to somebody who does not exist looks owned and is not: it drops
     # out of every "unassigned" view while no one is actually working it, and any

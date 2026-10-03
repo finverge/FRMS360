@@ -31,8 +31,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
-# Roles that may act as the *checker* half of a maker-checker pair.
-APPROVER_ROLES = ("risk_manager", "principal_officer", "tenant_admin")
+from cp_common.permissions import case_action
+
+# Who may act as the *checker* half of a maker-checker pair is the "case.approve_transition"
+# grant on the tenant's role rows, resolved by the caller into ``Context.may_approve``.
 
 
 @dataclass(frozen=True)
@@ -41,13 +43,11 @@ class Transition:
     src: str
     dst: str
     label: str
-    # Roles permitted to initiate. tenant_admin is added to every transition below.
-    roles: tuple[str, ...]
     # Free-text justification the actor must supply.
     requires_reason: bool = False
     # A document of this type must already be attached to the case.
     requires_document: str = ""
-    # Needs a second, different person holding an APPROVER_ROLES role.
+    # Needs a second, different person holding the approve permission.
     requires_second_approval: bool = False
     # Refuse while the borrower's response window is still open.
     requires_window_elapsed: bool = False
@@ -60,46 +60,39 @@ class Transition:
 
 
 def _t(*args, **kwargs) -> Transition:
-    """tenant_admin can always act; it is the tenant's own break-glass role."""
-    tr = Transition(*args, **kwargs)
-    if "tenant_admin" not in tr.roles:
-        object.__setattr__(tr, "roles", tr.roles + ("tenant_admin",))
-    return tr
+    """Who may initiate a transition is not stated here: it is the ``case.act.<action>``
+    permission on the tenant's own role rows (cp_common.permissions), so an administrator
+    changes it in the console rather than in code."""
+    return Transition(*args, **kwargs)
 
 
 TRANSITIONS: tuple[Transition, ...] = (
     # ---- triage -------------------------------------------------------------
     _t("flag_rfa", "under_review", "rfa_flagged",
        "Flag as Red Flagged Account",
-       roles=("investigator", "risk_manager"),
        requires_reason=True),
     _t("close_no_fraud", "under_review", "exonerated",
        "Close - not fraud",
-       roles=("analyst", "investigator", "risk_manager"),
        requires_reason=True),
 
     # ---- natural justice ----------------------------------------------------
     _t("revoke_rfa", "rfa_flagged", "under_review",
        "Revoke the RFA flag",
-       roles=("risk_manager",),
        requires_reason=True),
     # The show-cause notice opens the hearing. RBI expects it promptly after the RFA
     # flag; issuing it late is recorded against the case rather than silently allowed.
     _t("issue_show_cause", "rfa_flagged", "natural_justice",
        "Issue show-cause notice",
-       roles=("investigator", "risk_manager", "principal_officer"),
        requires_reason=False,
        late_after_days="show_cause_within_days",
        starts_clocks=("natural_justice_days",)),
     # The borrower replied. Always permitted - a reply can arrive at any time.
     _t("record_response", "natural_justice", "response_evaluation",
        "Record the borrower's response",
-       roles=("investigator", "risk_manager", "principal_officer"),
        requires_reason=True),
     # No reply came. Only once the window has genuinely closed.
     _t("close_window", "natural_justice", "response_evaluation",
        "Close the response window (no reply received)",
-       roles=("investigator", "risk_manager", "principal_officer"),
        requires_window_elapsed=True),
 
     # ---- decision -----------------------------------------------------------
@@ -107,7 +100,6 @@ TRANSITIONS: tuple[Transition, ...] = (
     # and one person may not both propose and approve it.
     _t("declare_fraud", "response_evaluation", "fraud_declared",
        "Declare fraud",
-       roles=("investigator", "risk_manager", "principal_officer"),
        requires_reason=True,
        requires_document="reasoned_order",
        requires_second_approval=True,
@@ -115,7 +107,6 @@ TRANSITIONS: tuple[Transition, ...] = (
                       "staff_accountability_days")),
     _t("exonerate", "response_evaluation", "exonerated",
        "Exonerate - allegation not sustained",
-       roles=("investigator", "risk_manager", "principal_officer"),
        requires_reason=True),
 
     # ---- regulatory reporting ----------------------------------------------
@@ -124,14 +115,12 @@ TRANSITIONS: tuple[Transition, ...] = (
     # had been examined would turn a governance requirement into a reporting delay.
     _t("file_fmr", "fraud_declared", "fmr_reported",
        "File the Fraud Monitoring Return",
-       roles=("supervisor", "principal_officer", "risk_manager"),
        late_after_days="fmr_filing_days"),
     # Closing is where the question has to be answered. A fraud may be *reported* with
     # accountability still open; it may not be filed away with it never examined, which is
     # precisely the paper-compliance gap an inspection looks for.
     _t("close_case", "fmr_reported", "closed_fraud",
        "Close the case",
-       roles=("supervisor", "risk_manager"),
        requires_accountability=True),
 
     # ---- reopening ----------------------------------------------------------
@@ -139,7 +128,6 @@ TRANSITIONS: tuple[Transition, ...] = (
     # is deliberately not offered - that record has been reported to RBI.
     _t("reopen", "exonerated", "under_review",
        "Reopen on new evidence",
-       roles=("risk_manager", "supervisor"),
        requires_reason=True),
 )
 
@@ -172,6 +160,8 @@ class Context:
     response_due_ts: datetime | None
     # "" when no examination has been started, else its status. See BR-414.
     accountability_status: str = ""
+    # What the actor's role may do, read from the tenant's role rows by the caller.
+    permissions: frozenset = frozenset()
     # The most recent still-open proposal for this action, if any.
     pending_actor: str | None = None
     pending_role: str | None = None
@@ -195,7 +185,7 @@ def check(action: str, ctx: Context, *, reason: str = "") -> Transition:
         raise TransitionRefused(
             "'" + tr.label + "' applies to a case in '" + tr.src +
             "', but this case is in '" + ctx.state + "'.", "wrong_state")
-    if ctx.role not in tr.roles:
+    if case_action(tr.action) not in ctx.permissions:
         raise TransitionRefused(
             "Your role may not " + tr.label.lower() + ".", "role_not_permitted")
     if tr.requires_reason and not reason.strip():
@@ -234,10 +224,10 @@ def check(action: str, ctx: Context, *, reason: str = "") -> Transition:
             raise TransitionRefused(
                 "You proposed this action, so you may not also approve it.",
                 "self_approval")
-        if ctx.role not in APPROVER_ROLES:
+        if "case.approve_transition" not in ctx.permissions:
             raise TransitionRefused(
-                "Approving '" + tr.label + "' requires a Fraud Risk Manager, Principal "
-                "Officer or Tenant Administrator.", "not_an_approver")
+                "Approving '" + tr.label + "' needs the approve permission, which your "
+                "role has not been given.", "not_an_approver")
     return tr
 
 

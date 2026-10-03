@@ -22,7 +22,7 @@ from cp_common import (
     AppError, Principal, get_current_principal, get_session, record_audit,
     resolve_tenant_scope, settings,
 )
-from cp_common.dynamic_roles import get_role
+from cp_common.dynamic_roles import has_permission
 
 from .. import ctr, ctr_renderers, data_source
 from ..ctr_model import CtrFiling
@@ -30,13 +30,13 @@ from ..rules import policy
 
 router = APIRouter(prefix="/analytics", tags=["ctr"])
 
-#: Same roles as FMR/STR - CTR is a PMLA compliance act, and the pack carries account
-#: identifiers a bank's usual role boundaries treat as sensitive.
-CTR_ROLES = ("principal_officer", "supervisor", "risk_manager", "tenant_admin")
+# Who may do this is data: the tenant's own role rows grant "ctr.file"
+# (cp_common.permissions); nothing here names a role.
+PERMISSION = "ctr.file"
 
 
 def _may_file(tenant_id: str, principal: Principal) -> bool:
-    return principal.role in CTR_ROLES or get_role(tenant_id, principal.role).can_admin_tenant
+    return has_permission(tenant_id, principal.role, PERMISSION)
 
 
 def _entity(tenant_id: str) -> dict:

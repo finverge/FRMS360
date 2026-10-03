@@ -19,11 +19,7 @@ from .auth import (
     MACHINE_SCOPES,
 )
 from .passwords import validate_password, describe_policy, MIN_LENGTH
-from .rbac import (
-    ASSIGNABLE_TENANT_ROLES, DASHBOARDS, MODULE_META, ROLES,
-    can_access_dashboard, can_access_module, can_activate_config, can_admin_tenant,
-    can_reveal_pii, dashboards_for, get_role, modules_for,
-)
+from .rbac import ASSIGNABLE_TENANT_ROLES, DASHBOARDS, MODULE_META, ROLES
 from . import tenant_status
 from .tenancy import resolve_tenant_scope
 from .errors import install_error_handlers, AppError
@@ -81,11 +77,4 @@ __all__ = [
     "DASHBOARDS",
     "MODULE_META",
     "ASSIGNABLE_TENANT_ROLES",
-    "get_role",
-    "modules_for",
-    "dashboards_for",
-    "can_access_module",
-    "can_access_dashboard",
-    "can_admin_tenant",
-    "can_reveal_pii",
 ]

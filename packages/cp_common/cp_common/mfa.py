@@ -118,19 +118,17 @@ def is_expired(when: datetime | None, *, now: datetime | None = None) -> bool:
     return when < now
 
 
-def mfa_required_for(policy: str, role: str) -> bool:
-    """Whether this tenant's policy mandates a second factor for this role.
+def mfa_required_for(policy: str, *, privileged: bool) -> bool:
+    """Whether this tenant's policy mandates a second factor for this person.
 
-    ``privileged`` is the sensible default: the roles that can move a case, unmask a
-    customer or change configuration. A board member with read-only aggregate access is a
-    different risk, and forcing enrolment on them is how a bank ends up with shared
-    devices.
+    ``privileged`` is decided by the caller from the person's own role row - whether it can
+    administer the tenant or unmask customer data - so this holds no list of role names.
+    ``privileged`` as a policy is the sensible default: the roles that can move a case, unmask
+    a customer or change configuration. A board member with read-only aggregate access is a
+    different risk, and forcing enrolment on them is how a bank ends up with shared devices.
     """
-    from .rbac import get_role
-
     if policy == "all":
         return True
     if policy != "privileged":
         return False
-    r = get_role(role)
-    return bool(r.can_admin_tenant or r.can_reveal_pii or role == "platform_admin")
+    return privileged

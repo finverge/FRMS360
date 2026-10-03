@@ -1,12 +1,23 @@
-"""Role-based access control for the FRMS application.
+"""Starter role templates and the module/dashboard catalogue. NOT the authority.
 
-One application, several modules. A role grants access to modules, and — within the
-monitoring module — to specific dashboards. Defining this in one table keeps the API
-and the console navigation from drifting apart: the console asks the server what it may
-show rather than hard-coding its own idea of the rules.
+Who may do what is data: each tenant has its own role rows in ``tenant.tenant_roles``,
+which its administrators create, change and delete from the console, and every service
+decides from those rows (``cp_common.dynamic_roles``). Nothing here is consulted to allow
+or refuse a request.
 
-Enforcement is server-side. The module list returned to the UI only decides what is
-*rendered*; every endpoint independently checks the caller's role.
+What this module still provides:
+
+* ``MODULE_META`` / ``DASHBOARD_META`` - the modules and dashboards that exist, with
+  their labels, so a role can be granted them. (``permissions.PERMISSIONS`` is the same
+  idea for gated actions.)
+* ``ROLES`` - the **starter templates** copied into a tenant's own rows when it is
+  onboarded, and by the data migration that materialised them for existing tenants. After
+  that copy a tenant's roles are its own: editing, narrowing, widening or deleting one
+  never touches the template or any other tenant.
+
+The one role that is not a tenant role is ``platform_admin``: Finverge operating staff,
+who work across tenants and belong to no bank's catalogue. It is recognised structurally
+(``Principal.is_platform_admin``), not granted by a table a tenant can edit.
 """
 from dataclasses import dataclass
 
@@ -87,6 +98,10 @@ class Role:
     # that says so - the "risk_manager-equivalent" grant a custom role can now also
     # be given without needing can_admin_tenant too.
     can_activate_config: bool = False
+    # Gated actions this role may perform (keys of cp_common.permissions.PERMISSIONS).
+    permissions: tuple[str, ...] = ()
+    # Shown to the person on their home page; an administrator edits it with the role.
+    description: str = ""
 
 
 _ALL_DASH = tuple(DASHBOARDS)
@@ -95,7 +110,7 @@ _ALL_DASH = tuple(DASHBOARDS)
 # tenant-scoped role - including tenant_admin, which otherwise gets everything.
 _TENANT_DASH = tuple(d for d in DASHBOARDS if d != "tenant_health")
 
-ROLES: dict[str, Role] = {
+_BASE_ROLES: dict[str, Role] = {
     # ---- platform / administration ----
     # NOTE can_reveal_pii=False: operating the service does not require seeing a bank's
     # customers. This is the outsourcing boundary an RBI review will probe.
@@ -171,43 +186,60 @@ ROLES: dict[str, Role] = {
         tenant_scoped=True, can_admin_tenant=False, can_reveal_pii=True),
 }
 
-# Roles a tenant administrator may hand out inside their own bank.
+# Starter grants and the text each person sees on their home page. These reproduce what the
+# per-endpoint role lists used to hard-code, so a tenant onboarded today behaves exactly as
+# before until its administrator changes a role. A tenant administrator holds every gated
+# action explicitly (there is no implicit "admin may do anything" in code any more).
+from .permissions import ALL_PERMISSIONS, case_action  # noqa: E402
+
+# The case-workflow actions each starter role held when they were hard-coded per transition.
+_ACTIONS_HELD = {'flag_rfa': ['investigator', 'risk_manager'], 'close_no_fraud': ['analyst', 'investigator', 'risk_manager'], 'revoke_rfa': ['risk_manager'], 'issue_show_cause': ['investigator', 'risk_manager', 'principal_officer'], 'record_response': ['investigator', 'risk_manager', 'principal_officer'], 'close_window': ['investigator', 'risk_manager', 'principal_officer'], 'declare_fraud': ['investigator', 'risk_manager', 'principal_officer'], 'exonerate': ['investigator', 'risk_manager', 'principal_officer'], 'file_fmr': ['supervisor', 'principal_officer', 'risk_manager'], 'close_case': ['supervisor', 'risk_manager'], 'reopen': ['risk_manager', 'supervisor']}
+
+
+def _acts(role: str) -> tuple[str, ...]:
+    return tuple(case_action(a) for a, who in _ACTIONS_HELD.items() if role in who)
+
+_CASEWORK = ("case.assign", "case.examine", "recovery.record", "detection.simulate")
+_COMPLIANCE = ("filing.submit", "ctr.file", "board_pack.prepare")
+_SCREEN = ("sanctions.screen", "lane_c.view")       # read-only screening and credit health
+_CREDIT_WORK = _SCREEN + ("lane_c.manage",)
+_STARTER: dict[str, tuple[tuple[str, ...], str]] = {
+    "platform_admin": ((), ""),
+    "tenant_admin": (ALL_PERMISSIONS,
+        "You administer your bank's workspace: users, roles, sign-in, notifications and "
+        "detection rules, with the monitoring dashboards behind them."),
+    "analyst": (("detection.simulate",) + _SCREEN + _acts("analyst"),
+        "You work the first line: alerts waiting for review, and deciding which are real."),
+    "investigator": (_CASEWORK + _SCREEN + _acts("investigator"),
+        "You take escalated alerts further: is this one mule account, or a ring?"),
+    "risk_manager": (_CASEWORK + ("case.conclude", "case.approve_transition", "detection.replay",
+                                  "reference.load", "board_pack.issue") + _COMPLIANCE + _CREDIT_WORK + _acts("risk_manager"),
+        "You run the fraud operation: where the queue is failing, and the detection quality behind it."),
+    "principal_officer": (_CASEWORK + ("case.conclude", "case.approve_transition", "detection.replay",
+                                       "reference.load", "board_pack.issue") + _COMPLIANCE + _CREDIT_WORK + _acts("principal_officer"),
+        "You own the PMLA obligation: what must be filed with FIU-IND, and by when."),
+    "supervisor": (_CASEWORK + _COMPLIANCE + _SCREEN + _acts("supervisor"),
+        "You watch the regulatory clocks: natural-justice deadlines, FMR and STR filing dates."),
+    "board": (("usage.view",),
+        "You see the bank's fraud exposure and compliance position at a glance. Figures only; no customer data."),
+    "cro": (("board_pack.prepare", "board_pack.issue", "usage.view"),
+        "You see exposure and compliance posture together, for the committee. Figures only; no customer data."),
+    "data_scientist": ((),
+        "You check that the models are still fit, fair and explainable. You work on masked data."),
+    "rbi_inspector": (_SCREEN,
+        "You retrieve evidence: why an account was flagged, and what the bank did about it. Read-only."),
+}
+
+ROLES: dict[str, Role] = {
+    name: Role(r.name, r.label, r.modules, r.dashboards, r.tenant_scoped, r.can_admin_tenant,
+               r.can_reveal_pii, r.can_activate_config, _STARTER[name][0], _STARTER[name][1])
+    for name, r in _BASE_ROLES.items()
+}
+
+# The starter roles copied into a tenant's own rows at onboarding (see roles.seed_default_roles).
+# This is the seeding list, not a list of what a tenant may assign: that is its own role rows.
 ASSIGNABLE_TENANT_ROLES = [
     "tenant_admin", "analyst", "investigator", "risk_manager",
     "principal_officer", "supervisor", "board", "cro",
     "data_scientist", "rbi_inspector",
 ]
-
-
-def get_role(name: str) -> Role:
-    return ROLES.get(name) or ROLES["analyst"]
-
-
-def modules_for(role_name: str) -> list[dict]:
-    role = get_role(role_name)
-    return [{"key": m, **MODULE_META[m]} for m in role.modules]
-
-
-def dashboards_for(role_name: str) -> list[dict]:
-    role = get_role(role_name)
-    return [{"key": d, **DASHBOARD_META[d]} for d in role.dashboards]
-
-
-def can_access_module(role_name: str, module: str) -> bool:
-    return module in get_role(role_name).modules
-
-
-def can_access_dashboard(role_name: str, dashboard: str) -> bool:
-    return dashboard in get_role(role_name).dashboards
-
-
-def can_admin_tenant(role_name: str) -> bool:
-    return get_role(role_name).can_admin_tenant
-
-
-def can_reveal_pii(role_name: str) -> bool:
-    return get_role(role_name).can_reveal_pii
-
-
-def can_activate_config(role_name: str) -> bool:
-    return get_role(role_name).can_activate_config

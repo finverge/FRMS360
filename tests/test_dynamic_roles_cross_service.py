@@ -101,12 +101,9 @@ def _plant_user(tid: str, role: str, tag: str) -> str:
 
 
 # ------------------------------------------------------- the shared module itself
-def test_a_fixed_role_never_reaches_the_network(dyn_tenant, monkeypatch):
-    """Zero-network path for the ten - the whole point of checking the hardcoded
-    catalogue first."""
-    def _boom(*a, **k):
-        raise AssertionError("fixed-role lookup must not fetch")
-    monkeypatch.setattr(dynamic_roles, "_fetch", _boom)
+def test_a_starter_role_is_just_a_row_read_from_the_database(dyn_tenant):
+    """There is no in-code catalogue to answer from: even the starter roles are this tenant's
+    own rows, fetched like any other."""
     assert dynamic_roles.can_admin_tenant(dyn_tenant["id"], "tenant_admin") is True
     assert dynamic_roles.can_admin_tenant(dyn_tenant["id"], "analyst") is False
     assert dynamic_roles.can_access_module(dyn_tenant["id"], "analyst", MOD_MONITORING) is True
@@ -118,9 +115,11 @@ def test_an_unknown_name_is_no_access_not_an_error(dyn_tenant):
     assert dynamic_roles.role_for(dyn_tenant["id"], "does_not_exist") is None
 
 
-def test_get_role_falls_back_to_analyst_like_rbac_get_role_does(dyn_tenant):
+def test_get_role_for_an_unknown_name_is_an_empty_role_never_a_default_with_privileges(dyn_tenant):
     role = dynamic_roles.get_role(dyn_tenant["id"], "does_not_exist")
-    assert role.name == "analyst"
+    assert role.name == "does_not_exist"
+    assert role.modules == () and role.dashboards == () and role.permissions == ()
+    assert not role.can_admin_tenant and not role.can_reveal_pii
 
 
 def test_a_custom_role_is_recognised_by_every_primitive(tenant_client, dyn_tenant):

@@ -100,11 +100,10 @@ def test_two_different_people_holding_the_same_role_still_works(config_client, t
     class Row:
         proposed_by = "risk_manager@test.local"
 
-    # tenant_id is irrelevant here - "risk_manager" is one of the fixed ELIGIBLE_ROLES,
-    # so ensure_eligible() returns before ever consulting it.
-    maker_checker.confirm("any-tenant", Row(), "another_risk_manager@test.local", "risk_manager")
+    # Eligibility is read from the tenant's own role row, so this needs the real tenant.
+    maker_checker.confirm(tid, Row(), "another_risk_manager@test.local", "risk_manager")
     with pytest.raises(maker_checker.MakerCheckerRefused):
-        maker_checker.confirm("any-tenant", Row(), "risk_manager@test.local", "risk_manager")
+        maker_checker.confirm(tid, Row(), "risk_manager@test.local", "risk_manager")
 
 
 # ----------------------------------------------------------- who may act at all

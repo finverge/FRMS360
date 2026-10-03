@@ -204,6 +204,9 @@ class RoleOut(BaseModel):
     # May propose or confirm a configuration activation (BR-715) - the
     # risk_manager-equivalent grant, narrower than can_admin_tenant.
     can_activate_config: bool = False
+    # Gated actions this role may perform, and the text its holders see on their home page.
+    permissions: list[str] = Field(default_factory=list)
+    description: str = ""
     member_count: int
     # "seeded" for an unedited copy of the platform catalogue, "custom" for a
     # tenant-created role or one the tenant has since edited. Absent (None) for a role
@@ -226,6 +229,8 @@ class RoleCreate(BaseModel):
     can_admin_tenant: bool = False
     can_reveal_pii: bool = False
     can_activate_config: bool = False
+    permissions: list[str] = Field(default_factory=list)
+    description: str = Field(default="", max_length=600)
 
 
 class RoleUpdate(BaseModel):
@@ -237,6 +242,8 @@ class RoleUpdate(BaseModel):
     can_admin_tenant: bool | None = None
     can_reveal_pii: bool | None = None
     can_activate_config: bool | None = None
+    permissions: list[str] | None = None
+    description: str | None = Field(default=None, max_length=600)
 
 
 class AuditOut(BaseModel):

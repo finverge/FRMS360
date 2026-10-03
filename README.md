@@ -50,12 +50,12 @@ Data tier           →  models.py + PostgreSQL
       │               │              │           notification:8087     │
       └───────────────┴──────────────┴────────────────┴───────────────┘
                                      ▼
-                    PostgreSQL — 8 schemas, one owner each, 6 login roles
+                    PostgreSQL — 10 schemas, one owner each, 8 login roles
 ```
 
 **Multi-tenancy model:** logical isolation by `tenant_id` in every query, enforced in
-`cp_common.resolve_tenant_scope` (a `platform_admin` may act across tenants; a `tenant_admin`
-is pinned to their own), on top of **schema-per-service** ownership — each service connects
+`cp_common.resolve_tenant_scope` (platform staff may act across tenants; every tenant-scoped
+role, whatever it is called, is pinned to its own tenant), on top of **schema-per-service** ownership — each service connects
 as its own PostgreSQL role that can reach only its own schemas, so a reach for a
 neighbour's table fails in the database rather than by convention (`scripts/provision_db_roles.py`).
 There are **no cross-service foreign keys** so each service stays independently deployable
@@ -162,11 +162,19 @@ show version activation. The schema itself comes from Alembic, not from startup 
 | `POST /api/tenants/{id}/resume` | platform_admin | Reactivate a suspended tenant |
 | `POST /api/tenants/{id}/offboard` | platform_admin | Terminal offboard (irreversible) |
 | `GET  /api/tenants/{id}/export` | platform_admin | Export the tenant's data bundle (exit clause) |
-| `GET  /api/tenants/{id}/users` | scoped | List the tenant's administrators |
-| `POST /api/tenants/{id}/users` | platform_admin | Invite an admin (returns a one-time temp password) |
-| `DELETE /api/tenants/{id}/users/{uid}` | platform_admin | Remove an admin (never the last one) |
+| `GET  /api/tenants/{id}/users` | scoped | List the tenant's users |
+| `POST /api/tenants/{id}/users` | `can_admin_tenant` | Invite a user under one of the tenant's own roles (returns a one-time temp password) |
+| `DELETE /api/tenants/{id}/users/{uid}` | `can_admin_tenant` | Remove a user (never the last administrator) |
+| `GET  /api/auth/me` | any scope | Who you are and what your role may use: modules, dashboards, permissions, capabilities, description. The console renders its menu and Home page from this |
+| `GET  /api/tenants/{id}/roles` | scoped | The tenant's roles, with permissions and member counts |
+| `POST /api/tenants/{id}/roles` | `can_admin_tenant` | Create a role |
+| `PUT  /api/tenants/{id}/roles/{name}` | `can_admin_tenant` | Edit a role. Taking something away applies at once; giving more is staged |
+| `POST /api/tenants/{id}/roles/{name}/confirm` | `can_admin_tenant`, a *different* person | Confirm a staged privilege increase |
+| `DELETE /api/tenants/{id}/roles/{name}` | `can_admin_tenant` | Delete a role (refused while held, or if it is the last way to administer the tenant) |
+| `GET  /api/tenants/{id}/permissions` | scoped | What a role can be granted: gated actions, modules, dashboards |
 
-"scoped" = valid JWT; platform_admin unrestricted, tenant_admin limited to own tenant.
+"scoped" = valid JWT; platform staff are unrestricted, and tenant-scoped roles are limited to their own
+tenant. Beyond that, who may do what is each role's own permissions (section 6d), never a fixed list of names.
 Internal provisioning endpoints (`/internal/*`) are guarded by `X-Internal-Key`, not exposed
 through the gateway.
 
@@ -186,6 +194,7 @@ architecture section.
 | `platform_users` (tenant) | id, email, password_hash, role, must_change_password, password_changed_at |
 | `tenants` (tenant) | id, slug, legal_name, display_name, region, plan, status |
 | `tenant_users` (tenant) | id, tenant_id, email, password_hash, role, must_change_password, password_changed_at |
+| `tenant_roles` (tenant) | id, tenant_id, name, label, description, modules, dashboards, can_admin_tenant, can_reveal_pii, can_activate_config, permissions(json), source, pending_change — unique(tenant_id,name). **The only authority on what a role may do** |
 | `branding` (branding) | tenant_id (pk), display_name, logo_url, primary/accent/neutral_color, default_theme, custom_domain |
 | `tenant_configs` (config) | id, tenant_id, kind, name, version, status, body(jsonb) — unique(tenant_id,kind,name,version) |
 | `audit_logs` (shared) | id, ts, service, actor, actor_role, tenant_id, action, target_type, target_id, status, detail(jsonb) |
@@ -319,35 +328,83 @@ exercised. The existing database was then marked as already at this revision via
 baseline, then `.\migrate.ps1 stamp head` — this records the revision without re-running the
 DDL. Running a plain `upgrade` there would fail on tables that already exist.
 
-## 6d. Modules & role-based access
+## 6d. Roles are data: modules, dashboards, permissions
 
-One application, four modules. A role grants module access and, within Monitoring,
-access to specific dashboards. The matrix lives in `cp_common/rbac.py`; the console
-renders its navigation from `GET /api/auth/me` so UI and API cannot drift.
+**What a role may do is stored in the database, per tenant, and edited in the console. No service
+decides by role name, and there is no list of roles in code to fall back on.**
 
-Eleven roles covering the personas from the product spec. The **first** dashboard listed
-is that role's primary — the console reorders the persona rail to match, so each user lands
-on their own view.
+Each tenant has its own rows in `tenant.tenant_roles`. A role holds five things:
 
-| Role | Modules | Dashboards (primary first) | Tenants |
-|---|---|---|---|
-| `platform_admin` | all four | all thirteen | all |
-| `tenant_admin` | Control Plane, Monitoring, Audit | all thirteen | own |
-| `analyst` | Monitoring | Analyst | own |
-| `investigator` | Monitoring | Investigator, Analyst | own |
-| `risk_manager` | Monitoring, Audit | Operations, Analyst, Investigator, Board | own |
-| `principal_officer` | Monitoring, Audit | AML/STR, Compliance | own |
-| `supervisor` | Monitoring, Audit | Compliance, AML/STR, Board | own |
-| `board` | Monitoring | Board | own |
-| `cro` | Monitoring, Audit | Board, Compliance, Operations, AML/STR | own |
-| `data_scientist` | Monitoring | Model Risk, Analyst | own |
-| `rbi_inspector` | Monitoring, Audit | Inspection, Compliance, Board, AML/STR, Model Risk | own |
+| | |
+|---|---|
+| Modules | Control Plane, Monitoring, Audit (the platform-only Administration module can never be granted to a tenant role) |
+| Dashboards | which of the persona dashboards it opens; the **first** is its home dashboard |
+| Capabilities | `can_admin_tenant`, `can_reveal_pii`, `can_activate_config` |
+| Permissions | the gated actions it may perform (below) |
+| Description | shown to its holders on their home page |
 
-The persona rail is a second header row, visible only inside the Monitoring module.
+**Starter roles.** Onboarding copies ten starter roles (`tenant_admin`, `analyst`, `investigator`,
+`risk_manager`, `principal_officer`, `supervisor`, `board`, `cro`, `data_scientist`, `rbi_inspector`)
+into the tenant's own rows; a data migration did the same for tenants that already existed. They
+reproduce the previous behaviour exactly, so a tenant behaves as before until it edits one. After the
+copy they are ordinary rows: a tenant administrator, or platform staff acting for the tenant, can add a
+role, narrow or widen any role, or delete one from the **Roles** page. The templates live in
+`packages/cp_common/cp_common/rbac.py` (`ROLES`) and are used for seeding only.
 
-Hiding a tab is not access control — every analytics endpoint independently calls
-`_guard()`, which checks tenant scope, module access and dashboard access. Verified:
-an `analyst` token gets `403` on the board and supervisor dashboards.
+| Starter role | Modules | Dashboards (home first) |
+|---|---|---|
+| `tenant_admin` | Control Plane, Monitoring, Audit | all twelve tenant dashboards |
+| `analyst` | Monitoring | Analyst, EWS Signals, Real-Time |
+| `investigator` | Monitoring | Investigator, Account 360, RFA Lifecycle, EWS Signals, Analyst |
+| `risk_manager` | Monitoring, Audit | Operations, EWS Signals, Real-Time, Analyst, Investigator, RFA, Board |
+| `principal_officer` | Monitoring, Audit | AML/STR, RFA Lifecycle, Compliance |
+| `supervisor` | Monitoring, Audit | Compliance, RFA, AML/STR, EWS Signals, Board |
+| `board` | Monitoring | Board |
+| `cro` | Monitoring, Audit | Board, Compliance, RFA, Operations, AML/STR, EWS Signals |
+| `data_scientist` | Monitoring | Model Risk, EWS Signals, Analyst |
+| `rbi_inspector` | Monitoring, Audit | Inspection, RFA, Compliance, Board, AML/STR, Model Risk, EWS Signals, Account 360 |
+
+(Platform staff, `platform_admin`, are the one role that is not a row: it is recognised by name because
+it is not a bank's role, works across tenants and cannot be edited by any tenant. It also gets the
+Tenant Health dashboard, which no tenant role can be granted.)
+
+**Permissions** are the gated actions the platform can guard: the case-workflow steps (one each,
+`case.act.<action>`), assigning cases, running and concluding the staff-accountability examination,
+recording recoveries, simulating and replaying detection, loading reference lists, filing FMR/STR and
+CTR returns, preparing and issuing board packs, viewing usage, issuing machine credentials, **sanctions
+screening** (`sanctions.screen`) and **borrower credit health** (`lane_c.view`, `lane_c.manage`).
+The catalogue is `packages/cp_common/cp_common/permissions.py` (served by `GET /api/tenants/{id}/permissions`);
+who holds each one is the role's data. There is no implicit "administrator may do anything": a role holds
+each permission explicitly. Board, CRO and Model Risk hold neither sanctions nor credit-health
+permissions by default; Analyst, Investigator, Supervisor and RBI Inspector can look but not change.
+
+**How a change behaves.**
+
+- Taking something away (an action, a module, a dashboard, a capability) applies on the person's next request.
+- Giving a role more (a capability or a permission) is staged and needs a *different* administrator to
+  confirm it; until then the role is as it was.
+- An edit or delete that would leave the tenant with no administrator who can sign in is refused, as is
+  deleting a role someone still holds.
+- Unknown permissions, the Administration module and Tenant Health are refused.
+- Every create, edit, confirmation and delete writes a full before/after snapshot to the audit trail.
+
+**How it is enforced.** tenant-service reads a tenant's rows directly; every other service that
+authorises a request (analytics, config, notification, decision review, Lane C) fetches them from
+tenant-service through `cp_common.dynamic_roles` and caches them against a shared generation, so an edit
+is live everywhere on the next request. A role name that is not a row for the tenant can do nothing; if
+tenant-service cannot be reached and a service has no cached copy, it refuses rather than guesses.
+Endpoints ask one question, `has_permission(tenant_id, role, "…")`. The console renders its menu, its
+Monitoring tabs and its **Home** page from `GET /api/auth/me`, so a role is shown only what it may open;
+hiding a page is not the control, the endpoint behind it re-checks.
+
+**Adding a gated action.** Add it to `permissions.py`, guard the endpoint with `has_permission`, add the
+starter grant to `rbac.py` and write a new Alembic data migration that grants it to existing tenants'
+starter roles (never edit an applied migration; never overwrite a tenant's own edits). See
+`alembic/versions/f3c6d9e2a5b8_screening_and_credit_health_permissions.py`.
+
+Dashboard access is checked the same way: every analytics endpoint calls `_guard()`, which checks tenant
+scope, module access and dashboard access from the tenant's role rows. An `analyst` gets `403` on the
+board and supervisor dashboards unless its tenant has granted them.
 
 ## 6e. Monitoring dashboards & reconciliation
 
@@ -374,7 +431,7 @@ All eleven dashboards from the product spec's catalogue, plus two beyond it.
 | — | — | Inspection | Internal Audit / RBI | Prove why this account was flagged. |
 
 **Tenant Health is platform-staff only** — it carries operational telemetry and returns no
-customer rows at all. Every tenant-scoped role, `tenant_admin` included, gets `403`.
+customer rows at all. No tenant role can be granted it (role create/edit refuses it), so every tenant-scoped role gets `403`.
 
 **Account 360** pins every figure to one account via `?account=AC…` (matching either side
 of the transaction); without it the dashboard shows the population so an investigator can
@@ -425,6 +482,8 @@ Anything less returns masked data. A successful reveal writes `data.reveal_pii` 
 audit log with the justification, and every evidence view writes `data.view_evidence`
 recording which PII fields the payload carried — so the trail shows who *looked*, not only
 who changed something.
+
+Starter grants (`can_reveal_pii`; a tenant's administrator can change it per role):
 
 | Role | May unmask |
 |---|---|
@@ -542,18 +601,23 @@ then completes the reset, so the feature is exercised rather than bypassed.
 ## 6f. Tests & CI
 
 ```powershell
-.\.venv\Scripts\python -m pytest -q          # 646 tests
+.\.venv\Scripts\python -m pytest -q          # about 1,520 tests; a full run takes roughly half an hour
 .\.venv\Scripts\python tools\jscheck.py      # static assets
 ```
 
 Tests run against a dedicated `cp_test` database that is created, **migrated through
 Alembic** and dropped by the fixtures — so the migrations are exercised too, not just the
-models. Dev data is never touched.
+models. Dev data is never touched. Every session drops and recreates its test database, so set
+`TEST_DB_NAME` to a name of your own whenever anyone else may be running tests on the same server.
+A test tenant needs role rows (`seed_default_roles`), because roles are the only authority.
 
 | Suite | Covers |
 |---|---|
 | `test_static_assets` | Structural check of first-party JavaScript |
-| `test_rbac` | Role matrix, module/dashboard access, tenant isolation, platform PII boundary |
+| `test_rbac` | Starter role matrix, module/dashboard access, tenant isolation, platform PII boundary |
+| `test_roles_are_data` | An edit to any role, starter roles included, is obeyed on the next request; staged elevation; last-administrator guard; platform admin may edit any tenant |
+| `test_screening_permissions` | Sanctions and Lane C are refused without the permission; every Lane C route is guarded |
+| `test_auth_me` | What the console renders from, including custom roles |
 | `test_privacy` | Masking, reveal gating, audit-of-view, graph pseudonym uniqueness |
 | `test_reconciliation` | The 16 invariants under filters — **including proof they fail on corrupted data** |
 | `test_analytics` | Dashboards, registry identity, filters, trend additivity, drill, graph |
@@ -565,8 +629,8 @@ string literal broken across a newline once invalidated the whole `app.js`, so t
 rendered nothing and only the browser noticed; there is a test asserting the checker
 catches that exact defect.
 
-CI (`.github/workflows/ci.yml`) runs the static checks, the suite against a Postgres
-service, and `alembic check` to catch a model edit that shipped without a migration.
+There is no CI workflow in the repository today: run the suite, `tools/jscheck.py`, `tools/htmlcheck.py` and
+`.\migrate.ps1 check` (it catches a model edit that shipped without a migration) before every commit.
 
 Console assets are served `no-cache, must-revalidate` (the vendored chart library stays
 immutable), so a deploy no longer needs a manual hard refresh.
@@ -781,6 +845,9 @@ reason, never the password itself), `branding.update`, `config.create`, `config.
   generate a fresh one and re-seal with `scripts/seal_secrets.py`.
 - Schema is already Alembic-managed (`AUTO_CREATE_TABLES=false`) — see section 6c. Run
   `.\migrate.ps1` as a deploy step, and `.\migrate.ps1 check` in CI.
+- Review each tenant's roles before go-live (Roles page): the starter grants are a starting point, and
+  every cell is the tenant's own data. Every authorising service must reach tenant-service for role lookups
+  (`TENANT_SERVICE_URL`, `INTERNAL_API_KEY`); run it on at least two instances.
 - Provision the per-service database roles (`scripts/provision_db_roles.py`). Running every
   service as one superuser discards the isolation the schema split exists to enforce.
 - Put the gateway behind TLS. Rate limiting is in-process, so with N replicas the effective

@@ -233,10 +233,10 @@ footer { margin-top:64px; padding-top:20px; border-top:1px solid var(--rule); fo
 
   <dl class="control">
     <div><dt>Document</dt><dd>HLD / FRMS-EWS</dd></div>
-    <div><dt>Version</dt><dd>1.8</dd></div>
+    <div><dt>Version</dt><dd>1.9</dd></div>
     <div><dt>Date</dt><dd>2 October 2026</dd></div>
     <div><dt>Stack</dt><dd>Python · FastAPI · PostgreSQL</dd></div>
-    <div><dt>Companion</dt><dd>BRD v1.9</dd></div>
+    <div><dt>Companion</dt><dd>BRD v1.10</dd></div>
   </dl>
 
   <div class="note">
@@ -246,7 +246,7 @@ footer { margin-top:64px; padding-top:20px; border-top:1px solid var(--rule); fo
     have been closed. This revision rewrites <b>identity and access</b> (§13) and
     <b>data protection</b> (§14) from scratch, adds <b>regulatory artefacts</b> (§10),
     <b>backfill, replay and simulation</b> (§8) and a seventh service, and restates the
-    gap register against the R1–R5 release gates in BRD v1.9. Sections whose design has
+    gap register against the R1–R5 release gates in BRD v1.10. Sections whose design has
     not changed are unchanged.</p>
   </div>
 </header>
@@ -468,7 +468,7 @@ flowchart LR
       <thead><tr><th>Service</th><th>Port</th><th>Owns</th><th>Responsibility</th></tr></thead>
       <tbody>
         <tr><td><strong>gateway</strong></td><td class="id">8080</td><td>— (stateless)</td><td>Single edge. Verifies the token, routes to the owning service, applies rate limiting and circuit breaking, serves the console</td></tr>
-        <tr><td><strong>tenant-service</strong></td><td class="id">8081</td><td><code>tenant</code></td><td>Tenant register, users — invite/update/remove now open to a tenant's own <code>can_admin_tenant</code>-capable role (BR-108), not only platform staff — the role catalogue — materialised per tenant at onboarding (BR-113), with create/edit/delete and a maker-checker gate on any privilege-raising change — authentication, MFA enrolment and challenge, sessions, lockout, OIDC and SAML sign-on, machine credentials for bank systems, the platform audit trail (tenant-scoped for the six roles granted it, unscoped for platform staff) with CSV export</td></tr>
+        <tr><td><strong>tenant-service</strong></td><td class="id">8081</td><td><code>tenant</code></td><td>Tenant register, users — invite/update/remove now open to a tenant's own <code>can_admin_tenant</code>-capable role (BR-108), not only platform staff — each tenant's roles and permissions &mdash; its own rows, seeded from starter templates at onboarding and the only authority on what a role may do (BR-113, BR-114), with create/edit/delete, a maker-checker gate on any privilege-raising change and a last-administrator guard, and served to every other service for its authorisation checks &mdash; authentication, MFA enrolment and challenge, sessions, lockout, OIDC and SAML sign-on, machine credentials for bank systems, the platform audit trail (tenant-scoped for the six roles granted it, unscoped for platform staff) with CSV export</td></tr>
         <tr><td><strong>branding-service</strong></td><td class="id">8082</td><td><code>branding</code></td><td>Per-tenant theme, logo, palette, custom domain</td></tr>
         <tr><td><strong>config-service</strong></td><td class="id">8083</td><td><code>config</code></td><td>EWS catalogue, FRM policy, versioning and activation. Publishes cache invalidation</td></tr>
         <tr><td><strong>ingestion-service</strong></td><td class="id">8085</td><td><code>ingestion</code></td><td>Rail adapters, file and ISO 20022 intake, CBS loan-conduct events, validation, deduplication, quarantine, the inbound queue and its claim/ack protocol</td></tr>
@@ -495,34 +495,41 @@ flowchart LR
   </div>
 
   <div class="note">
-    <h5>How a custom role reaches four services with no grant on tenant-service's schema</h5>
-    <p><code>cp_common.dynamic_roles</code> is a shared package module — written once,
-    imported by analytics-service, config-service, decision-service and
-    notification-service — rather than each service growing its own copy of the same
-    fetch-and-cache logic. Every one of the ten fixed roles resolves against the
-    in-process <code>rbac.ROLES</code> dict, unchanged, with zero network calls. Only a
-    role name outside that set triggers a fetch to tenant-service's
-    <code>GET /tenants/internal/{tenant_id}/roles</code>, cached against the "roles"
-    namespace on the same generation-token mechanism (<code>cp_common.cache</code>)
-    config-service already bumps for rule and policy changes — so a role edit is live
-    everywhere the moment tenant-service commits it, not after a TTL. This is a
-    deliberately different trade than decision-service's own <code>catalogue_for()</code>
-    (Lane A, below): that path may never block, so it serves a stale copy while refreshing in the
-    background; this one is not on the payment path and a miss is rare (a custom role
-    at all is rare), so it blocks briefly on a miss instead, trading a bounded, one-time
-    latency for never honouring a revoked grant even momentarily.
-    <code>ingestion-service</code> needed no change — BR-213 machine credentials carry
-    scopes, not human roles, so it has no role check to extend.</p>
-    <p>Three capability flags travel through this path, not two:
-    <code>can_admin_tenant</code>, <code>can_reveal_pii</code>, and — since
-    phase&nbsp;2d — <code>can_activate_config</code>, the risk_manager-equivalent
-    grant BR-715's maker-checker runs on. config-service's
-    <code>maker_checker.ensure_eligible()</code> used to check a hardcoded name tuple
-    (<code>tenant_admin</code>, <code>platform_admin</code>, <code>risk_manager</code>)
-    because there was no flag narrower than <code>can_admin_tenant</code> to check
-    dynamically; now it checks one capability, and the three fixed roles that pass it
-    do so through exactly the same <code>rbac.ROLES</code> data every other check in
-    this section reads, not a second, separately-maintained list.</p>
+    <h5>How every service decides what a role may do: the tenant's own rows, and nothing in code</h5>
+    <p>What a role may do is data. A tenant's roles are rows in <code>tenant.tenant_roles</code>
+    &mdash; modules, dashboards, three capability flags and a list of permissions (the gated
+    actions in <code>cp_common.permissions</code>) &mdash; seeded from the starter templates in
+    <code>cp_common.rbac</code> at onboarding and edited by the tenant's administrators from
+    then on. tenant-service reads them directly. Every other service that authorises a human
+    request &mdash; analytics, config, decision (review), notification and lane-c &mdash; has no
+    grant on that schema (schema-per-service, AD-03), so each asks
+    <code>cp_common.dynamic_roles</code>, a shared module written once, which fetches the
+    tenant's rows over HTTP from <code>GET /tenants/internal/{tenant_id}/roles</code> and caches
+    them against the "roles" generation on the mechanism (<code>cp_common.cache</code>) that
+    config-service already bumps for rule and policy changes. A role edit is therefore live in
+    every service on the next request, not after a TTL. There is no in-process catalogue to
+    answer from, no list of role names in any endpoint and no implicit administrator override;
+    <code>has_permission(tenant, role, permission)</code> is the single question an endpoint asks.</p>
+    <p>Failure behaviour is fail-closed by design. A role name that is not one of the tenant's
+    rows can do nothing. If tenant-service cannot be reached, a service keeps serving the last
+    copy it cached and retries; one that has never cached the tenant's roles refuses the
+    request. A failed fetch is never stored as "this tenant has no roles", which would turn one
+    network blip into a lasting lock-out. This is a deliberately different trade from
+    decision-service's own <code>catalogue_for()</code> (Lane A, below), which may never block
+    and so serves a stale copy while refreshing: authorisation is not on the payment path, and
+    refusing for a moment is better than honouring a grant an administrator has just withdrawn.
+    The cost is that tenant-service is on the authorisation path of every service, which is why
+    deployment runs it on two app VMs behind the internal listener and monitors its readiness.
+    <code>ingestion-service</code> has no human role checks (BR-213 machine credentials carry
+    scopes), and the <code>/decide</code> path does not consult roles at all.</p>
+    <p>Guard-rails that remain are in tenant-service's write path, not in the services that
+    read: unknown permissions, the platform-only module and Tenant Health are refused;
+    raising a capability flag or adding a permission is staged for a second person
+    (<code>pending_change</code>) while lowering applies at once; an edit or delete that would
+    leave a tenant with no working administrator, or delete a role someone holds, is refused;
+    every change writes a before/after snapshot to the audit trail. The one role outside the
+    table is the platform operator (<code>platform_admin</code>), recognised by name because it
+    is not a bank's role.</p>
   </div>
 
   <div class="note">
@@ -1878,6 +1885,7 @@ Content-Type: application/json
         <tr><td class="id">AD-13</td><td>Charting and diagram bundles vendored and digest-pinned</td><td>Air-gapped deployment, and 3.3 MB of third-party JavaScript is inlined into documents that go to a regulator. A substituted bundle stops the build</td><td>Never, unless all deployments gain outbound internet</td></tr>
         <tr><td class="id">AD-14</td><td>AI/ML roadmap Phase 2 model scoring runs in-process inside the existing detection worker, not a new service; CPU-only gradient-boosted trees or an isolation forest, not deep learning</td><td>Reuses AD-01's Python/FastAPI stack and AD-09's "one implementation, not two" reasoning: scoring needs the same account context and feature computation the rules engine already builds per batch (§6). A network hop to a separate scoring service, or a second feature pipeline, buys nothing yet. Tabular velocity/anomaly detection is squarely gradient-boosted-trees' and isolation-forest's use case; no GPU, no separate model-serving stack (TorchServe, Triton) needed at this scale</td><td>The batch worker's latency budget stops holding at contracted volume (revisit alongside BR-909's load-test evidence), or Phase 3's GNN work needs heavier compute (embeddings, matrix ops) that does not fit the same process &mdash; that decision is Phase 3's to make, not retroactively Phase 2's</td></tr>
         <tr><td class="id">AD-15</td><td>AI/ML roadmap Phase 3's GNN runs as a periodic scheduled script (<code>scripts/refresh_ring_scores.py</code>, the same shape as <code>run_subscriptions.py</code>/<code>run_retention.py</code>), writing <code>analytics.account_ring_score</code>, which the detection worker only reads &mdash; never a live forward pass in the payment path. PyTorch + PyTorch Geometric (CPU-only), recorded separately from AD-14</td><td>A GraphSAGE pass over a whole tenant graph does not fit AD-14's per-transaction placement without making every batch as slow as a retrain (AD-06's batch-not-stream reasoning, applied one level up). PyTorch Geometric is still a materially heavier dependency than AD-14's scikit-learn (torch's CPU wheel alone is ~125MB), recorded on its own so a future audit of "why does this deployment carry PyTorch" doesn't have to reverse-engineer it from AD-14's unrelated reasoning. <b>The compiled-extension risk this decision flagged did not materialise</b>: PyG 2.8's pure-PyTorch message-passing fallback covers <code>SAGEConv</code> without <code>torch-scatter</code>/<code>torch-sparse</code> at all - both install and a working forward pass were verified on this deployment's own target platform (Windows, CPU) before this phase was built, not assumed</td><td>Refresh cadence or embedding cost make the scheduled-script placement itself wrong (a managed feature-store or streaming graph library becomes justified), or a lighter graph-feature approach (handcrafted centrality/clustering measures scored by AD-14's existing pipeline, no PyTorch at all) turns out to catch the same rings without the dependency weight - this was considered and not chosen, on the reasoning that "GNN-based fraud-ring detection" is what the BRD names, and handcrafted centrality features scored by a tree model is a different, smaller claim than that</td></tr>
+        <tr><td class="id">AD-16</td><td>Roles are data: authorisation reads only the tenant's own role rows, with permissions per action; nothing is decided by role name in code</td><td>A bank must be able to give, narrow or remove what a role may do without a release, and an inspection asks who could do what and when. A catalogue in code answers neither. Cost: tenant-service is on every service's authorisation path, accepted and mitigated by caching against a shared generation, fail-closed on a cold miss, and two instances. The platform operator stays the one name recognised in code</td></tr>
       </tbody>
     </table>
   </div>
@@ -1886,7 +1894,7 @@ Content-Type: application/json
 <section id="h15">
   <h2>Known gaps</h2>
   <p class="lede">Architectural debt stated plainly, with the consequence of leaving it.
-  Gates refer to the release plan in BRD v1.9 §17.</p>
+  Gates refer to the release plan in BRD v1.10 §17.</p>
 
   <h4>Closed since v1.0</h4>
   <div class="tw">
@@ -2114,7 +2122,7 @@ Content-Type: application/json
   demonstration data held side by side. Where this document says a control is enforced,
   the enforcement has been checked by reintroducing the fault and confirming the test
   fails — a guard that has never been seen to refuse anything is an assumption.</p>
-  <p>Read with BRD v1.9, which carries the numbered requirements, the release gates and
+  <p>Read with BRD v1.10, which carries the numbered requirements, the release gates and
   the regulatory traceability this design serves.</p>
 </footer>
 

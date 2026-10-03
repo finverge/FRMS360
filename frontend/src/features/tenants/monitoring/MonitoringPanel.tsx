@@ -1,5 +1,8 @@
 import { useState } from "react"
 
+import { useSession } from "@/app/SessionContext"
+import { RENDERED_DASHBOARDS } from "./catalogue"
+
 import { Account360Dashboard } from "./Account360Dashboard"
 import { AmlDashboard } from "./AmlDashboard"
 import { AnalystDashboard } from "./AnalystDashboard"
@@ -13,36 +16,27 @@ import { RealtimeDashboard } from "./RealtimeDashboard"
 import { RfaDashboard } from "./RfaDashboard"
 import { SupervisorDashboard } from "./SupervisorDashboard"
 
-// Ordered by the spec's delivery priority (P1, then P2, then P3) - same order as
-// cp_common.rbac.DASHBOARDS minus tenant_health, which is platform-operations
-// telemetry, not a bank's own view. All twelve are now migrated.
-const DASHBOARDS = [
-  { key: "analyst", label: "Analyst", persona: "L1 Fraud Analyst" },
-  { key: "ews", label: "EWS Signals", persona: "Fraud Risk Manager / Analyst" },
-  { key: "rfa", label: "RFA Lifecycle", persona: "Investigator / Compliance" },
-  { key: "board", label: "Board", persona: "CRO / ACB / Special Committee" },
-  { key: "supervisor", label: "Compliance", persona: "Compliance Supervisor" },
-  { key: "realtime", label: "Real-Time", persona: "Operations" },
-  { key: "aml", label: "AML / STR", persona: "Principal Officer (PMLA)" },
-  { key: "account360", label: "Account 360", persona: "Investigator" },
-  { key: "investigator", label: "Investigator", persona: "L2 Senior Investigator" },
-  { key: "model", label: "Model Risk", persona: "Model Risk / Data Science" },
-  { key: "risk_manager", label: "Operations", persona: "Fraud Risk Manager" },
-  { key: "inspection", label: "Inspection", persona: "Internal Audit / RBI Inspection" },
-]
+export function MonitoringPanel({ tenantId, initialDashboard }: { tenantId: string; initialDashboard?: string | null }) {
+  // The tabs are this role's own dashboards, in the server's order (primary first), not a fixed
+  // list of twelve: the server refuses the rest anyway, and showing them is a menu of 403s.
+  const { me } = useSession()
+  const dashboards = me.dashboards.filter((d) => RENDERED_DASHBOARDS.has(d.key))
+  const [chosen, setChosen] = useState(initialDashboard ?? null)
+  const active = dashboards.some((d) => d.key === chosen) ? chosen! : dashboards[0]?.key
+  const current = dashboards.find((d) => d.key === active)
 
-export function MonitoringPanel({ tenantId }: { tenantId: string }) {
-  const [active, setActive] = useState("analyst")
-  const current = DASHBOARDS.find((d) => d.key === active)!
+  if (!current) {
+    return <p className="text-sm text-muted-foreground">No dashboards are enabled for your role.</p>
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-1 rounded-lg border border-border bg-muted p-1">
-        {DASHBOARDS.map((d) => (
+        {dashboards.map((d) => (
           <button
             key={d.key}
             type="button"
-            onClick={() => setActive(d.key)}
+            onClick={() => setChosen(d.key)}
             className={
               "rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors " +
               (active === d.key
@@ -55,6 +49,7 @@ export function MonitoringPanel({ tenantId }: { tenantId: string }) {
         ))}
       </div>
       <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{current.persona}</p>
+      <p className="text-sm text-muted-foreground">{current.question}</p>
 
       {active === "analyst" && <AnalystDashboard tenantId={tenantId} />}
       {active === "ews" && <EwsDashboard tenantId={tenantId} />}

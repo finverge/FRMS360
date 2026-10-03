@@ -7,15 +7,16 @@ from sqlalchemy.orm import Session
 from cp_common import (
     AppError, Principal, get_current_principal, get_session, resolve_tenant_scope,
 )
-from cp_common.dynamic_roles import get_role
+from cp_common.dynamic_roles import has_permission
 
 from .. import usage_service
 from ..usage_model import METERS
 
 router = APIRouter(prefix="/analytics", tags=["usage"])
 
-#: Usage is commercial data. A tenant may see its own; platform staff see any.
-VIEW_ROLES = ("tenant_admin", "cro", "board")
+# Usage is commercial data: a tenant sees its own when a role of its holds "usage.view";
+# platform staff see any.
+PERMISSION = "usage.view"
 
 
 @router.get("/{tenant_id}/usage")
@@ -32,7 +33,7 @@ def usage(
     customer asks when they query a line.
     """
     resolve_tenant_scope(principal, tenant_id)
-    if not (principal.role in VIEW_ROLES or get_role(tenant_id, principal.role).can_admin_tenant):
+    if not has_permission(tenant_id, principal.role, PERMISSION):
         raise AppError("Your role may not view billing usage", 403,
                        "role_not_permitted")
     today = datetime.now(timezone.utc).date()

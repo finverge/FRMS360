@@ -1,9 +1,10 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Trash2 } from "lucide-react"
 
 import { useSession } from "@/app/SessionContext"
 import { ApiError } from "@/api/client"
 import { createProvider, updateProvider, type IdpOut } from "@/api/identityProviders"
+import { listRoles, type RoleOut } from "@/api/tenants"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,7 +17,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ASSIGNABLE_ROLE_OPTIONS } from "../roles/roleCatalogue"
 
 export function IdpForm({
   tenantId,
@@ -33,6 +33,11 @@ export function IdpForm({
 }) {
   const { accessToken } = useSession()
   const isEdit = !!provider
+  // The roles this tenant actually has (they are its own data), not a list baked into the console.
+  const [roleOptions, setRoleOptions] = useState<RoleOut[]>([])
+  useEffect(() => {
+    listRoles(tenantId, accessToken).then(setRoleOptions).catch(() => setRoleOptions([]))
+  }, [tenantId, accessToken])
 
   const [slug, setSlug] = useState(provider?.slug ?? "")
   const [displayName, setDisplayName] = useState(provider?.display_name ?? "")
@@ -241,8 +246,8 @@ export function IdpForm({
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {ASSIGNABLE_ROLE_OPTIONS.map((r) => (
-                      <SelectItem key={r.key} value={r.key}>{r.label}</SelectItem>
+                    {roleOptions.map((r) => (
+                      <SelectItem key={r.name} value={r.name}>{r.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -259,8 +264,8 @@ export function IdpForm({
               <Select value={defaultRole} onValueChange={setDefaultRole}>
                 <SelectTrigger id="idp-default-role"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {ASSIGNABLE_ROLE_OPTIONS.map((r) => (
-                    <SelectItem key={r.key} value={r.key}>{r.label}</SelectItem>
+                  {roleOptions.map((r) => (
+                    <SelectItem key={r.name} value={r.name}>{r.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

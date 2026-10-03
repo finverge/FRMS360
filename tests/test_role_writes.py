@@ -92,13 +92,23 @@ def test_the_created_role_appears_in_the_catalogue(tenant_client, role_tenant):
     assert names == set(ASSIGNABLE_TENANT_ROLES) | {"regional_fraud_lead"}
 
 
-@pytest.mark.parametrize("reserved", ["tenant_admin", "analyst", "platform_admin"])
-def test_a_reserved_name_cannot_be_reused(tenant_client, role_tenant, reserved):
+def test_the_platform_operators_name_is_reserved(tenant_client, role_tenant):
     h = _admin_headers(tenant_client, role_tenant)
     r = tenant_client.post(f"/tenants/{role_tenant}/roles", headers=h,
-                           json={**GOOD, "name": reserved})
+                           json={**GOOD, "name": "platform_admin"})
     assert r.status_code == 422, r.text
     assert r.json()["error"]["code"] == "reserved_name"
+
+
+@pytest.mark.parametrize("existing", ["tenant_admin", "analyst"])
+def test_a_starter_name_is_an_ordinary_name_taken_while_its_row_exists(
+        tenant_client, role_tenant, existing):
+    """The ten starter names are not special any more; they are simply in use."""
+    h = _admin_headers(tenant_client, role_tenant)
+    r = tenant_client.post(f"/tenants/{role_tenant}/roles", headers=h,
+                           json={**GOOD, "name": existing})
+    assert r.status_code == 422, r.text
+    assert r.json()["error"]["code"] == "name_exists"
 
 
 def test_a_duplicate_custom_name_is_refused(tenant_client, role_tenant):
@@ -365,28 +375,31 @@ def test_a_custom_role_with_no_members_can_be_deleted(tenant_client, role_tenant
     assert "regional_fraud_lead" not in names
 
 
-def test_a_fixed_role_cannot_be_deleted(tenant_client, role_tenant):
+def test_a_starter_role_nobody_holds_can_be_deleted_like_any_other(tenant_client, role_tenant):
     h = _admin_headers(tenant_client, role_tenant)
     r = tenant_client.delete(f"/tenants/{role_tenant}/roles/analyst", headers=h)
-    assert r.status_code == 409, r.text
-    assert r.json()["error"]["code"] == "fixed_role"
+    assert r.status_code == 204, r.text
+    names = {row["name"] for row in
+             tenant_client.get(f"/tenants/{role_tenant}/roles", headers=h).json()}
+    assert "analyst" not in names
 
 
 def test_a_refused_delete_is_audited_too_not_only_a_successful_one(
         tenant_client, role_tenant):
-    """A refusal is itself a security-relevant event - someone attempted to delete a
-    fixed role - and must leave the same kind of trail a successful change does."""
+    """A refusal is itself a security-relevant event and must leave the same trail a
+    successful change does. Here: the only administrator role, still held by two people."""
     from cp_common import SessionLocal
     from cp_common.audit import AuditLog
     h = _admin_headers(tenant_client, role_tenant)
-    tenant_client.delete(f"/tenants/{role_tenant}/roles/analyst", headers=h)
+    r = tenant_client.delete(f"/tenants/{role_tenant}/roles/tenant_admin", headers=h)
+    assert r.status_code == 409, r.text
     db = SessionLocal()
     try:
         row = db.scalar(select(AuditLog).where(
             AuditLog.tenant_id == role_tenant, AuditLog.action == "role.delete",
-            AuditLog.target_id == "analyst", AuditLog.status == "failure"))
+            AuditLog.target_id == "tenant_admin", AuditLog.status == "failure"))
         assert row is not None
-        assert row.detail["error"] == "fixed_role"
+        assert row.detail["error"] == "role_in_use"
     finally:
         db.close()
 

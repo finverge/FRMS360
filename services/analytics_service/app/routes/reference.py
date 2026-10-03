@@ -12,16 +12,16 @@ from cp_common import (
     AppError, Principal, get_current_principal, get_session, record_audit,
     resolve_tenant_scope,
 )
-from cp_common.dynamic_roles import get_role
+from cp_common.dynamic_roles import has_permission
 
 from ..detection.reference import availability, normalise
 from ..reference_model import LIST_KINDS, ReferenceEntry, ReferenceList
 
 router = APIRouter(prefix="/analytics", tags=["reference-data"])
 
-#: Loading a screening list changes what the whole tenant detects. It is a control-change,
-#: not casework.
-LOAD_ROLES = ("risk_manager", "principal_officer", "tenant_admin", "compliance_officer")
+# Who may do this is data: the tenant's own role rows grant "reference.load"
+# (cp_common.permissions); nothing here names a role.
+PERMISSION = "reference.load"
 
 #: A guard, not a limit anyone should hit in one request. Real sanctions files arrive by
 #: file intake; this endpoint is for a control-plane push and for the console.
@@ -45,7 +45,7 @@ class LoadIn(BaseModel):
 
 
 def _may(tenant_id: str, principal: Principal) -> bool:
-    return principal.role in LOAD_ROLES or get_role(tenant_id, principal.role).can_admin_tenant
+    return has_permission(tenant_id, principal.role, PERMISSION)
 
 
 @router.get("/{tenant_id}/reference")

@@ -52,6 +52,8 @@ SAFE_EXPRESSIONS: dict[str, str] = {
     # Platform-controlled vocabularies. These come from constants in this file or from
     # closed sets the server defines, never from a text box.
     "kind": "closed set of notification/return kinds",
+    "polishBtn": "a button assembled in filingCard() from literal markup and `kind`, which "
+                 "its only callers pass as the literals \"fmr\" and \"str\"; no typed text",
     "cls": "a CSS class chosen by this file",
     "state": "closed set of lifecycle states",
     "badge": "a CSS class chosen by this file",

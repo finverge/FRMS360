@@ -31,10 +31,10 @@ from cp_common.oidc import (
     new_pkce, validate_id_token,
 )
 from cp_common import saml
-from cp_common.rbac import ASSIGNABLE_TENANT_ROLES, can_admin_tenant
 
 from sqlalchemy.exc import IntegrityError
 
+from .. import roles as roles_mod
 from ..idp_models import IdentityProvider, SamlAssertionSeen, SsoLoginState
 from ..models import Tenant, TenantUser
 from ..schemas import IdpCreate, IdpUpdate
@@ -213,7 +213,7 @@ def callback(request: Request, code: str = Query(default=""),
     role, how = map_role(claims.groups, idp.role_mapping, idp.default_role)
     # A mapping that names a role this platform does not hand to tenants - or names
     # platform staff - is a configuration error, not an instruction.
-    if role not in ASSIGNABLE_TENANT_ROLES:
+    if role not in roles_mod.assignable_names(db, tenant.id):
         record_audit(
             service="tenant-service", action="auth.sso_failed", actor=claims.email,
             tenant_id=tenant.id, status="failure",
@@ -294,18 +294,18 @@ def _complete_sso(db: Session, request: Request, tenant, idp, *, email: str, rol
 # Federation is a tenant-level concern (see the module docstring), so a bank's own
 # tenant_admin manages it, not only platform staff - resolve_tenant_scope keeps a
 # tenant_admin pinned to their own tenant, can_admin_tenant keeps everyone else out.
-def _require_tenant_admin(principal: Principal, tenant_id: str) -> None:
+def _require_tenant_admin(principal: Principal, tenant_id: str, db: Session) -> None:
     resolve_tenant_scope(principal, tenant_id)
-    if not can_admin_tenant(principal.role):
+    if not roles_mod.capability(db, tenant_id, principal.role, "can_admin_tenant"):
         raise AppError("Your role may not manage identity providers", 403,
                        "role_not_permitted")
 
 
-def _validate_role_fields(default_role: str, role_mapping: dict) -> None:
+def _validate_role_fields(db: Session, tenant_id: str, default_role: str, role_mapping: dict) -> None:
     """A directory group must never resolve to a role the tenant could not itself
     assign - see idp_models's "can never produce platform staff" guarantee."""
     bad = {r for r in [default_role, *role_mapping.values()]
-           if r not in ASSIGNABLE_TENANT_ROLES}
+           if r not in roles_mod.assignable_names(db, tenant_id)}
     if bad:
         raise AppError(
             f"Not a role a tenant may assign: {', '.join(sorted(bad))}", 400,
@@ -354,9 +354,9 @@ def create_provider(
     db: Session = Depends(get_session),
     principal: Principal = Depends(get_current_principal),
 ) -> dict:
-    _require_tenant_admin(principal, tenant_id)
+    _require_tenant_admin(principal, tenant_id, db)
     slug = validate_slug(payload.slug, what="provider slug")
-    _validate_role_fields(payload.default_role, payload.role_mapping)
+    _validate_role_fields(db, tenant_id, payload.default_role, payload.role_mapping)
 
     if db.scalar(select(IdentityProvider).where(
             IdentityProvider.tenant_id == tenant_id, IdentityProvider.slug == slug)):
@@ -401,13 +401,13 @@ def update_provider(
     db: Session = Depends(get_session),
     principal: Principal = Depends(get_current_principal),
 ) -> dict:
-    _require_tenant_admin(principal, tenant_id)
+    _require_tenant_admin(principal, tenant_id, db)
     row = _get_provider_or_404(db, tenant_id, provider_id)
 
     fields = payload.model_dump(exclude_unset=True)
     if "slug" in fields:
         fields["slug"] = validate_slug(fields["slug"], what="provider slug")
-    _validate_role_fields(fields.get("default_role", row.default_role),
+    _validate_role_fields(db, tenant_id, fields.get("default_role", row.default_role),
                           fields.get("role_mapping", row.role_mapping))
 
     # An empty client_secret / saml_certificate means "leave it as it is": the field
@@ -442,7 +442,7 @@ def delete_provider(
     db: Session = Depends(get_session),
     principal: Principal = Depends(get_current_principal),
 ) -> None:
-    _require_tenant_admin(principal, tenant_id)
+    _require_tenant_admin(principal, tenant_id, db)
     row = _get_provider_or_404(db, tenant_id, provider_id)
     slug = row.slug
     db.delete(row)
@@ -579,7 +579,7 @@ def saml_acs(request: Request,
 
     role = saml.map_role(identity, groups_attribute=idp.saml_groups_attribute,
                          role_mapping=idp.role_mapping, default_role=idp.default_role)
-    if role not in ASSIGNABLE_TENANT_ROLES:
+    if role not in roles_mod.assignable_names(db, tenant.id):
         record_audit(
             service="tenant-service", action="auth.sso_failed", actor=email,
             tenant_id=tenant.id, status="failure",

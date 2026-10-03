@@ -1,37 +1,27 @@
-"""cp_common.rbac, extended to also recognise a tenant's own BR-113 custom roles.
+"""What a role may do, as every service outside tenant-service decides it: from the database.
 
-Every one of the ten fixed roles resolves with **zero network calls**, through the
-exact same in-process ``rbac.ROLES`` lookup every service has always used — this
-changes nothing for them, and nothing for a tenant that has never created a custom
-role. Only a role name that is *not* one of the ten triggers a fetch.
+A tenant's roles are rows in ``tenant.tenant_roles``, written by its administrators. This
+module fetches them over HTTP from tenant-service (the only service with a grant on that
+schema; schema-per-service, HLD AD-03), caches them against the shared "roles" generation,
+and answers every authorisation question from them. There is no in-code catalogue to fall
+back on and no list of role names anywhere: a role name that is not a row for this tenant
+can do nothing, and a tenant whose roles cannot be fetched (and were never cached) is refused
+rather than guessed at. Reducing a role in the console is therefore effective on the very next
+request, with no deploy.
 
-That fetch has to happen over HTTP: the five services this module exists for have no
-database grant on the ``tenant`` schema (schema-per-service, HLD AD-03), so none of
-them can query ``tenant_roles`` directly — only tenant-service, which owns it, can.
-The result is cached against the shared "roles" generation (the same
-``VersionedCache`` mechanism config-service's rule/policy changes already use),
-invalidated the instant tenant-service bumps it on a role create/update/confirm/delete.
+The one exception is the platform operator (``PLATFORM_OPERATOR``): Finverge staff who work
+across tenants and are not part of any bank's catalogue. They are recognised by that single
+name, and cannot be created, edited or removed by a tenant.
 
-Unlike decision_service's ``catalogue_for()`` this is allowed to **block briefly on a
-cache miss** rather than serve stale-and-refresh-in-background. Two things make that
-the right trade here rather than the weaker choice: this is not the payment-critical
-path any of these five services sit on, and a miss only happens for the rare tenant
-that has actually created a custom role — for everyone else this function never
-reaches the network at all. A blocked authorisation check that resolves in under a
-second is preferable to briefly honouring a stale grant.
+Capabilities a role can hold, all stored on its row:
 
-Scope: this covers five generic capability primitives — module access, dashboard
-access, ``can_admin_tenant``, ``can_reveal_pii``, ``can_activate_config`` — the
-complete set BR-113's write path lets a tenant set on a role. config_service's
-``maker_checker.ensure_eligible()`` is built on the last of these, so a custom role
-granted ``can_activate_config`` (a "risk_manager-equivalent" grant, without needing
-full tenant admin) may propose or confirm a configuration activation the same as the
-three fixed roles that always could. A smaller number of call sites still gate a
-specific action behind a *named list* of fixed roles for reasons narrower than any of
-these five flags (analytics_service's ``FILING_ROLES``/``CTR_ROLES``/etc., which mix
-in roles like ``principal_officer`` that this platform has no flag for at all) —
-extending those needs capability flags this platform does not have yet, which is real,
-separately-scoped work, not attempted here.
+* modules and dashboards it may open;
+* ``can_admin_tenant``, ``can_reveal_pii``, ``can_activate_config``;
+* ``permissions`` - the gated actions it may perform (``cp_common.permissions``).
+
+Unlike a payment-path lookup this is allowed to **block briefly on a cache miss** rather than
+serve stale-and-refresh-in-background: a blocked authorisation check that resolves in under a
+second is preferable to briefly honouring a grant an administrator has just withdrawn.
 """
 from __future__ import annotations
 
@@ -42,7 +32,11 @@ import httpx
 
 from . import rbac
 from .cache import VersionedCache, build_backend
+from .permissions import ALL_PERMISSIONS
 from .settings import settings
+
+#: Finverge operating staff. Not a tenant role; see the module docstring.
+PLATFORM_OPERATOR = "platform_admin"
 
 log = logging.getLogger("cp_common.dynamic_roles")
 
@@ -92,20 +86,34 @@ def invalidate() -> None:
 
 
 def _custom_catalogue(tenant_id: str) -> dict:
-    """This tenant's own custom-role rows, fetching (and caching) on a miss."""
+    """This tenant's role rows, fetching (and caching) when stale.
+
+    A failed fetch is never recorded as "this tenant has no roles": that would turn one
+    network blip into a lasting lock-out. With a previous copy it keeps serving that copy
+    and retries on the next call; with none it returns nothing for this call only, which
+    every caller treats as no access (fail closed), and retries on the next.
+    """
     cache = _role_cache()
-    gen = cache.current_generation() if cache else 0
+    if cache is None:
+        try:
+            return _fetch(tenant_id)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("could not fetch roles for tenant %s: %s", tenant_id, str(exc)[:160])
+            return {}
+    gen = cache.current_generation()
     with _LOCK:
-        stale = cache is not None and _GENERATIONS.get(tenant_id) != gen
-        have_none_yet = tenant_id not in _ROLES
-    if cache is not None and (stale or have_none_yet):
+        stale = _GENERATIONS.get(tenant_id) != gen or tenant_id not in _ROLES
+    if stale:
         try:
             roles = _fetch(tenant_id)
         except Exception as exc:  # noqa: BLE001
-            log.warning("could not fetch dynamic roles for tenant %s: %s — falling "
-                       "back to whatever was last cached (%d role(s))",
-                       tenant_id, str(exc)[:160], len(_ROLES.get(tenant_id, {})))
-            roles = _ROLES.get(tenant_id, {})
+            with _LOCK:
+                last = _ROLES.get(tenant_id)
+            log.warning("could not fetch roles for tenant %s: %s - %s", tenant_id,
+                        str(exc)[:160],
+                        f"serving the last copy ({len(last)} role(s))" if last is not None
+                        else "no copy to fall back on, refusing")
+            return last if last is not None else {}
         with _LOCK:
             _ROLES[tenant_id] = roles
             _GENERATIONS[tenant_id] = gen
@@ -113,33 +121,54 @@ def _custom_catalogue(tenant_id: str) -> dict:
         return _ROLES.get(tenant_id, {})
 
 
-def role_for(tenant_id: str, name: str) -> rbac.Role | None:
-    """The fixed catalogue first — zero network, byte-identical to plain
-    ``rbac.get_role`` for any of the ten. Only a name outside that set reaches this
-    tenant's own custom-role catalogue. Returns ``None`` for a name that is neither a
-    fixed role nor a custom row this tenant actually has — every function below treats
-    that as "no access", the same as an unrecognised name always meant."""
-    fixed = rbac.ROLES.get(name)
-    if fixed is not None:
-        return fixed
-    custom = _custom_catalogue(tenant_id).get(name)
-    if custom is None:
-        return None
+def platform_operator() -> rbac.Role:
+    return rbac.Role(PLATFORM_OPERATOR, "Platform Administrator", tuple(rbac.ALL_MODULES),
+                     tuple(rbac.DASHBOARDS), tenant_scoped=False, can_admin_tenant=True,
+                     can_reveal_pii=False, can_activate_config=True,
+                     permissions=ALL_PERMISSIONS)
+
+
+def _row_to_role(name: str, row: dict) -> rbac.Role:
     return rbac.Role(
-        name=name, label=custom.get("label", name),
-        modules=tuple(custom.get("modules", ())),
-        dashboards=tuple(custom.get("dashboards", ())),
+        name=name, label=row.get("label", name),
+        modules=tuple(row.get("modules", ())), dashboards=tuple(row.get("dashboards", ())),
         tenant_scoped=True,
-        can_admin_tenant=bool(custom.get("can_admin_tenant")),
-        can_reveal_pii=bool(custom.get("can_reveal_pii")),
-        can_activate_config=bool(custom.get("can_activate_config")))
+        can_admin_tenant=bool(row.get("can_admin_tenant")),
+        can_reveal_pii=bool(row.get("can_reveal_pii")),
+        can_activate_config=bool(row.get("can_activate_config")),
+        permissions=tuple(row.get("permissions", ())),
+        description=row.get("description", "") or "")
 
 
-def get_role(tenant_id: str, role_name: str) -> rbac.Role:
-    """Tenant-aware ``rbac.get_role``. Falls back to ``analyst`` for a name that
-    resolves to nothing at all, matching ``rbac.get_role``'s own fallback — existing
-    callers that never handled a ``None`` keep exactly that contract."""
-    return role_for(tenant_id, role_name) or rbac.ROLES["analyst"]
+def role_for(tenant_id: str | None, name: str) -> rbac.Role | None:
+    """This tenant's role of that name, or ``None`` when it has no such role.
+
+    ``None`` is "no access" for every function below - an unknown name, a role an
+    administrator deleted, and a tenant whose roles could not be read all look the same.
+    """
+    if name == PLATFORM_OPERATOR:
+        return platform_operator()
+    if not tenant_id:
+        return None
+    row = _custom_catalogue(tenant_id).get(name)
+    return _row_to_role(name, row) if row is not None else None
+
+
+def catalogue(tenant_id: str) -> dict[str, rbac.Role]:
+    """Every role this tenant has, by name."""
+    return {n: _row_to_role(n, r) for n, r in _custom_catalogue(tenant_id).items()}
+
+
+def get_role(tenant_id: str | None, role_name: str) -> rbac.Role:
+    """The role, or an empty one that can do nothing - never a default with privileges."""
+    return role_for(tenant_id, role_name) or rbac.Role(
+        role_name, role_name, (), (), tenant_scoped=True, can_admin_tenant=False)
+
+
+def has_permission(tenant_id: str | None, role_name: str, permission: str) -> bool:
+    """Whether this tenant's role of that name may perform the gated action."""
+    role = role_for(tenant_id, role_name)
+    return bool(role and permission in role.permissions)
 
 
 def can_access_module(tenant_id: str, role_name: str, module: str) -> bool:
